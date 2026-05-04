@@ -9,7 +9,6 @@ import { LogOut } from "lucide-react";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  ScrollText,
   Users,
   ArrowLeftRight,
   ShieldCheck,
@@ -50,13 +49,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
       {/* Sidebar */}
       <aside className="flex w-56 flex-col bg-zinc-900 px-3 py-6">
-        <div className="mb-8 flex items-center gap-2 px-3">
-          <Image src="/orangerobot.png" alt="Guardian" width={20} height={20} className="shrink-0" />
-          <span className="text-sm font-semibold text-white">Guardian Dashboard</span>
+        <div className="mb-8 px-3 flex flex-col items-center">
+          <div className="flex items-center gap-2">
+            <Image src="/orangerobot.png" alt="Guardian" width={20} height={20} className="shrink-0" />
+            <span className="text-sm font-semibold text-white">Guardian Dashboard</span>
+          </div>
+          <span className="mt-1.5 inline-block rounded border border-zinc-700 px-2 py-0.5 text-xs text-zinc-500">
+            Read-only MVP
+          </span>
         </div>
         <nav className="flex flex-col gap-1 flex-1">
           <NavItem href="/overview" label="Overview" icon={<LayoutDashboard className="h-4 w-4" />} />
-          <NavItem href="/logs" label="Logs" icon={<ScrollText className="h-4 w-4" />} />
           <NavItem href="/accounts" label="Accounts" icon={<Users className="h-4 w-4" />} />
           <NavItem href="/transactions" label="Transactions" icon={<ArrowLeftRight className="h-4 w-4" />} />
           <NavItem href="/compliance" label="Compliance" icon={<ShieldCheck className="h-4 w-4" />} />

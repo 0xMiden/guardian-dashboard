@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist_Mono, Hedvig_Letters_Serif, Bitter } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { AppShell } from "@/components/layout/AppShell";
+import { PostHogPageView } from "@/components/analytics/PostHogPageView";
+import { Suspense } from "react";
 import "./globals.css";
 
 const geistMono = Geist_Mono({
@@ -36,6 +38,9 @@ export default function RootLayout({
     <html lang="en" className={`${geistMono.variable} ${hedvig.variable} ${bitter.variable} h-full antialiased dark`}>
       <body className="h-full">
         <ClerkProvider>
+          <Suspense fallback={null}>
+            <PostHogPageView />
+          </Suspense>
           <AppShell>{children}</AppShell>
         </ClerkProvider>
       </body>

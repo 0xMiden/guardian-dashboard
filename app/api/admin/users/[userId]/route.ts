@@ -1,5 +1,6 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,15 @@ export async function PATCH(
 
   await client.users.updateUser(userId, {
     publicMetadata: { endpointIds: endpointIds ?? [], role: role ?? "viewer" },
+  });
+  getPostHogClient().capture({
+    distinctId: callerId,
+    event: "user_access_updated",
+    properties: {
+      target_user_id: userId,
+      role: role ?? "viewer",
+      endpoint_count: (endpointIds ?? []).length,
+    },
   });
   return NextResponse.json({ ok: true });
 }

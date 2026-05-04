@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
 import Image from "next/image";
+import posthog from "posthog-js";
 
 interface EndpointMeta {
   id: string;
@@ -42,6 +43,7 @@ export default function SelectEndpointPage() {
     if (res.ok) {
       router.push("/overview");
     } else {
+      posthog.capture("endpoint_connection_failed", { endpoint_id: selected });
       setError("Failed to connect. Please try again.");
     }
   }

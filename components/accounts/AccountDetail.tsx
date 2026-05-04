@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ComingSoonModal } from "@/components/ui/ComingSoon";
 import { ArrowLeft, Snowflake, ArrowLeftRight } from "lucide-react";
 import type { DashboardAccountDetail } from "@openzeppelin/guardian-operator-client";
+import posthog from "posthog-js";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -57,14 +58,20 @@ export function AccountDetail({ accountId }: Props) {
         </button>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setComingSoon("transactions")}
+            onClick={() => {
+              posthog.capture("account_transactions_clicked", { account_id: accountId });
+              setComingSoon("transactions");
+            }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-zinc-700 text-muted-foreground hover:text-foreground hover:border-zinc-500 transition-colors"
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
             See Transactions
           </button>
           <button
-            onClick={() => setComingSoon("freeze")}
+            onClick={() => {
+              posthog.capture("account_freeze_clicked", { account_id: accountId });
+              setComingSoon("freeze");
+            }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-zinc-700 text-muted-foreground hover:text-foreground hover:border-zinc-500 transition-colors"
           >
             <Snowflake className="h-3.5 w-3.5" />

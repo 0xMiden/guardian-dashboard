@@ -1,6 +1,7 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { getEndpoint, getPublicEndpoints } from "@/lib/endpoints";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,11 @@ export async function POST(req: Request) {
   if (!allowedIds.includes(endpointId) || !getEndpoint(endpointId)) {
     return NextResponse.json({ error: "Not authorized for this endpoint" }, { status: 403 });
   }
+  getPostHogClient().capture({
+    distinctId: userId,
+    event: "endpoint_selected",
+    properties: { endpoint_id: endpointId },
+  });
   const res = NextResponse.json({ ok: true });
   res.cookies.set("cockpit-endpoint", endpointId, { httpOnly: true, sameSite: "lax", path: "/" });
   return res;

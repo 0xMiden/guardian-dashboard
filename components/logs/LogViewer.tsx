@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type React from "react";
+import posthog from "posthog-js";
 
 type Level = "ALL" | "INFO" | "WARN" | "ERROR";
 
@@ -119,7 +120,10 @@ export function LogViewer() {
         {(["ALL", "INFO", "WARN", "ERROR"] as Level[]).map((l) => (
           <button
             key={l}
-            onClick={() => setFilter(l)}
+            onClick={() => {
+              posthog.capture("log_filter_changed", { filter_level: l });
+              setFilter(l);
+            }}
             className={`rounded px-3 py-1 text-xs font-medium transition-colors ${filter === l ? "bg-violet-600 text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
           >
             {l}

@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardAccountSummary } from "@openzeppelin/guardian-operator-client";
+import posthog from "posthog-js";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -72,7 +73,14 @@ export function AccountsPanel() {
                 <tr
                   key={a.accountId}
                   className="border-b last:border-0 cursor-pointer hover:bg-muted/40 transition-colors"
-                  onClick={() => router.push(`/accounts/${a.accountId}`)}
+                  onClick={() => {
+                    posthog.capture("account_clicked", {
+                      account_id: a.accountId,
+                      account_status: a.stateStatus,
+                      has_pending_candidate: a.hasPendingCandidate,
+                    });
+                    router.push(`/accounts/${a.accountId}`);
+                  }}
                 >
                   <td className="px-4 py-3 font-mono text-xs">{a.accountId}</td>
                   <td className="px-4 py-3">{statusBadge(a.stateStatus)}</td>

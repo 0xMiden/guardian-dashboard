@@ -73,8 +73,7 @@ export default function SelectEndpointPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <p className="text-sm text-muted-foreground text-center">Choose a Guardian node to connect to</p>
-            <select
+<select
               value={selected}
               onChange={(e) => setSelected(e.target.value)}
               required

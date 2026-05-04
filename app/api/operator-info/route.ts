@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { getEndpoint } from "@/lib/endpoints";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const h = await headers();
+  const endpointId = h.get("x-guardian-endpoint-id") ?? "";
+  const ep = endpointId ? getEndpoint(endpointId) : null;
   return NextResponse.json({
-    url: process.env.GUARDIAN_URL ?? "http://localhost:3000",
-    network: process.env.GUARDIAN_NETWORK ?? "Unknown",
-    commitment: process.env.GUARDIAN_OPERATOR_COMMITMENT ?? null,
+    url: ep?.url ?? null,
+    network: ep?.network ?? "Unknown",
+    commitment: ep?.commitment ?? null,
   });
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getAccount } from "@/lib/guardian-client";
+import { headers } from "next/headers";
+import { getGuardianClient } from "@/lib/guardian-client";
 
 export const dynamic = "force-dynamic";
 
@@ -7,9 +8,12 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ accountId: string }> }
 ) {
+  const h = await headers();
+  const endpointId = h.get("x-guardian-endpoint-id") ?? "";
+  if (!endpointId) return NextResponse.json({ error: "No endpoint selected", available: false }, { status: 400 });
   try {
     const { accountId } = await params;
-    const data = await getAccount(accountId);
+    const data = await getGuardianClient(endpointId).getAccount(accountId);
     return NextResponse.json(data);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

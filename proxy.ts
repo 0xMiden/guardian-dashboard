@@ -1,40 +1,34 @@
-import { NextRequest, NextResponse } from "next/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
-const SECRET = process.env.DASHBOARD_SECRET;
-const OPEN: string[] = ["/login", "/api/auth"];
+const isPublic = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
 
-async function verifyToken(secret: string, token: string): Promise<boolean> {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode("cockpit-session"));
-  const expected = Array.from(new Uint8Array(sig))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  if (expected.length !== token.length) return false;
-  let diff = 0;
-  for (let i = 0; i < expected.length; i++) {
-    diff |= expected.charCodeAt(i) ^ token.charCodeAt(i);
+// Routes that don't require a Guardian endpoint cookie to be set
+const skipEndpointCheck = createRouteMatcher([
+  "/select-endpoint(.*)",
+  "/api/select-endpoint(.*)",
+  "/api/admin(.*)",
+]);
+
+export default clerkMiddleware(async (auth, req) => {
+  if (!isPublic(req)) {
+    await auth.protect();
+
+    if (!skipEndpointCheck(req)) {
+      const endpointId = req.cookies.get("cockpit-endpoint")?.value;
+      if (!endpointId) {
+        return NextResponse.redirect(new URL("/select-endpoint", req.url));
+      }
+      const headers = new Headers(req.headers);
+      headers.set("x-guardian-endpoint-id", endpointId);
+      return NextResponse.next({ request: { headers } });
+    }
   }
-  return diff === 0;
-}
-
-export async function proxy(req: NextRequest) {
-  if (!SECRET) return NextResponse.next();
-  if (OPEN.some((p) => req.nextUrl.pathname.startsWith(p))) return NextResponse.next();
-
-  const token = req.cookies.get("cockpit-session")?.value;
-  if (!token || !(await verifyToken(SECRET, token))) {
-    return NextResponse.redirect(new URL("/login", req.url));
-  }
-  return NextResponse.next();
-}
+});
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api|trpc)(.*)",
+  ],
 };

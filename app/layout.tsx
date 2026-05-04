@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Hedvig_Letters_Serif, Bitter } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 import { AppShell } from "@/components/layout/AppShell";
 import "./globals.css";
 
@@ -34,7 +35,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistMono.variable} ${hedvig.variable} ${bitter.variable} h-full antialiased dark`}>
       <body className="h-full">
-        <AppShell>{children}</AppShell>
+        <ClerkProvider>
+          <AppShell>{children}</AppShell>
+        </ClerkProvider>
       </body>
     </html>
   );

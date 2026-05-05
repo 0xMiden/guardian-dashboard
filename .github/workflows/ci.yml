@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test
+
+      - run: npm run build
+        env:
+          # Build needs these to be set — dummy values are fine for type-checking
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_dummy
+          CLERK_SECRET_KEY: sk_test_dummy
+          GUARDIAN_ENDPOINTS: '[{"id":"ci","label":"CI","url":"https://example.com","network":"MidenTestnet","commitment":"0x0","privateKey":"00"}]'
+          NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: phc_dummy
+          NEXT_PUBLIC_POSTHOG_HOST: https://us.i.posthog.com

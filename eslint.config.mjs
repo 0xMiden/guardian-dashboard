@@ -7,12 +7,22 @@ const eslintConfig = defineConfig([
   ...nextTs,
   // Override default ignores of eslint-config-next.
   globalIgnores([
-    // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
   ]),
+  // Test files legitimately need `as any` to mock complex third-party types
+  // (Clerk, SWR, etc.) — loosen the rule rather than pollute tests with casts.
+  // next/image and a11y rules don't apply to test mocks.
+  {
+    files: ["__tests__/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@next/next/no-img-element": "off",
+      "jsx-a11y/alt-text": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

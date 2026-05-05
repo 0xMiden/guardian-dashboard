@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -20,11 +24,18 @@ jobs:
 
       - run: npm ci
 
-      - run: npm test
+      - name: Lint
+        run: npm run lint
 
-      - run: npm run build
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
         env:
-          # Build needs these to be set — dummy values are fine for type-checking
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_dummy
           CLERK_SECRET_KEY: sk_test_dummy
           GUARDIAN_ENDPOINTS: '[{"id":"ci","label":"CI","url":"https://example.com","network":"MidenTestnet","commitment":"0x0","privateKey":"00"}]'

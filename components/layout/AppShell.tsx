@@ -2,7 +2,7 @@
 import Image from "next/image";
 import { NavItem } from "./NavItem";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
-import { useClerk, useAuth } from "@clerk/nextjs";
+import { useClerk, useAuth, useUser } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
@@ -21,19 +21,20 @@ const NO_SHELL_PATHS = ["/sign-in", "/sign-up", "/select-endpoint"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { sessionClaims, userId } = useAuth();
+  const { userId } = useAuth();
+  const { user } = useUser();
   const { signOut } = useClerk();
   const router = useRouter();
-  const isAdmin = (sessionClaims?.publicMetadata as { role?: string })?.role === "admin";
+  const isAdmin = (user?.publicMetadata as { role?: string })?.role === "admin";
   const [confirmSignOut, setConfirmSignOut] = useState(false);
 
   useEffect(() => {
-    if (userId) {
+    if (userId && user) {
       posthog.identify(userId, {
-        role: (sessionClaims?.publicMetadata as { role?: string })?.role ?? "viewer",
+        role: (user.publicMetadata as { role?: string })?.role ?? "viewer",
       });
     }
-  }, [userId, sessionClaims]);
+  }, [userId, user]);
 
   async function handleSignOut() {
     posthog.capture("sign_out_confirmed");

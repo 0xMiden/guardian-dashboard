@@ -186,12 +186,6 @@ export default function AdminPage() {
         </CardContent>
       </Card>
 
-      <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3 text-sm text-muted-foreground">
-        <strong className="text-foreground">Bootstrap note:</strong> To grant the first admin access, go to{" "}
-        <span className="font-mono text-xs">dashboard.clerk.com → Users → [your account] → Public metadata</span>{" "}
-        and set{" "}
-        <span className="font-mono text-xs">{`{"endpointIds":["your-id"],"role":"admin"}`}</span>
-      </div>
     </div>
   );
 }

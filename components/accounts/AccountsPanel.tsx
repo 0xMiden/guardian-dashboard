@@ -56,7 +56,7 @@ export function AccountsPanel() {
         {data.totalCount} account{data.totalCount !== 1 ? "s" : ""} registered
       </div>
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-xs text-muted-foreground">

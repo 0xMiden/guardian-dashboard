@@ -15,7 +15,11 @@ const nextConfig: NextConfig = {
     "/api/**": ["./node_modules/@miden-sdk/miden-sdk/dist/assets/*.wasm"],
   },
   turbopack: {
+    // Parent /Code/package-lock.json causes Turbopack to pick the wrong workspace root.
     root: __dirname,
+    resolveAlias: {
+      tailwindcss: path.resolve(__dirname, "node_modules/tailwindcss"),
+    },
   },
   async rewrites() {
     return [

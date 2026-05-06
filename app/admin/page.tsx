@@ -162,7 +162,7 @@ export default function AdminPage() {
             <span className="ml-2 text-xs font-normal text-zinc-600">Manage endpoint access and roles</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           {!data ? (
             <p className="px-4 py-6 text-sm text-muted-foreground">Loading…</p>
           ) : (

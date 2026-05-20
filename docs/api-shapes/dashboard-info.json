@@ -1,0 +1,35 @@
+{
+    "service_status": "healthy",
+    "environment": "testnet",
+    "build": {
+        "version": "0.1.0",
+        "git_commit": "unknown",
+        "profile": "release",
+        "started_at": "2026-05-18T09:31:50.979909857+00:00"
+    },
+    "backend": {
+        "storage": "postgres",
+        "supported_ack_schemes": [
+            "ecdsa",
+            "falcon"
+        ],
+        "canonicalization": {
+            "check_interval_seconds": 10,
+            "max_retries": 48,
+            "submission_grace_period_seconds": 600
+        }
+    },
+    "total_account_count": 88,
+    "accounts_by_auth_method": {
+        "miden_ecdsa": 21,
+        "miden_falcon": 67
+    },
+    "latest_activity": "2026-05-14T11:58:27.342138+00:00",
+    "delta_status_counts": {
+        "candidate": 0,
+        "canonical": 44,
+        "discarded": 0
+    },
+    "in_flight_proposal_count": 48,
+    "degraded_aggregates": []
+}

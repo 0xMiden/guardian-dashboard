@@ -1,0 +1,16 @@
+{
+    "items": [
+        {
+            "commitment": "0x2a972c21d9a4315bf899b73d189ea50a9a84eb4ebe32cbd6f41f6959c72ff47f",
+            "nonce": 1,
+            "proposer_id": "0x96bb99e0d77e4ab126f9ec22d0085f00bb3a48d658d11ddd3a2bf5826946be3f",
+            "originating_timestamp": "2026-05-13T11:33:26.407006261+00:00",
+            "signatures_collected": 1,
+            "signatures_required": 1,
+            "prev_commitment": "0x637e38a33e18a7173f08c197efe8e4c30a7566bf59d638ea4ca6ea994646f1b6",
+            "new_commitment": null,
+            "proposal_type": "add_signer"
+        }
+    ],
+    "next_cursor": null
+}

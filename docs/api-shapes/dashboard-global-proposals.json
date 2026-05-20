@@ -1,0 +1,29 @@
+{
+    "items": [
+        {
+            "account_id": "0x9c4f50efbf8e52901c5df379158296",
+            "commitment": "0x2a972c21d9a4315bf899b73d189ea50a9a84eb4ebe32cbd6f41f6959c72ff47f",
+            "nonce": 1,
+            "proposer_id": "0x96bb99e0d77e4ab126f9ec22d0085f00bb3a48d658d11ddd3a2bf5826946be3f",
+            "originating_timestamp": "2026-05-13T11:33:26.407006261+00:00",
+            "signatures_collected": 1,
+            "signatures_required": 1,
+            "prev_commitment": "0x637e38a33e18a7173f08c197efe8e4c30a7566bf59d638ea4ca6ea994646f1b6",
+            "new_commitment": null,
+            "proposal_type": "add_signer"
+        },
+        {
+            "account_id": "0x3ad445d9320bb390657664207d9b0e",
+            "commitment": "0x1e2fdbdc806944f1207cba0186bd8e1d1c887377a12f12d7192e2276b406da82",
+            "nonce": 1,
+            "proposer_id": "0x005281a7600d562e710ab72cebcf1f8d0cfcc4d93400d4df40a479bcaa3d4899",
+            "originating_timestamp": "2026-05-12T20:54:43.210419949+00:00",
+            "signatures_collected": 1,
+            "signatures_required": 1,
+            "prev_commitment": "0xabe9c34c78b5b9a9747c87b83cbd60e175aa74d31691232bfb7c9c691da671a4",
+            "new_commitment": null,
+            "proposal_type": "add_signer"
+        }
+    ],
+    "next_cursor": "BAAAAAEBAAAAAAAAAAEgAAAAAAAAADB4M2FkNDQ1ZDkzMjBiYjM5MDY1NzY2NDIwN2Q5YjBlAR4AAAAAAAAAMjAyNi0wNS0xMlQyMDo1NDo0My4yMTA0MTk5NDlaAUIAAAAAAAAAMHgxZTJmZGJkYzgwNjk0NGYxMjA3Y2JhMDE4NmJkOGUxZDFjODg3Mzc3YTEyZjEyZDcxOTJlMjI3NmI0MDZkYTgyFpi940Dckl37l_tZg47SwW4Km8wOHdiNczXqTQoJf9Q"
+}

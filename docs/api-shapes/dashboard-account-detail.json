@@ -1,0 +1,15 @@
+{
+    "account_id": "0x6a1ae02fe5eb47906739d3833121b1",
+    "auth_scheme": "falcon",
+    "authorized_signer_count": 1,
+    "authorized_signer_ids": [
+        "0x553661d881eb9c34d3bb12b0fa266dedc56f47ddfa3941e13d94f42944acc8c9"
+    ],
+    "has_pending_candidate": false,
+    "current_commitment": "0xce9f8f1b8915fb9a22472aae13471766c57bbf415a270984911c3a592cbeff90",
+    "state_status": "available",
+    "created_at": "2026-05-14T11:55:54.420106+00:00",
+    "updated_at": "2026-05-14T11:58:27.342137+00:00",
+    "state_created_at": "2026-05-14T11:55:54.420106+00:00",
+    "state_updated_at": "2026-05-14T11:58:27.342137+00:00"
+}

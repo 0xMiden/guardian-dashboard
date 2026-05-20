@@ -1,0 +1,25 @@
+{
+    "items": [
+        {
+            "account_id": "0x6a1ae02fe5eb47906739d3833121b1",
+            "auth_scheme": "falcon",
+            "authorized_signer_count": 1,
+            "has_pending_candidate": false,
+            "current_commitment": "0xce9f8f1b8915fb9a22472aae13471766c57bbf415a270984911c3a592cbeff90",
+            "state_status": "available",
+            "created_at": "2026-05-14T11:55:54.420106+00:00",
+            "updated_at": "2026-05-14T11:58:27.342137+00:00"
+        },
+        {
+            "account_id": "0x9c4f50efbf8e52901c5df379158296",
+            "auth_scheme": "falcon",
+            "authorized_signer_count": 1,
+            "has_pending_candidate": false,
+            "current_commitment": "0x637e38a33e18a7173f08c197efe8e4c30a7566bf59d638ea4ca6ea994646f1b6",
+            "state_status": "available",
+            "created_at": "2026-05-13T11:32:15.581073+00:00",
+            "updated_at": "2026-05-13T11:51:27.382840+00:00"
+        }
+    ],
+    "next_cursor": "AAAAAAABIAAAAAAAAAAweDljNGY1MGVmYmY4ZTUyOTAxYzVkZjM3OTE1ODI5NgEbAAAAAAAAADIwMjYtMDUtMTNUMTE6NTE6MjcuMzgyODQwWgDvPhIrQaHGCwZUtIsD36EYbqbfMJglCsWdRWMRTC8l1g"
+}

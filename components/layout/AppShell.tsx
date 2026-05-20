@@ -51,7 +51,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const navItems = [
     { href: "/overview", label: "Overview", icon: <LayoutDashboard className="h-4 w-4" /> },
     { href: "/accounts", label: "Accounts", icon: <Users className="h-4 w-4" /> },
-    { href: "/transactions", label: "Transactions", icon: <ArrowLeftRight className="h-4 w-4" /> },
+    { href: "/transactions", label: "Activity", icon: <ArrowLeftRight className="h-4 w-4" /> },
     { href: "/compliance", label: "Compliance", icon: <ShieldCheck className="h-4 w-4" /> },
     ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: <Settings2 className="h-4 w-4" /> }] : []),
   ];

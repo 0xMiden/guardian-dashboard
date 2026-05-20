@@ -7,11 +7,12 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 interface OverviewData {
   totalAccounts: number;
-  available: number;
-  unavailable: number;
   falcon: number;
   ecdsa: number;
-  pendingCandidates: number;
+  evm: number;
+  deltaStatusCounts: { candidate: number; canonical: number; discarded: number };
+  inFlightProposalCount: number;
+  serviceStatus: "healthy" | "degraded";
   error?: string;
 }
 
@@ -30,21 +31,43 @@ export function AccountSummaryCard() {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">Accounts</CardTitle>
+        <CardTitle className="text-sm font-medium text-muted-foreground">Summary</CardTitle>
       </CardHeader>
       <CardContent className="divide-y">
         {!data ? (
-          Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="my-2 h-5 w-full" />)
+          Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="my-2 h-5 w-full" />)
         ) : data.error ? (
           <p className="py-4 text-xs text-muted-foreground">Guardian unreachable</p>
         ) : (
           <>
-            <Row label="Total" value={data.totalAccounts} />
-            <Row label="Available" value={<span className="text-emerald-400">{data.available}</span>} />
-            <Row label="Unavailable" value={data.unavailable > 0 ? <span className="text-red-400">{data.unavailable}</span> : "0"} />
+            <Row
+              label="Status"
+              value={
+                <span className={data.serviceStatus === "healthy" ? "text-emerald-400" : "text-amber-400"}>
+                  {data.serviceStatus}
+                </span>
+              }
+            />
+            <Row label="Total accounts" value={data.totalAccounts} />
             <Row label="Falcon" value={data.falcon} />
             <Row label="ECDSA" value={data.ecdsa} />
-            <Row label="Pending candidate" value={data.pendingCandidates > 0 ? <span className="text-amber-400">{data.pendingCandidates}</span> : "0"} />
+            {data.evm > 0 && <Row label="EVM" value={data.evm} />}
+            <Row
+              label="Canonical deltas"
+              value={<span className="text-emerald-400">{data.deltaStatusCounts.canonical}</span>}
+            />
+            <Row
+              label="Candidate deltas"
+              value={data.deltaStatusCounts.candidate > 0
+                ? <span className="text-amber-400">{data.deltaStatusCounts.candidate}</span>
+                : "0"}
+            />
+            <Row
+              label="In-flight proposals"
+              value={data.inFlightProposalCount > 0
+                ? <span className="text-amber-400">{data.inFlightProposalCount}</span>
+                : "0"}
+            />
           </>
         )}
       </CardContent>

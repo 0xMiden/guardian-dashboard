@@ -1,19 +1,63 @@
 "use client";
+import { useState, useCallback, useEffect, useRef } from "react";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { DashboardAccountSummary } from "@openzeppelin/guardian-operator-client";
+import type { DashboardAccountSummary, PagedResult } from "@openzeppelin/guardian-operator-client";
 import posthog from "posthog-js";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-interface AccountsData {
-  totalCount: number;
-  accounts: DashboardAccountSummary[];
-  error?: string;
-  available?: false;
+type AccountsPage = PagedResult<DashboardAccountSummary> & { error?: string; available?: false };
+type AccountStats = { total: number | null; count7d: number; count30d: number; error?: string };
+type AssetTotals = { usd7d: number; usd30d: number; computedAt: string; inProgress?: boolean; cached?: { usd7d: number; usd30d: number } | null };
+
+function StatStrip() {
+  const { data: stats } = useSWR<AccountStats>("/api/accounts/stats", fetcher);
+  const { data: assets } = useSWR<AssetTotals>("/api/accounts/asset-totals", fetcher, {
+    refreshInterval: 15_000,
+  });
+  if (!stats || stats.error) return null;
+
+  const showAssets = assets && !assets.inProgress;
+  const pendingAssets = assets?.inProgress && !assets.cached;
+  const staleAssets = assets?.inProgress && assets.cached;
+
+  const usd7d  = showAssets ? assets.usd7d  : staleAssets ? assets.cached!.usd7d  : null;
+  const usd30d = showAssets ? assets.usd30d : staleAssets ? assets.cached!.usd30d : null;
+
+  return (
+    <div className="flex flex-wrap gap-8 text-sm">
+      {stats.total !== null && (
+        <span className="text-muted-foreground">
+          Total&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.total.toLocaleString()}</span>
+        </span>
+      )}
+      <span className="text-muted-foreground">
+        Updated (last 7D)&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.count7d.toLocaleString()}</span>
+      </span>
+      <span className="text-muted-foreground">
+        Updated (last 30D)&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.count30d.toLocaleString()}</span>
+      </span>
+      {pendingAssets && (
+        <span className="text-muted-foreground text-xs italic">Computing asset values…</span>
+      )}
+      {usd7d !== null && (
+        <span className="text-muted-foreground">
+          Assets (7D)&nbsp;&nbsp;<span className="font-semibold text-foreground">${usd7d.toLocaleString()}</span>
+          {staleAssets && <span className="text-xs text-zinc-500"> (updating…)</span>}
+        </span>
+      )}
+      {usd30d !== null && (
+        <span className="text-muted-foreground">
+          Assets (30D)&nbsp;&nbsp;<span className="font-semibold text-foreground">${usd30d.toLocaleString()}</span>
+          {staleAssets && <span className="text-xs text-zinc-500"> (updating…)</span>}
+        </span>
+      )}
+    </div>
+  );
 }
 
 function statusBadge(status: string) {
@@ -23,8 +67,57 @@ function statusBadge(status: string) {
 }
 
 export function AccountsPanel() {
-  const { data, error } = useSWR<AccountsData>("/api/accounts", fetcher, { refreshInterval: 30_000 });
+  const { data, error } = useSWR<AccountsPage>("/api/accounts", fetcher, { refreshInterval: 30_000 });
   const router = useRouter();
+  const [extraItems, setExtraItems] = useState<DashboardAccountSummary[]>([]);
+  // undefined = haven't paginated yet (fall through to initialCursor)
+  // null      = last page loaded, no more pages
+  // string    = cursor for the next page
+  const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const initialCursor = data?.nextCursor ?? null;
+  // undefined → haven't paginated yet, check initialCursor from SWR
+  // null      → exhausted all pages
+  // string    → more pages available
+  const hasMore = nextCursor === undefined ? initialCursor !== null : nextCursor !== null;
+
+  const loadMore = useCallback(async () => {
+    const cursor = nextCursor !== undefined ? nextCursor : initialCursor;
+    if (!cursor) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/accounts?cursor=${encodeURIComponent(cursor)}`);
+      const page: AccountsPage = await res.json();
+      setExtraItems((prev) => [...prev, ...(page.items ?? [])]);
+      setNextCursor(page.nextCursor ?? null);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [nextCursor, initialCursor]);
+
+  // Keep a stable ref to loadMore so the observer never needs to be rebuilt on cursor changes
+  const loadMoreRef = useRef(loadMore);
+  useEffect(() => { loadMoreRef.current = loadMore; }, [loadMore]);
+
+  // Infinite scroll — rebuilt only when the sentinel appears/disappears (hasMore flips)
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    let busy = false;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !busy) {
+          busy = true;
+          loadMoreRef.current().finally(() => { busy = false; });
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore]);
 
   if (!data && !error) {
     return (
@@ -42,7 +135,9 @@ export function AccountsPanel() {
     );
   }
 
-  if (!data?.accounts?.length) {
+  const items = [...(data?.items ?? []), ...extraItems];
+
+  if (!items.length) {
     return (
       <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
         No accounts registered on this Guardian node yet.
@@ -52,14 +147,13 @@ export function AccountsPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="text-sm text-muted-foreground">
-        {data.totalCount} account{data.totalCount !== 1 ? "s" : ""} registered
-      </div>
+      <StatStrip />
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-xs text-muted-foreground">
+                <th className="px-4 py-3 text-left font-medium">#</th>
                 <th className="px-4 py-3 text-left font-medium">Account ID</th>
                 <th className="px-4 py-3 text-left font-medium">Status</th>
                 <th className="px-4 py-3 text-left font-medium">Auth</th>
@@ -69,7 +163,7 @@ export function AccountsPanel() {
               </tr>
             </thead>
             <tbody>
-              {data.accounts.map((a) => (
+              {items.map((a, i) => (
                 <tr
                   key={a.accountId}
                   className="border-b last:border-0 cursor-pointer hover:bg-muted/40 transition-colors"
@@ -82,6 +176,7 @@ export function AccountsPanel() {
                     router.push(`/accounts/${a.accountId}`);
                   }}
                 >
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{i + 1}</td>
                   <td className="px-4 py-3 font-mono text-xs">{a.accountId}</td>
                   <td className="px-4 py-3">{statusBadge(a.stateStatus)}</td>
                   <td className="px-4 py-3 text-muted-foreground">{a.authScheme}</td>
@@ -104,6 +199,16 @@ export function AccountsPanel() {
           </table>
         </CardContent>
       </Card>
+      {hasMore && (
+        <>
+          <div ref={sentinelRef} className="h-1" />
+          {loadingMore && (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

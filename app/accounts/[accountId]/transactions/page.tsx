@@ -8,7 +8,7 @@ export default async function AccountTransactionsPage({
   const { accountId } = await params;
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">Transactions</h1>
+      <h1 className="text-xl font-semibold">Activity</h1>
       <AccountTransactions accountId={decodeURIComponent(accountId)} />
     </div>
   );

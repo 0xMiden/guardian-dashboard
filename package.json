@@ -15,7 +15,7 @@
     "@base-ui/react": "^1.4.1",
     "@clerk/nextjs": "^7.3.0",
     "@miden-sdk/miden-sdk": "^0.14.4",
-    "@openzeppelin/guardian-operator-client": "^0.14.3",
+    "@openzeppelin/guardian-operator-client": "^0.14.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.8.0",

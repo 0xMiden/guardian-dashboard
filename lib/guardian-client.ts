@@ -1,12 +1,20 @@
 import {
   GuardianOperatorHttpClient,
   GuardianOperatorHttpError,
+  GuardianOperatorContractError,
+  type PaginationOptions,
+  type GlobalDeltasOptions,
+  type DashboardAccountSummary,
+  type PagedResult,
 } from "@openzeppelin/guardian-operator-client";
 import { signDigest } from "./falcon";
 import { getEndpoint, getEndpoints } from "./endpoints";
 
+type AuthFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
 interface ClientState {
   client: GuardianOperatorHttpClient;
+  authFetch: AuthFetch;
   sessionCookie: string | null;
 }
 
@@ -15,19 +23,50 @@ const clients = new Map<string, ClientState>();
 function createClient(endpointId: string): ClientState {
   const ep = getEndpoint(endpointId);
   if (!ep) throw new Error(`Unknown endpoint: ${endpointId}`);
-  const state: ClientState = { client: null as unknown as GuardianOperatorHttpClient, sessionCookie: null };
-  state.client = new GuardianOperatorHttpClient({
-    baseUrl: ep.url,
-    fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
-      const headers = new Headers(init?.headers);
-      if (state.sessionCookie) headers.set("Cookie", state.sessionCookie);
-      const res = await fetch(input, { ...init, headers });
-      const setCookie = res.headers.get("set-cookie");
-      if (setCookie) state.sessionCookie = setCookie.split(";")[0];
-      return res;
-    },
-  });
+  const state: ClientState = {
+    client: null as unknown as GuardianOperatorHttpClient,
+    authFetch: null as unknown as AuthFetch,
+    sessionCookie: null,
+  };
+  const authFetch: AuthFetch = async (input, init) => {
+    const headers = new Headers(init?.headers);
+    if (state.sessionCookie) headers.set("Cookie", state.sessionCookie);
+    const res = await fetch(input, { ...init, headers });
+    const setCookie = res.headers.get("set-cookie");
+    if (setCookie) state.sessionCookie = setCookie.split(";")[0];
+    return res;
+  };
+  state.authFetch = authFetch;
+  state.client = new GuardianOperatorHttpClient({ baseUrl: ep.url, fetch: authFetch });
   return state;
+}
+
+// Old-server (pre-v0.14.6) accounts format: { success, total_count, accounts: [...] }
+async function listAccountsLegacy(
+  state: ClientState,
+  ep: NonNullable<ReturnType<typeof getEndpoint>>,
+  options: PaginationOptions = {},
+): Promise<PagedResult<DashboardAccountSummary>> {
+  const base = ep.url.endsWith("/") ? ep.url : `${ep.url}/`;
+  const url = new URL("dashboard/accounts", base);
+  if (options.limit !== undefined) url.searchParams.set("limit", String(options.limit));
+  if (options.cursor) url.searchParams.set("cursor", options.cursor);
+  const res = await state.authFetch(url.toString(), { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`listAccounts failed: ${res.status}`);
+  const body = await res.json() as { accounts?: Record<string, unknown>[] };
+  return {
+    items: (body.accounts ?? []).map((a) => ({
+      accountId: a["account_id"] as string,
+      authScheme: a["auth_scheme"] as string,
+      authorizedSignerCount: a["authorized_signer_count"] as number,
+      hasPendingCandidate: a["has_pending_candidate"] as boolean,
+      currentCommitment: a["current_commitment"] as string | null,
+      stateStatus: a["state_status"] as "available" | "unavailable",
+      createdAt: a["created_at"] as string,
+      updatedAt: a["updated_at"] as string,
+    })),
+    nextCursor: null,
+  };
 }
 
 function getState(endpointId: string): ClientState {
@@ -73,13 +112,42 @@ export function getGuardianClient(endpointId: string) {
         return { status: "down" as const, latencyMs: Date.now() - start, checkedAt: new Date().toISOString() };
       }
     },
-    async listAccounts() {
+    async listAccounts(options?: PaginationOptions) {
       await ensureAuthenticated(state, endpointId);
-      return withReauth(state, endpointId, () => state.client.listAccounts());
+      try {
+        return await withReauth(state, endpointId, () => state.client.listAccounts(options));
+      } catch (err) {
+        if (!(err instanceof GuardianOperatorContractError)) throw err;
+        return listAccountsLegacy(state, getEndpoint(endpointId)!, options);
+      }
+    },
+    async getDashboardInfo() {
+      await ensureAuthenticated(state, endpointId);
+      return withReauth(state, endpointId, () => state.client.getDashboardInfo());
     },
     async getAccount(accountId: string) {
       await ensureAuthenticated(state, endpointId);
       return withReauth(state, endpointId, () => state.client.getAccount(accountId));
+    },
+    async getAccountSnapshot(accountId: string) {
+      await ensureAuthenticated(state, endpointId);
+      return withReauth(state, endpointId, () => state.client.getAccountSnapshot(accountId));
+    },
+    async listAccountDeltas(accountId: string, options?: PaginationOptions) {
+      await ensureAuthenticated(state, endpointId);
+      return withReauth(state, endpointId, () => state.client.listAccountDeltas(accountId, options));
+    },
+    async listAccountProposals(accountId: string, options?: PaginationOptions) {
+      await ensureAuthenticated(state, endpointId);
+      return withReauth(state, endpointId, () => state.client.listAccountProposals(accountId, options));
+    },
+    async listGlobalDeltas(options?: GlobalDeltasOptions) {
+      await ensureAuthenticated(state, endpointId);
+      return withReauth(state, endpointId, () => state.client.listGlobalDeltas(options));
+    },
+    async listGlobalProposals(options?: PaginationOptions) {
+      await ensureAuthenticated(state, endpointId);
+      return withReauth(state, endpointId, () => state.client.listGlobalProposals(options));
     },
   };
 }

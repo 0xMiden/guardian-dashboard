@@ -7,12 +7,18 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardAccountSummary, PagedResult } from "@openzeppelin/guardian-operator-client";
 import posthog from "posthog-js";
+import { CopyableId } from "@/components/ui/CopyableId";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 type AccountsPage = PagedResult<DashboardAccountSummary> & { error?: string; available?: false };
 type AccountStats = { total: number | null; count7d: number; count30d: number; error?: string };
-type AssetTotals = { usd7d: number; usd30d: number; computedAt: string; inProgress?: boolean; cached?: { usd7d: number; usd30d: number } | null };
+type AssetTotals = {
+  usd7d: number; usd30d: number; computedAt: string;
+  perAccount?: Record<string, number>;
+  inProgress?: boolean;
+  cached?: { usd7d: number; usd30d: number; perAccount?: Record<string, number> } | null;
+};
 
 function StatStrip() {
   const { data: stats } = useSWR<AccountStats>("/api/accounts/stats", fetcher);
@@ -22,9 +28,7 @@ function StatStrip() {
   if (!stats || stats.error) return null;
 
   const showAssets = assets && !assets.inProgress;
-  const pendingAssets = assets?.inProgress && !assets.cached;
   const staleAssets = assets?.inProgress && assets.cached;
-
   const usd7d  = showAssets ? assets.usd7d  : staleAssets ? assets.cached!.usd7d  : null;
   const usd30d = showAssets ? assets.usd30d : staleAssets ? assets.cached!.usd30d : null;
 
@@ -36,39 +40,46 @@ function StatStrip() {
         </span>
       )}
       <span className="text-muted-foreground">
-        Updated (last 7D)&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.count7d.toLocaleString()}</span>
+        Updated (last 7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.count7d.toLocaleString()}</span>
       </span>
       <span className="text-muted-foreground">
-        Updated (last 30D)&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.count30d.toLocaleString()}</span>
+        Updated (last 30d)&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.count30d.toLocaleString()}</span>
       </span>
-      {pendingAssets && (
-        <span className="text-muted-foreground text-xs italic">Computing asset values…</span>
+      {assets?.inProgress && !assets.cached && (
+        <span className="text-muted-foreground text-xs italic">Computing assets…</span>
       )}
       {usd7d !== null && (
         <span className="text-muted-foreground">
-          Assets (7D)&nbsp;&nbsp;<span className="font-semibold text-foreground">${usd7d.toLocaleString()}</span>
-          {staleAssets && <span className="text-xs text-zinc-500"> (updating…)</span>}
+          Assets (7d)&nbsp;&nbsp;
+          <span className="font-semibold text-foreground">${usd7d.toLocaleString()}</span>
+          {staleAssets && <span className="text-xs text-zinc-500 ml-1">(updating…)</span>}
         </span>
       )}
       {usd30d !== null && (
         <span className="text-muted-foreground">
-          Assets (30D)&nbsp;&nbsp;<span className="font-semibold text-foreground">${usd30d.toLocaleString()}</span>
-          {staleAssets && <span className="text-xs text-zinc-500"> (updating…)</span>}
+          Assets (30d)&nbsp;&nbsp;
+          <span className="font-semibold text-foreground">${usd30d.toLocaleString()}</span>
+          {staleAssets && <span className="text-xs text-zinc-500 ml-1">(updating…)</span>}
         </span>
       )}
     </div>
   );
 }
 
-function statusBadge(status: string) {
+function statusBadge(status: string, pausedAt: string | null) {
+  if (pausedAt) return <Badge className="bg-orange-500 text-white">paused</Badge>;
   if (status === "available") return <Badge className="bg-emerald-500 text-white">available</Badge>;
-  if (status === "frozen") return <Badge className="bg-orange-500 text-white">frozen</Badge>;
   return <Badge className="bg-zinc-500 text-white">{status}</Badge>;
 }
 
 export function AccountsPanel() {
   const { data, error } = useSWR<AccountsPage>("/api/accounts", fetcher, { refreshInterval: 30_000 });
+  const { data: assetTotals } = useSWR<AssetTotals>("/api/accounts/asset-totals", fetcher, { refreshInterval: 15_000 });
   const router = useRouter();
+
+  const perAccount: Record<string, number> =
+    assetTotals?.perAccount ??
+    (assetTotals?.inProgress && assetTotals.cached?.perAccount ? assetTotals.cached.perAccount : {});
   const [extraItems, setExtraItems] = useState<DashboardAccountSummary[]>([]);
   // undefined = haven't paginated yet (fall through to initialCursor)
   // null      = last page loaded, no more pages
@@ -156,9 +167,10 @@ export function AccountsPanel() {
                 <th className="px-4 py-3 text-left font-medium">#</th>
                 <th className="px-4 py-3 text-left font-medium">Account ID</th>
                 <th className="px-4 py-3 text-left font-medium">Status</th>
-                <th className="px-4 py-3 text-left font-medium">Auth</th>
                 <th className="px-4 py-3 text-left font-medium">Signers</th>
                 <th className="px-4 py-3 text-left font-medium">Pending</th>
+                <th className="px-4 py-3 text-left font-medium">Total Assets</th>
+                <th className="px-4 py-3 text-left font-medium">Created</th>
                 <th className="px-4 py-3 text-left font-medium">Updated</th>
               </tr>
             </thead>
@@ -177,9 +189,10 @@ export function AccountsPanel() {
                   }}
                 >
                   <td className="px-4 py-3 text-xs text-muted-foreground">{i + 1}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{a.accountId}</td>
-                  <td className="px-4 py-3">{statusBadge(a.stateStatus)}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{a.authScheme}</td>
+                  <td className="px-4 py-3">
+                    <CopyableId id={a.accountIdBech32 ?? a.accountId} />
+                  </td>
+                  <td className="px-4 py-3">{statusBadge(a.stateStatus, a.pausedAt)}</td>
                   <td className="px-4 py-3">{a.authorizedSignerCount}</td>
                   <td className="px-4 py-3">
                     {a.hasPendingCandidate ? (
@@ -187,8 +200,16 @@ export function AccountsPanel() {
                         pending
                       </Badge>
                     ) : (
-                      <span className="text-muted-foreground">—</span>
+                      <span className="text-muted-foreground text-xs">—</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {perAccount[a.accountId] !== undefined
+                      ? <span className="font-mono">{perAccount[a.accountId].toLocaleString()}</span>
+                      : <span className="text-muted-foreground">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">
+                    {new Date(a.createdAt).toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">
                     {new Date(a.updatedAt).toLocaleString()}

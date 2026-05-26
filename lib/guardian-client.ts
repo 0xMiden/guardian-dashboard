@@ -6,6 +6,7 @@ import {
   type GlobalDeltasOptions,
   type DashboardAccountSummary,
   type PagedResult,
+  type DeltaDetailOptions,
 } from "@openzeppelin/guardian-operator-client";
 import { signDigest } from "./falcon";
 import { getEndpoint, getEndpoints } from "./endpoints";
@@ -64,6 +65,8 @@ async function listAccountsLegacy(
       stateStatus: a["state_status"] as "available" | "unavailable",
       createdAt: a["created_at"] as string,
       updatedAt: a["updated_at"] as string,
+      pausedAt: null,
+      pausedReason: null,
     })),
     nextCursor: null,
   };
@@ -148,6 +151,18 @@ export function getGuardianClient(endpointId: string) {
     async listGlobalProposals(options?: PaginationOptions) {
       await ensureAuthenticated(state, endpointId);
       return withReauth(state, endpointId, () => state.client.listGlobalProposals(options));
+    },
+    async getAccountDeltaDetail(accountId: string, nonce: number, options?: DeltaDetailOptions) {
+      await ensureAuthenticated(state, endpointId);
+      return withReauth(state, endpointId, () => state.client.getAccountDeltaDetail(accountId, nonce, options));
+    },
+    async pauseAccount(accountId: string, reason: string) {
+      await ensureAuthenticated(state, endpointId);
+      return withReauth(state, endpointId, () => state.client.pauseAccount(accountId, reason));
+    },
+    async unpauseAccount(accountId: string, reason?: string) {
+      await ensureAuthenticated(state, endpointId);
+      return withReauth(state, endpointId, () => state.client.unpauseAccount(accountId, reason));
     },
   };
 }

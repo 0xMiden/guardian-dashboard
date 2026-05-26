@@ -14,11 +14,18 @@ interface HealthData {
   checkedAt: string;
 }
 
+// Module-level so history survives page navigation (component remounts)
+let cachedHistory: { t: number; ms: number }[] = [];
+
 export function HeartbeatCard() {
-  const [history, setHistory] = useState<{ t: number; ms: number }[]>([]);
+  const [history, setHistory] = useState<{ t: number; ms: number }[]>(cachedHistory);
   const { data } = useSWR<HealthData>("/api/health", fetcher, {
     refreshInterval: 5000,
-    onSuccess: (d) => setHistory((prev) => [...prev.slice(-19), { t: Date.now(), ms: d.latencyMs }]),
+    onSuccess: (d) => setHistory((prev) => {
+      const next = [...prev.slice(-19), { t: Date.now(), ms: d.latencyMs }];
+      cachedHistory = next;
+      return next;
+    }),
   });
   const { data: opInfo } = useSWR<{ url: string }>("/api/operator-info", fetcher);
 
@@ -48,8 +55,8 @@ export function HeartbeatCard() {
             )}
           </>
         )}
-        {history.length > 1 && (
-          <div className="mt-3 h-12">
+        <div className="mt-3 h-12">
+          {history.length > 1 && (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={history}>
                 <Line type="monotone" dataKey="ms" stroke="#8b5cf6" dot={false} strokeWidth={2} />
@@ -64,8 +71,8 @@ export function HeartbeatCard() {
                 />
               </LineChart>
             </ResponsiveContainer>
-          </div>
-        )}
+          )}
+        </div>
       </CardContent>
     </Card>
   );

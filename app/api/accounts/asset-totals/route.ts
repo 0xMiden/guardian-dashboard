@@ -12,6 +12,7 @@ type AssetTotals = {
   usd7d: number;
   usd30d: number;
   computedAt: string;
+  perAccount: Record<string, number>;
 };
 
 // Module-level cache — persists across requests in the same Node.js process.
@@ -67,8 +68,9 @@ async function computeTotals(endpointId: string): Promise<void> {
 
     const usd30d = active30d.reduce((sum, id) => sum + (vaultTotals.get(id) ?? 0), 0);
     const usd7d  = active7d.reduce((sum, id)  => sum + (vaultTotals.get(id) ?? 0), 0);
+    const perAccount = Object.fromEntries(vaultTotals);
 
-    cache.set(endpointId, { usd7d, usd30d, computedAt: new Date().toISOString() });
+    cache.set(endpointId, { usd7d, usd30d, computedAt: new Date().toISOString(), perAccount });
   } catch {
     // Leave any previous cached value intact; don't pollute with partial errors
   } finally {

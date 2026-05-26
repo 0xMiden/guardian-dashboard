@@ -6,8 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ComingSoonModal } from "@/components/ui/ComingSoon";
-import { ArrowLeft, Snowflake, ArrowLeftRight } from "lucide-react";
+import { CopyableId } from "@/components/ui/CopyableId";
+import { ArrowLeft, Snowflake, ArrowLeftRight, ChevronDown, ChevronRight } from "lucide-react";
 import type { DashboardAccountDetail } from "@openzeppelin/guardian-operator-client";
+import posthog from "posthog-js";
 
 type AccountSnapshot = {
   commitment: string;
@@ -18,7 +20,6 @@ type AccountSnapshot = {
     nonFungible: { faucetId: string; vaultKey: string }[];
   };
 };
-import posthog from "posthog-js";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -49,12 +50,13 @@ export function AccountDetail({ accountId }: Props) {
   );
   const router = useRouter();
   const [showFreezeModal, setShowFreezeModal] = useState(false);
+  const [showTechnical, setShowTechnical] = useState(false);
 
   return (
     <div className="flex flex-col gap-4">
       {showFreezeModal && (
         <ComingSoonModal
-          description="Account freeze controls will be available in a future release."
+          description="Account pause controls will be available in a future release."
           onClose={() => setShowFreezeModal(false)}
         />
       )}
@@ -75,7 +77,7 @@ export function AccountDetail({ accountId }: Props) {
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-zinc-700 text-muted-foreground hover:text-foreground hover:border-zinc-500 transition-colors"
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
-            See Transactions
+            Activity
           </button>
           <button
             onClick={() => {
@@ -100,50 +102,82 @@ export function AccountDetail({ accountId }: Props) {
         <>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground font-mono truncate">
-                {data!.accountId}
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {data!.accountIdBech32
+                  ? <CopyableId id={data!.accountIdBech32} prefixLen={20} suffixLen={8} />
+                  : <CopyableId id={data!.accountId} />}
               </CardTitle>
             </CardHeader>
             <CardContent className="divide-y">
               <Row
                 label="Status"
                 value={
-                  <Badge className={data!.stateStatus === "available" ? "bg-emerald-500 text-white" : "bg-zinc-500 text-white"}>
-                    {data!.stateStatus}
-                  </Badge>
+                  data!.pausedAt
+                    ? <Badge className="bg-orange-500 text-white">Paused</Badge>
+                    : <Badge className={data!.stateStatus === "available" ? "bg-emerald-500 text-white" : "bg-zinc-500 text-white"}>
+                        {data!.stateStatus === "available" ? "Active" : data!.stateStatus}
+                      </Badge>
                 }
               />
-              <Row label="Auth scheme" value={data!.authScheme} />
+              {data!.pausedAt && (
+                <Row
+                  label="Paused"
+                  value={<span className="text-orange-400 text-xs">{data!.pausedReason ?? new Date(data!.pausedAt).toLocaleString()}</span>}
+                />
+              )}
+              <Row label="Auth" value={data!.authScheme === "falcon" ? "Falcon (post-quantum)" : data!.authScheme.toUpperCase()} />
               <Row
-                label="Pending candidate"
+                label="Pending update"
                 value={data!.hasPendingCandidate
-                  ? <Badge variant="outline" className="border-amber-500 text-amber-500">yes</Badge>
-                  : "no"}
+                  ? <Badge variant="outline" className="border-amber-500 text-amber-500">Yes</Badge>
+                  : "No"}
               />
-              <Row
-                label="Commitment"
-                value={<span className="font-mono text-xs">{data!.currentCommitment ?? "—"}</span>}
-              />
+              <Row label="Signers" value={data!.authorizedSignerIds.length} />
               <Row label="Created" value={new Date(data!.createdAt).toLocaleString()} />
-              <Row label="Updated" value={new Date(data!.updatedAt).toLocaleString()} />
-              {data!.stateCreatedAt && (
-                <Row label="State created" value={new Date(data!.stateCreatedAt).toLocaleString()} />
-              )}
-              {data!.stateUpdatedAt && (
-                <Row label="State updated" value={new Date(data!.stateUpdatedAt).toLocaleString()} />
-              )}
-              <div className="py-2">
-                <p className="text-sm text-muted-foreground mb-2">
-                  Authorized signers ({data!.authorizedSignerIds.length})
-                </p>
-                <div className="flex flex-col gap-1">
-                  {data!.authorizedSignerIds.map((id) => (
-                    <span key={id} className="font-mono text-xs bg-muted rounded px-2 py-1 break-all">
-                      {id}
-                    </span>
-                  ))}
+              <Row label="Last updated" value={new Date(data!.updatedAt).toLocaleString()} />
+
+              {data!.authorizedSignerIds.length > 0 && (
+                <div className="py-2">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Authorized signers
+                  </p>
+                  <div className="flex flex-col gap-1">
+                    {data!.authorizedSignerIds.map((id) => (
+                      <div key={id} className="bg-muted rounded px-2 py-1">
+                        <CopyableId id={id} prefixLen={16} suffixLen={8} />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              <button
+                onClick={() => setShowTechnical((v) => !v)}
+                className="flex items-center gap-1 w-full py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showTechnical ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                Technical details
+              </button>
+              {showTechnical && (
+                <div className="pt-1 pb-2 space-y-2">
+                  <div className="flex items-start justify-between gap-4 text-xs">
+                    <span className="text-muted-foreground shrink-0">Commitment</span>
+                    <CopyableId id={data!.currentCommitment ?? "—"} prefixLen={12} suffixLen={8} />
+                  </div>
+                  {data!.stateCreatedAt && (
+                    <div className="flex items-start justify-between gap-4 text-xs">
+                      <span className="text-muted-foreground">State created</span>
+                      <span>{new Date(data!.stateCreatedAt).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {data!.stateUpdatedAt && (
+                    <div className="flex items-start justify-between gap-4 text-xs">
+                      <span className="text-muted-foreground">State updated</span>
+                      <span>{new Date(data!.stateUpdatedAt).toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -154,34 +188,24 @@ export function AccountDetail({ accountId }: Props) {
               </CardHeader>
               <CardContent className="divide-y">
                 {snapshot.hasPendingCandidate && (
-                  <p className="pb-2 text-xs text-amber-400">Pending candidate in flight — snapshot may be stale.</p>
+                  <p className="pb-2 text-xs text-amber-400">A state update is in progress — balances may be slightly out of date.</p>
                 )}
                 {snapshot.vault.fungible.length === 0 && snapshot.vault.nonFungible.length === 0 ? (
-                  <p className="py-2 text-xs text-muted-foreground">Vault is empty.</p>
+                  <p className="py-2 text-xs text-muted-foreground">No assets in vault.</p>
                 ) : (
                   <>
-                    {snapshot.vault.fungible.map((asset) => {
-                      const usd = Number(asset.amount);
-                      return (
-                        <div key={asset.faucetId} className="flex items-start justify-between gap-4 py-2 text-sm">
-                          <div className="flex flex-col gap-0.5 min-w-0">
-                            <span className="font-mono text-xs text-muted-foreground truncate">{asset.faucetId}</span>
-                            <span className="text-xs text-muted-foreground">{Number(asset.amount).toLocaleString()} tokens</span>
-                          </div>
-                          <span className="font-medium shrink-0">${usd.toLocaleString()}</span>
+                    {snapshot.vault.fungible.map((asset) => (
+                      <div key={asset.faucetId} className="flex items-start justify-between gap-4 py-2 text-sm">
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <CopyableId id={asset.faucetId} prefixLen={10} suffixLen={6} className="text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">{BigInt(asset.amount).toLocaleString()} units</span>
                         </div>
-                      );
-                    })}
+                      </div>
+                    ))}
                     {snapshot.vault.nonFungible.length > 0 && (
                       <div className="flex items-center justify-between gap-4 py-2 text-sm">
                         <span className="text-muted-foreground">Non-fungible assets</span>
                         <span className="font-medium">{snapshot.vault.nonFungible.length}</span>
-                      </div>
-                    )}
-                    {snapshot.vault.fungible.length > 0 && (
-                      <div className="flex items-center justify-between gap-4 py-2 text-sm font-semibold">
-                        <span>Total value</span>
-                        <span>${snapshot.vault.fungible.reduce((sum, a) => sum + Number(a.amount), 0).toLocaleString()}</span>
                       </div>
                     )}
                   </>

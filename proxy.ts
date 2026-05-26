@@ -7,6 +7,7 @@ const isPublic = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
 const skipEndpointCheck = createRouteMatcher([
   "/select-endpoint(.*)",
   "/api/select-endpoint(.*)",
+  "/admin(.*)",
   "/api/admin(.*)",
 ]);
 

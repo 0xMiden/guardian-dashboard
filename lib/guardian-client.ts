@@ -156,6 +156,14 @@ export function getGuardianClient(endpointId: string) {
       await ensureAuthenticated(state, endpointId);
       return withReauth(state, endpointId, () => state.client.getAccountDeltaDetail(accountId, nonce, options));
     },
+    async pauseAccount(accountId: string, reason: string) {
+      await ensureAuthenticated(state, endpointId);
+      return withReauth(state, endpointId, () => state.client.pauseAccount(accountId, reason));
+    },
+    async unpauseAccount(accountId: string, reason?: string) {
+      await ensureAuthenticated(state, endpointId);
+      return withReauth(state, endpointId, () => state.client.unpauseAccount(accountId, reason));
+    },
   };
 }
 

@@ -27,25 +27,24 @@ describe("AccountsPanel", () => {
   });
 
   it("shows empty state when no accounts", () => {
-    useSWR.mockReturnValue({ data: { totalCount: 0, accounts: [] }, error: undefined });
+    useSWR.mockReturnValue({ data: { items: [], nextCursor: null }, error: undefined });
     render(<AccountsPanel />);
     expect(screen.getByText(/no accounts registered/i)).toBeInTheDocument();
   });
 
   it("renders account rows", () => {
-    useSWR.mockReturnValue({
-      data: {
-        totalCount: 1,
-        accounts: [{
-          accountId: "0xabc123",
-          stateStatus: "available",
-          authScheme: "falcon",
-          authorizedSignerCount: 2,
-          hasPendingCandidate: false,
-          updatedAt: new Date().toISOString(),
-        }],
-      },
-      error: undefined,
+    useSWR.mockImplementation((key: string) => {
+      if (key === "/api/accounts") return { data: { items: [{
+        accountId: "0xabc123",
+        stateStatus: "available",
+        authScheme: "falcon",
+        authorizedSignerCount: 2,
+        hasPendingCandidate: false,
+        pausedAt: null,
+        pausedReason: null,
+        updatedAt: new Date().toISOString(),
+      }], nextCursor: null }, error: undefined };
+      return { data: undefined, error: undefined };
     });
     render(<AccountsPanel />);
     expect(screen.getByText("0xabc123")).toBeInTheDocument();
@@ -61,9 +60,14 @@ describe("AccountsPanel", () => {
       authScheme: "falcon",
       authorizedSignerCount: 1,
       hasPendingCandidate: false,
+      pausedAt: null,
+      pausedReason: null,
       updatedAt: new Date().toISOString(),
     };
-    useSWR.mockReturnValue({ data: { totalCount: 1, accounts: [account] }, error: undefined });
+    useSWR.mockImplementation((key: string) => {
+      if (key === "/api/accounts") return { data: { items: [account], nextCursor: null }, error: undefined };
+      return { data: undefined, error: undefined };
+    });
     render(<AccountsPanel />);
     fireEvent.click(screen.getByText("0xabc123").closest("tr")!);
     expect(posthog.capture).toHaveBeenCalledWith("account_clicked", {

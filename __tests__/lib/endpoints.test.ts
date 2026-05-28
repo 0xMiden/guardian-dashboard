@@ -49,6 +49,29 @@ describe("getEndpoints", () => {
     delete process.env.GUARDIAN_OPERATOR_PRIVATE_KEY;
   });
 
+  it("uses 'Guardian' and 'Unknown' as defaults when GUARDIAN_NETWORK is not set", async () => {
+    delete process.env.GUARDIAN_ENDPOINTS;
+    delete process.env.GUARDIAN_NETWORK;
+    process.env.GUARDIAN_URL = "https://legacy.example.com";
+    process.env.GUARDIAN_OPERATOR_COMMITMENT = "0xlegacy";
+    process.env.GUARDIAN_OPERATOR_PRIVATE_KEY = "legacykey";
+    const { getEndpoints } = await importEndpoints();
+    const result = getEndpoints();
+    expect(result[0].label).toBe("Guardian");
+    expect(result[0].network).toBe("Unknown");
+    delete process.env.GUARDIAN_URL;
+    delete process.env.GUARDIAN_OPERATOR_COMMITMENT;
+    delete process.env.GUARDIAN_OPERATOR_PRIVATE_KEY;
+  });
+
+  it("returns cached result on second call", async () => {
+    process.env.GUARDIAN_ENDPOINTS = JSON.stringify([BASE_ENDPOINT]);
+    const { getEndpoints } = await importEndpoints();
+    const first = getEndpoints();
+    const second = getEndpoints();
+    expect(second).toBe(first);
+  });
+
   it("returns empty array for malformed JSON", async () => {
     process.env.GUARDIAN_ENDPOINTS = "not-valid-json";
     const { getEndpoints } = await importEndpoints();

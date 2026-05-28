@@ -57,7 +57,7 @@ function UserRow({ user, onEdit }: { user: ClerkUser; onEdit: (u: ClerkUser) => 
 }
 
 function EditModal({ user, onClose }: { user: ClerkUser; onClose: () => void }) {
-  const { data: endpointList } = useSWR<{ endpoints: { id: string; label: string }[] }>("/api/select-endpoint", fetcher);
+  const { data: endpointList } = useSWR<{ endpoints: { id: string; label: string }[] }>("/api/admin/endpoints", fetcher);
   const allEndpoints = endpointList?.endpoints ?? [];
 
   const [endpointIds, setEndpointIds] = useState<string[]>(user.publicMetadata.endpointIds ?? []);

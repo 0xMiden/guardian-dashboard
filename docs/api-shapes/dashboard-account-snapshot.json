@@ -1,0 +1,14 @@
+{
+    "commitment": "0xce9f8f1b8915fb9a22472aae13471766c57bbf415a270984911c3a592cbeff90",
+    "updated_at": "2026-05-14T11:58:27.342137+00:00",
+    "has_pending_candidate": false,
+    "vault": {
+        "fungible": [
+            {
+                "faucet_id": "0x16f6c85d5652c9200879145bfdda93",
+                "amount": "100000000"
+            }
+        ],
+        "non_fungible": []
+    }
+}

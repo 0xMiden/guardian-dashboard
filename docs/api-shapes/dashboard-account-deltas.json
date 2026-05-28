@@ -1,0 +1,12 @@
+{
+    "items": [
+        {
+            "nonce": 1,
+            "status": "canonical",
+            "status_timestamp": "2026-05-14T11:58:27.342137556+00:00",
+            "prev_commitment": "0x812ff21fc8deaa281d8da32b0ac61b8a0da7d13e891bbd583cdcaa24748f1f53",
+            "new_commitment": "0xce9f8f1b8915fb9a22472aae13471766c57bbf415a270984911c3a592cbeff90"
+        }
+    ],
+    "next_cursor": null
+}

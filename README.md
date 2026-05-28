@@ -10,10 +10,12 @@ Guardian is a key-management service for [Miden](https://miden.xyz) accounts —
 
 | Page | Status | Data source |
 |---|---|---|
-| **Overview** — heartbeat latency, account totals, operator identity | ✅ Live | Guardian API + env vars |
-| **Accounts** — full account list with status, signers, pending candidates | ✅ Live | Guardian API (`listAccounts` / `getAccount`) |
-| **Account detail** — per-account fields, signers, freeze/unfreeze | ✅ Live | Guardian API |
-| **Transactions** — aggregate signed/rejected stats and volume chart | 🔶 Mock | Needs Guardian `GET /delta/since` |
+| **Overview** — heartbeat, accounts / assets / activity stat cards, operator identity | ✅ Live | Guardian API + env vars |
+| **Accounts** — paginated list with status, signers, assets, pending candidates | ✅ Live | Guardian API (`listAccounts`) |
+| **Account detail** — fields, signers, vault snapshot, freeze / unfreeze | ✅ Live | Guardian API (`getAccount`, `getAccountSnapshot`, `pauseAccount`, `unpauseAccount`) |
+| **Account activity** — per-account delta + proposal feed, paginated | ✅ Live | Guardian API (`listAccountDeltas`, `listAccountProposals`) |
+| **Transaction detail** — balance changes, notes, storage diffs, proposal metadata | ✅ Live | Guardian API (`getAccountDeltaDetail`) |
+| **Activity feed** — global delta + proposal feed, status filters, paginated | ✅ Live | Guardian API (`listGlobalDeltas`, `listGlobalProposals`) |
 | **Compliance** — provider config, KYC/whitelist, policy rules | 🔶 Mock | Planned; no provider connected yet |
 
 ---

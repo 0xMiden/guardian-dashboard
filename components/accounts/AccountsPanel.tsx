@@ -13,7 +13,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 type AccountsPage = PagedResult<DashboardAccountSummary> & { error?: string; available?: false };
 type AccountStats = { total: number | null; count7d: number; count30d: number; error?: string };
-type AssetTotals = { usd7d: number; computedAt: string; error?: string };
+type AssetTotals = { usd7d?: number; computedAt?: string; inProgress?: boolean; cached?: { usd7d: number } | null; error?: string };
 
 function StatStrip() {
   const { data: stats } = useSWR<AccountStats>("/api/accounts/stats", fetcher);
@@ -35,7 +35,7 @@ function StatStrip() {
       <span className="text-muted-foreground">
         Updated (last 30d)&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.count30d.toLocaleString()}</span>
       </span>
-      {assets && !assets.error && (
+      {assets?.usd7d != null && !assets.error && (
         <span className="text-muted-foreground">
           Assets (7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">{assets.usd7d.toLocaleString()}</span>
         </span>

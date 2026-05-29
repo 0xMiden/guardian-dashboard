@@ -13,24 +13,14 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 type AccountsPage = PagedResult<DashboardAccountSummary> & { error?: string; available?: false };
 type AccountStats = { total: number | null; count7d: number; count30d: number; error?: string };
-type AssetTotals = {
-  usd7d: number; usd30d: number; computedAt: string;
-  perAccount?: Record<string, number>;
-  inProgress?: boolean;
-  cached?: { usd7d: number; usd30d: number; perAccount?: Record<string, number> } | null;
-};
+type AssetTotals = { usd7d: number; computedAt: string; error?: string };
 
 function StatStrip() {
   const { data: stats } = useSWR<AccountStats>("/api/accounts/stats", fetcher);
   const { data: assets } = useSWR<AssetTotals>("/api/accounts/asset-totals", fetcher, {
-    refreshInterval: 15_000,
+    refreshInterval: 5 * 60_000,
   });
   if (!stats || stats.error) return null;
-
-  const showAssets = assets && !assets.inProgress;
-  const staleAssets = assets?.inProgress && assets.cached;
-  const usd7d  = showAssets ? assets.usd7d  : staleAssets ? assets.cached!.usd7d  : null;
-  const usd30d = showAssets ? assets.usd30d : staleAssets ? assets.cached!.usd30d : null;
 
   return (
     <div className="flex flex-wrap gap-8 text-sm">
@@ -45,21 +35,9 @@ function StatStrip() {
       <span className="text-muted-foreground">
         Updated (last 30d)&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.count30d.toLocaleString()}</span>
       </span>
-      {assets?.inProgress && !assets.cached && (
-        <span className="text-muted-foreground text-xs italic">Computing assets…</span>
-      )}
-      {usd7d !== null && (
+      {assets && !assets.error && (
         <span className="text-muted-foreground">
-          Assets (7d)&nbsp;&nbsp;
-          <span className="font-semibold text-foreground">${usd7d.toLocaleString()}</span>
-          {staleAssets && <span className="text-xs text-zinc-500 ml-1">(updating…)</span>}
-        </span>
-      )}
-      {usd30d !== null && (
-        <span className="text-muted-foreground">
-          Assets (30d)&nbsp;&nbsp;
-          <span className="font-semibold text-foreground">${usd30d.toLocaleString()}</span>
-          {staleAssets && <span className="text-xs text-zinc-500 ml-1">(updating…)</span>}
+          Assets (7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">{assets.usd7d.toLocaleString()}</span>
         </span>
       )}
     </div>
@@ -74,12 +52,9 @@ function statusBadge(status: string, pausedAt: string | null) {
 
 export function AccountsPanel() {
   const { data, error } = useSWR<AccountsPage>("/api/accounts", fetcher, { refreshInterval: 30_000 });
-  const { data: assetTotals } = useSWR<AssetTotals>("/api/accounts/asset-totals", fetcher, { refreshInterval: 15_000 });
   const router = useRouter();
-
-  const perAccount: Record<string, number> =
-    assetTotals?.perAccount ??
-    (assetTotals?.inProgress && assetTotals.cached?.perAccount ? assetTotals.cached.perAccount : {});
+  const [perAccount, setPerAccount] = useState<Record<string, number>>({});
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
   const [extraItems, setExtraItems] = useState<DashboardAccountSummary[]>([]);
   // undefined = haven't paginated yet (fall through to initialCursor)
   // null      = last page loaded, no more pages
@@ -94,6 +69,20 @@ export function AccountsPanel() {
   // string    → more pages available
   const hasMore = nextCursor === undefined ? initialCursor !== null : nextCursor !== null;
 
+  const fetchSnapshots = useCallback(async (ids: string[]) => {
+    if (!ids.length) return;
+    setSnapshotsLoading(true);
+    try {
+      const res = await fetch(`/api/accounts/snapshots?ids=${ids.map(encodeURIComponent).join(",")}`);
+      const data: Record<string, number> = await res.json();
+      setPerAccount((prev) => ({ ...prev, ...data }));
+    } catch {
+      // snapshots are best-effort — leave column as "—" on failure
+    } finally {
+      setSnapshotsLoading(false);
+    }
+  }, []);
+
   const loadMore = useCallback(async () => {
     const cursor = nextCursor !== undefined ? nextCursor : initialCursor;
     if (!cursor) return;
@@ -101,12 +90,21 @@ export function AccountsPanel() {
     try {
       const res = await fetch(`/api/accounts?cursor=${encodeURIComponent(cursor)}`);
       const page: AccountsPage = await res.json();
-      setExtraItems((prev) => [...prev, ...(page.items ?? [])]);
+      const newItems = page.items ?? [];
+      setExtraItems((prev) => [...prev, ...newItems]);
       setNextCursor(page.nextCursor ?? null);
+      fetchSnapshots(newItems.map((a) => a.accountId));
     } finally {
       setLoadingMore(false);
     }
-  }, [nextCursor, initialCursor]);
+  }, [nextCursor, initialCursor, fetchSnapshots]);
+
+  // Fetch snapshots for the initial page once it arrives
+  const fetchSnapshotsRef = useRef(fetchSnapshots);
+  useEffect(() => { fetchSnapshotsRef.current = fetchSnapshots; }, [fetchSnapshots]);
+  useEffect(() => {
+    if (data?.items?.length) fetchSnapshotsRef.current(data.items.map((a) => a.accountId));
+  }, [data]);
 
   // Keep a stable ref to loadMore so the observer never needs to be rebuilt on cursor changes
   const loadMoreRef = useRef(loadMore);
@@ -206,6 +204,8 @@ export function AccountsPanel() {
                   <td className="px-4 py-3 text-xs">
                     {perAccount[a.accountId] !== undefined
                       ? <span className="font-mono">{perAccount[a.accountId].toLocaleString()}</span>
+                      : snapshotsLoading
+                      ? <span className="text-muted-foreground">…</span>
                       : <span className="text-muted-foreground">—</span>}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">

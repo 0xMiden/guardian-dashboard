@@ -1,21 +1,17 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { getGuardianClient } from "@/lib/guardian-client";
 
 export const dynamic = "force-dynamic";
+// Vercel Pro required — computation can take 60-90s on large nodes
+export const maxDuration = 120;
 
-const MS_7D  = 7  * 24 * 60 * 60 * 1000;
-const MS_30D = 30 * 24 * 60 * 60 * 1000;
+const MS_7D = 7 * 24 * 60 * 60 * 1000;
 const CACHE_TTL = 5 * 60 * 1000;
+const CONCURRENCY = 10;
 
-type AssetTotals = {
-  usd7d: number;
-  usd30d: number;
-  computedAt: string;
-  perAccount: Record<string, number>;
-};
-
-// Module-level cache — persists across requests in the same Node.js process.
+type AssetTotals = { usd7d: number; computedAt: string };
 const cache = new Map<string, AssetTotals>();
 const computing = new Set<string>();
 
@@ -23,9 +19,6 @@ async function computeTotals(endpointId: string): Promise<void> {
   try {
     const client = getGuardianClient(endpointId);
     const now = Date.now();
-
-    // Collect accounts active in last 30d (newest-first sort allows early stop)
-    const active30d: string[] = [];
     const active7d: string[] = [];
     let cursor: string | undefined;
 
@@ -33,46 +26,29 @@ async function computeTotals(endpointId: string): Promise<void> {
       const page = await client.listAccounts({ limit: 100, cursor });
       if (!page.items.length) break;
 
+      let allOld = true;
       for (const item of page.items) {
-        const age = now - new Date(item.updatedAt).getTime();
-        if (age <= MS_30D) {
-          active30d.push(item.accountId);
-          if (age <= MS_7D) active7d.push(item.accountId);
+        if (now - new Date(item.updatedAt).getTime() <= MS_7D) {
+          active7d.push(item.accountId);
+          allOld = false;
         }
       }
-
-      const oldestAge = now - new Date(page.items[page.items.length - 1].updatedAt).getTime();
-      if (oldestAge > MS_30D || !page.nextCursor) break;
+      if (allOld || !page.nextCursor) break;
       cursor = page.nextCursor;
     }
 
-    // Fetch snapshots for 30d-active accounts (7d is a subset)
-    const CONCURRENCY = 10;
-    const vaultTotals = new Map<string, number>();
-
-    for (let i = 0; i < active30d.length; i += CONCURRENCY) {
-      const batch = active30d.slice(i, i + CONCURRENCY);
-      const results = await Promise.allSettled(
-        batch.map((id) => client.getAccountSnapshot(id))
-      );
-      for (let j = 0; j < results.length; j++) {
-        const r = results[j];
+    let usd7d = 0;
+    for (let i = 0; i < active7d.length; i += CONCURRENCY) {
+      const batch = active7d.slice(i, i + CONCURRENCY);
+      const settled = await Promise.allSettled(batch.map((id) => client.getAccountSnapshot(id)));
+      for (const r of settled) {
         if (r.status === "fulfilled") {
-          const total = r.value.vault.fungible.reduce(
-            (sum, a) => sum + Number(a.amount), 0
-          );
-          vaultTotals.set(active30d[i + j], total);
+          usd7d += r.value.vault.fungible.reduce((sum, a) => sum + Number(a.amount), 0);
         }
       }
     }
 
-    const usd30d = active30d.reduce((sum, id) => sum + (vaultTotals.get(id) ?? 0), 0);
-    const usd7d  = active7d.reduce((sum, id)  => sum + (vaultTotals.get(id) ?? 0), 0);
-    const perAccount = Object.fromEntries(vaultTotals);
-
-    cache.set(endpointId, { usd7d, usd30d, computedAt: new Date().toISOString(), perAccount });
-  } catch {
-    // Leave any previous cached value intact; don't pollute with partial errors
+    cache.set(endpointId, { usd7d, computedAt: new Date().toISOString() });
   } finally {
     computing.delete(endpointId);
   }
@@ -90,7 +66,7 @@ export async function GET() {
 
   if (!computing.has(endpointId)) {
     computing.add(endpointId);
-    computeTotals(endpointId); // fire-and-forget
+    after(computeTotals(endpointId));
   }
 
   return NextResponse.json({ inProgress: true, cached: cached ?? null });

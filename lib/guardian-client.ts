@@ -109,9 +109,8 @@ export function getGuardianClient(endpointId: string) {
       const ep = getEndpoint(endpointId)!;
       const start = Date.now();
       try {
-        const res = await fetch(new URL("auth/challenge", ep.url).toString(), { signal: AbortSignal.timeout(2000) });
-        // any HTTP response means the server is reachable; only network errors mean down
-        return { status: res.status < 500 ? "up" : "down" as const, latencyMs: Date.now() - start, checkedAt: new Date().toISOString() };
+        const res = await fetch(`${ep.url.replace(/\/$/, "")}/pubkey`, { signal: AbortSignal.timeout(2000) });
+        return { status: res.ok ? "up" : "down" as const, latencyMs: Date.now() - start, checkedAt: new Date().toISOString() };
       } catch {
         return { status: "down" as const, latencyMs: Date.now() - start, checkedAt: new Date().toISOString() };
       }

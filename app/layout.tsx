@@ -24,9 +24,20 @@ const bitter = Bitter({
 });
 
 export const metadata: Metadata = {
-  title: "Guardian Dashboard",
-  description: "Monitor your OpenZeppelin Guardian node",
+  title: "Miden Guardian Dashboard",
+  description: "Monitor your Guardian service running on Miden",
   icons: { icon: "/orangerobot.png" },
+  openGraph: {
+    title: "Miden Guardian Dashboard",
+    description: "Monitor your Guardian service running on Miden",
+    siteName: "Miden Guardian Dashboard",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "Miden Guardian Dashboard",
+    description: "Monitor your Guardian service running on Miden",
+  },
 };
 
 export default function RootLayout({

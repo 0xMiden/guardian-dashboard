@@ -28,7 +28,7 @@ export function ActivityCard() {
   const loading = !data;
   const error = data?.error;
 
-  const confirmed = data?.deltaStatusCounts.canonical;
+  const confirmed = data?.deltaStatusCounts?.canonical;
 
   return (
     <Card>

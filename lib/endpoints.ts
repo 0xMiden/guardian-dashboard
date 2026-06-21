@@ -9,6 +9,10 @@ export interface Endpoint {
 
 let cached: Endpoint[] | null = null;
 
+function privateKeyEnvVar(id: string): string {
+  return `GUARDIAN_PRIVATE_KEY_${id.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
+}
+
 export function getEndpoints(): Endpoint[] {
   if (cached) return cached;
   const raw = process.env.GUARDIAN_ENDPOINTS;
@@ -31,7 +35,13 @@ export function getEndpoints(): Endpoint[] {
     }
     return cached;
   }
-  cached = JSON.parse(raw) as Endpoint[];
+  const parsed = JSON.parse(raw) as Endpoint[];
+  // Private keys may be omitted from GUARDIAN_ENDPOINTS (to stay under Vercel's
+  // 4KB env var limit) and supplied via GUARDIAN_PRIVATE_KEY_{ID} instead.
+  cached = parsed.map((ep) => ({
+    ...ep,
+    privateKey: ep.privateKey || process.env[privateKeyEnvVar(ep.id)] || "",
+  }));
   return cached;
 }
 

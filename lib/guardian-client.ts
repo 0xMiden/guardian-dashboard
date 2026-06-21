@@ -109,7 +109,7 @@ export function getGuardianClient(endpointId: string) {
       const ep = getEndpoint(endpointId)!;
       const start = Date.now();
       try {
-        const res = await fetch(`${ep.url}/pubkey`, { signal: AbortSignal.timeout(2000) });
+        const res = await fetch(`${ep.url.replace(/\/$/, "")}/pubkey`, { signal: AbortSignal.timeout(2000) });
         return { status: res.ok ? "up" : "down" as const, latencyMs: Date.now() - start, checkedAt: new Date().toISOString() };
       } catch {
         return { status: "down" as const, latencyMs: Date.now() - start, checkedAt: new Date().toISOString() };

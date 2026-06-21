@@ -9,7 +9,7 @@ async function main() {
   const mod = (await import("@miden-sdk/miden-sdk/lazy")) as SDK;
   const wasmPath = join(
     process.cwd(),
-    "node_modules/@miden-sdk/miden-sdk/dist/assets/miden_client_web.wasm"
+    "node_modules/@miden-sdk/miden-sdk/dist/st/assets/miden_client_web.wasm"
   );
   mod.initSync({ module: readFileSync(wasmPath) });
 

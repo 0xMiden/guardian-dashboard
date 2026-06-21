@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
   },
   serverExternalPackages: ["@miden-sdk/miden-sdk"],
   outputFileTracingIncludes: {
-    "/api/**": ["./node_modules/@miden-sdk/miden-sdk/dist/st/assets/*.wasm"],
+    "/api/**": ["./node_modules/@miden-sdk/miden-sdk/dist/assets/*.wasm"],
   },
   turbopack: {
     // Parent /Code/package-lock.json causes Turbopack to pick the wrong workspace root.

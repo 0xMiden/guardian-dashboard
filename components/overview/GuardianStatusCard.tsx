@@ -50,23 +50,21 @@ function truncate(hex: string): string {
 function CopyableHash({ value, short }: { value: string; short?: boolean }) {
   const [copied, setCopied] = useState(false);
   function copy() {
-    const done = () => { setCopied(true); setTimeout(() => setCopied(false), 1500); };
-    function fallback() {
-      const el = document.createElement("textarea");
-      el.value = value;
-      el.style.position = "fixed";
-      el.style.opacity = "0";
+    const flash = () => { setCopied(true); setTimeout(() => setCopied(false), 1500); };
+    // execCommand runs synchronously inside the click handler (user gesture intact)
+    try {
+      const el = Object.assign(document.createElement("textarea"), {
+        value,
+        style: "position:fixed;top:0;left:0;opacity:0;pointer-events:none",
+      });
       document.body.appendChild(el);
+      el.focus();
       el.select();
-      document.execCommand("copy");
+      if (document.execCommand("copy")) { document.body.removeChild(el); flash(); return; }
       document.body.removeChild(el);
-      done();
-    }
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(value).then(done).catch(fallback);
-    } else {
-      fallback();
-    }
+    } catch { /* fall through */ }
+    // Clipboard API fallback (async, requires secure context)
+    navigator.clipboard?.writeText(value).then(flash).catch(() => {});
   }
   const display = short ? value.slice(0, 7) : truncate(value);
   return (

@@ -14,13 +14,9 @@ interface HealthData {
   checkedAt: string;
 }
 
-interface GuardianStatus {
-  status: string;
-  version: string;
-  environment: string;
-  uptime_secs: number;
-  started_at: string;
-  git_commit: string;
+interface OverviewData {
+  environment?: string;
+  build?: { version: string; gitCommit: string; startedAt: string; profile: string };
   error?: string;
 }
 
@@ -92,7 +88,7 @@ export function GuardianStatusCard() {
     }),
   });
 
-  const { data: status } = useSWR<GuardianStatus>("/api/status", fetcher, {
+  const { data: overview } = useSWR<OverviewData>("/api/overview", fetcher, {
     refreshInterval: 30_000,
   });
 
@@ -165,18 +161,18 @@ export function GuardianStatusCard() {
                     </Badge>
                   }
                 />
-                {status && !status.error && (
+                {overview?.build && (
                   <>
-                    <Row label="Version" value={status.version} />
+                    <Row label="Version" value={overview.build.version} />
                     <Row
                       label="Uptime"
-                      value={formatUptime(status.uptime_secs)}
-                      sub={`since ${new Date(status.started_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
+                      value={formatUptime(Math.floor((Date.now() - new Date(overview.build.startedAt).getTime()) / 1000))}
+                      sub={`since ${new Date(overview.build.startedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
                     />
-                    {status.git_commit && (
+                    {overview.build.gitCommit && overview.build.gitCommit !== "unknown" && (
                       <Row
                         label="Commit"
-                        value={<CopyableHash value={status.git_commit} short />}
+                        value={<CopyableHash value={overview.build.gitCommit} short />}
                       />
                     )}
                   </>

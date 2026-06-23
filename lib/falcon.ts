@@ -40,6 +40,12 @@ export function hexToBytes(hex: string): Uint8Array {
   return out;
 }
 
+export async function getPublicKey(privateKeyHex: string): Promise<string> {
+  const { AuthSecretKey } = await sdk();
+  const secretKey = AuthSecretKey.deserialize(hexToBytes(privateKeyHex));
+  return "0x" + bytesToHex(secretKey.publicKey().serialize().slice(1));
+}
+
 export async function signDigest(privateKeyHex: string, digestHex: string): Promise<string> {
   const { AuthSecretKey, Word } = await sdk();
   const secretKey = AuthSecretKey.deserialize(hexToBytes(privateKeyHex));

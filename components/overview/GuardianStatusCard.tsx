@@ -24,7 +24,7 @@ interface OverviewData {
 interface OperatorInfo {
   url: string;
   network: string;
-  commitment: string | null;
+  publicKey: string | null;
 }
 
 const networkColor: Record<string, string> = {
@@ -114,7 +114,7 @@ export function GuardianStatusCard() {
 
   const isUp = health?.status === "up";
   const build = overview?.build;
-  const hasDetails = !!(build?.gitCommit && build.gitCommit !== "unknown") || !!opInfo?.commitment;
+  const hasDetails = !!(build?.gitCommit && build.gitCommit !== "unknown") || !!opInfo?.publicKey;
 
   return (
     <Card>
@@ -220,11 +220,11 @@ export function GuardianStatusCard() {
                             info="Git commit SHA of the Guardian build currently running. Click to copy the full hash."
                           />
                         )}
-                        {opInfo.commitment && (
+                        {opInfo.publicKey && (
                           <Row
-                            label="Commitment"
-                            value={<CopyableHash value={opInfo.commitment} />}
-                            info="Your operator public key commitment, used for Falcon-512 authentication with this Guardian node. Click to copy."
+                            label="Public key"
+                            value={<CopyableHash value={opInfo.publicKey} />}
+                            info="Your operator Falcon-512 public key as registered with this Guardian node. Click to copy."
                           />
                         )}
                       </>

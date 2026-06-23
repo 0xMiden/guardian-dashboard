@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -62,11 +63,27 @@ function CopyableHash({ value, short }: { value: string; short?: boolean }) {
   );
 }
 
-function Row({ label, value, sub }: { label: string; value: React.ReactNode; sub?: React.ReactNode }) {
+function InfoTip({ text }: { text: string }) {
   return (
-    <div className="flex items-start justify-between py-1.5 text-sm">
-      <span className="text-muted-foreground shrink-0">{label}</span>
-      <span className="font-medium text-right">
+    <span className="relative group/tip inline-flex shrink-0">
+      <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-muted text-[9px] leading-none text-muted-foreground cursor-help select-none">
+        i
+      </span>
+      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 rounded bg-popover border text-popover-foreground text-xs p-2 shadow-md opacity-0 group-hover/tip:opacity-100 transition-opacity z-20 pointer-events-none">
+        {text}
+      </span>
+    </span>
+  );
+}
+
+function Row({ label, value, sub, info }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string }) {
+  return (
+    <div className="flex items-start gap-3 py-1 text-sm">
+      <span className="text-muted-foreground w-24 shrink-0 flex items-center gap-1">
+        {label}
+        {info && <InfoTip text={info} />}
+      </span>
+      <span className="font-medium">
         {value}
         {sub && <span className="block text-xs text-muted-foreground font-normal">{sub}</span>}
       </span>
@@ -78,6 +95,7 @@ let cachedHistory: { t: number; ms: number }[] = [];
 
 export function GuardianStatusCard() {
   const [history, setHistory] = useState<{ t: number; ms: number }[]>(cachedHistory);
+  const [showDetails, setShowDetails] = useState(false);
 
   const { data: health } = useSWR<HealthData>("/api/health", fetcher, {
     refreshInterval: 5000,
@@ -95,6 +113,8 @@ export function GuardianStatusCard() {
   const { data: opInfo } = useSWR<OperatorInfo>("/api/operator-info", fetcher);
 
   const isUp = health?.status === "up";
+  const build = overview?.build;
+  const hasDetails = !!(build?.gitCommit && build.gitCommit !== "unknown") || !!opInfo?.commitment;
 
   return (
     <Card>
@@ -103,8 +123,8 @@ export function GuardianStatusCard() {
       </CardHeader>
       <CardContent>
         <div className="flex flex-col gap-4 md:flex-row md:gap-8">
-          {/* Left: heartbeat */}
-          <div className="w-full md:w-48 shrink-0 min-w-0">
+          {/* Left: heartbeat + sparkline */}
+          <div className="w-full md:w-64 shrink-0 min-w-0">
             {!health ? (
               <Skeleton className="h-10 w-32" />
             ) : (
@@ -123,9 +143,9 @@ export function GuardianStatusCard() {
                 </p>
               </>
             )}
-            <div className="mt-3 h-12 w-full">
+            <div className="mt-3 h-20 w-full">
               {history.length > 1 && (
-                <ResponsiveContainer width="100%" height={48} minWidth={0}>
+                <ResponsiveContainer width="100%" height={80} minWidth={0}>
                   <LineChart data={history}>
                     <Line type="monotone" dataKey="ms" stroke="#8b5cf6" dot={false} strokeWidth={2} />
                     <Tooltip
@@ -152,6 +172,7 @@ export function GuardianStatusCard() {
                 <Row
                   label="Endpoint"
                   value={<span className="text-xs">{opInfo.url.replace(/^https?:\/\//, "")}</span>}
+                  info="The Guardian node you are currently connected to."
                 />
                 <Row
                   label="Network"
@@ -160,27 +181,54 @@ export function GuardianStatusCard() {
                       {opInfo.network}
                     </Badge>
                   }
+                  info="The Miden network this Guardian node is operating on."
                 />
-                {overview?.build && (
+                {build && (
+                  <Row
+                    label="Uptime"
+                    value={formatUptime(Math.floor((Date.now() - new Date(build.startedAt).getTime()) / 1000))}
+                    sub={`since ${new Date(build.startedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
+                    info="Time elapsed since the Guardian process last started."
+                  />
+                )}
+
+                {/* Expandable details: Commit + Commitment */}
+                {hasDetails && (
                   <>
-                    <Row label="Version" value={overview.build.version} />
-                    <Row
-                      label="Uptime"
-                      value={formatUptime(Math.floor((Date.now() - new Date(overview.build.startedAt).getTime()) / 1000))}
-                      sub={`since ${new Date(overview.build.startedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
-                    />
-                    {overview.build.gitCommit && overview.build.gitCommit !== "unknown" && (
-                      <Row
-                        label="Commit"
-                        value={<CopyableHash value={overview.build.gitCommit} short />}
-                      />
+                    <button
+                      onClick={() => setShowDetails((v) => !v)}
+                      className="flex items-center gap-1 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+                    >
+                      {showDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      {showDetails ? "Hide details" : "Show details"}
+                    </button>
+                    {showDetails && (
+                      <>
+                        {build?.gitCommit && build.gitCommit !== "unknown" && (
+                          <Row
+                            label="Commit"
+                            value={<CopyableHash value={build.gitCommit} short />}
+                            info="Git commit SHA of the Guardian build currently running. Click to copy the full hash."
+                          />
+                        )}
+                        {opInfo.commitment && (
+                          <Row
+                            label="Commitment"
+                            value={<CopyableHash value={opInfo.commitment} />}
+                            info="Your operator public key commitment, used for Falcon-512 authentication with this Guardian node. Click to copy."
+                          />
+                        )}
+                      </>
                     )}
                   </>
                 )}
-                {opInfo.commitment && (
+
+                {/* Version at bottom */}
+                {build && (
                   <Row
-                    label="Commitment"
-                    value={<CopyableHash value={opInfo.commitment} />}
+                    label="Version"
+                    value={<span className="text-muted-foreground font-mono text-xs">{build.version}</span>}
+                    info="Guardian server software version."
                   />
                 )}
               </>

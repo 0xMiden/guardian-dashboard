@@ -122,9 +122,9 @@ export function GuardianStatusCard() {
         <CardTitle className="text-sm font-medium text-muted-foreground">Guardian Node</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col gap-4 md:flex-row md:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Left: heartbeat + sparkline */}
-          <div className="w-full md:w-64 shrink-0 min-w-0">
+          <div className="min-w-0">
             {!health ? (
               <Skeleton className="h-10 w-32" />
             ) : (
@@ -143,9 +143,9 @@ export function GuardianStatusCard() {
                 </p>
               </>
             )}
-            <div className="mt-3 h-20 w-full">
+            <div className="mt-3 h-32 w-full">
               {history.length > 1 && (
-                <ResponsiveContainer width="100%" height={80} minWidth={0}>
+                <ResponsiveContainer width="100%" height={128} minWidth={0}>
                   <LineChart data={history}>
                     <Line type="monotone" dataKey="ms" stroke="#8b5cf6" dot={false} strokeWidth={2} />
                     <Tooltip
@@ -164,7 +164,7 @@ export function GuardianStatusCard() {
           </div>
 
           {/* Right: info rows */}
-          <div className="flex-1 divide-y">
+          <div className="divide-y">
             {!opInfo ? (
               Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="my-2 h-5 w-full" />)
             ) : (

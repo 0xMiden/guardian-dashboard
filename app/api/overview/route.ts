@@ -19,6 +19,8 @@ export async function GET() {
       deltaStatusCounts: info.deltaStatusCounts,
       inFlightProposalCount: info.inFlightProposalCount,
       serviceStatus: info.serviceStatus,
+      environment: info.environment,
+      build: info.build,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

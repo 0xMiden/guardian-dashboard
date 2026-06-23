@@ -96,6 +96,7 @@ let cachedHistory: { t: number; ms: number }[] = [];
 export function GuardianStatusCard() {
   const [history, setHistory] = useState<{ t: number; ms: number }[]>(cachedHistory);
   const [showDetails, setShowDetails] = useState(false);
+  const [uptimeSecs, setUptimeSecs] = useState<number | null>(null);
 
   const { data: health } = useSWR<HealthData>("/api/health", fetcher, {
     refreshInterval: 5000,
@@ -108,6 +109,11 @@ export function GuardianStatusCard() {
 
   const { data: overview } = useSWR<OverviewData>("/api/overview", fetcher, {
     refreshInterval: 30_000,
+    onSuccess: (d) => {
+      if (d.build?.startedAt) {
+        setUptimeSecs(Math.floor((Date.now() - new Date(d.build.startedAt).getTime()) / 1000));
+      }
+    },
   });
 
   const { data: opInfo } = useSWR<OperatorInfo>("/api/operator-info", fetcher);
@@ -186,7 +192,7 @@ export function GuardianStatusCard() {
                 {build && (
                   <Row
                     label="Uptime"
-                    value={formatUptime(Math.floor((Date.now() - new Date(build.startedAt).getTime()) / 1000))}
+                    value={uptimeSecs !== null ? formatUptime(uptimeSecs) : "—"}
                     sub={`since ${new Date(build.startedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
                     info="Time elapsed since the Guardian process last started."
                   />

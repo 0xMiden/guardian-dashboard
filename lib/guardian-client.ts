@@ -107,19 +107,10 @@ export function getGuardianClient(endpointId: string) {
   return {
     async checkHealth() {
       const ep = getEndpoint(endpointId)!;
-      const base = ep.url.replace(/\/$/, "");
       const start = Date.now();
       try {
-        const res = await fetch(`${base}/status`, { signal: AbortSignal.timeout(2000) });
-        const latencyMs = Date.now() - start;
-        if (res.ok) {
-          const up = (await res.json() as { status: string }).status === "ok";
-          return { status: up ? "up" : "down" as const, latencyMs, checkedAt: new Date().toISOString() };
-        }
-        // /status not yet deployed — fall back to /pubkey
-        const t = Date.now();
-        const r2 = await fetch(`${base}/pubkey`, { signal: AbortSignal.timeout(2000) });
-        return { status: r2.ok ? "up" : "down" as const, latencyMs: Date.now() - t, checkedAt: new Date().toISOString() };
+        const res = await fetch(`${ep.url.replace(/\/$/, "")}/pubkey`, { signal: AbortSignal.timeout(2000) });
+        return { status: res.ok ? "up" : "down" as const, latencyMs: Date.now() - start, checkedAt: new Date().toISOString() };
       } catch {
         return { status: "down" as const, latencyMs: Date.now() - start, checkedAt: new Date().toISOString() };
       }

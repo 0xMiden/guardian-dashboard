@@ -108,7 +108,7 @@ export function GuardianStatusCard() {
       <CardContent>
         <div className="flex flex-col gap-4 md:flex-row md:gap-8">
           {/* Left: heartbeat */}
-          <div className="md:w-48 shrink-0">
+          <div className="w-full md:w-48 shrink-0 min-w-0">
             {!health ? (
               <Skeleton className="h-10 w-32" />
             ) : (
@@ -127,9 +127,9 @@ export function GuardianStatusCard() {
                 </p>
               </>
             )}
-            <div className="mt-3 h-12">
+            <div className="mt-3 h-12 w-full">
               {history.length > 1 && (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={48} minWidth={0}>
                   <LineChart data={history}>
                     <Line type="monotone" dataKey="ms" stroke="#8b5cf6" dot={false} strokeWidth={2} />
                     <Tooltip

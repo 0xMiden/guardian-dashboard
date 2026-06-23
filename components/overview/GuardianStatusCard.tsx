@@ -192,6 +192,15 @@ export function GuardianStatusCard() {
                   />
                 )}
 
+                {/* Version at bottom */}
+                {build && (
+                  <Row
+                    label="Version"
+                    value={<span className="text-muted-foreground font-mono text-xs">{build.version}</span>}
+                    info="Guardian server software version."
+                  />
+                )}
+
                 {/* Expandable details: Commit + Commitment */}
                 {hasDetails && (
                   <>
@@ -221,15 +230,6 @@ export function GuardianStatusCard() {
                       </>
                     )}
                   </>
-                )}
-
-                {/* Version at bottom */}
-                {build && (
-                  <Row
-                    label="Version"
-                    value={<span className="text-muted-foreground font-mono text-xs">{build.version}</span>}
-                    info="Guardian server software version."
-                  />
                 )}
               </>
             )}

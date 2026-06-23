@@ -222,7 +222,7 @@ export function GuardianStatusCard() {
                         )}
                         {opInfo.publicKey && (
                           <Row
-                            label="Public key"
+                            label="Dashboard public key"
                             value={<CopyableHash value={opInfo.publicKey} />}
                             info="Your operator Falcon-512 public key as registered with this Guardian node. Click to copy."
                           />

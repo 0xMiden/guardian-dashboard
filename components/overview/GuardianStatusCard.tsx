@@ -50,10 +50,23 @@ function truncate(hex: string): string {
 function CopyableHash({ value, short }: { value: string; short?: boolean }) {
   const [copied, setCopied] = useState(false);
   function copy() {
-    navigator.clipboard.writeText(value).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
+    const done = () => { setCopied(true); setTimeout(() => setCopied(false), 1500); };
+    function fallback() {
+      const el = document.createElement("textarea");
+      el.value = value;
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      done();
+    }
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(value).then(done).catch(fallback);
+    } else {
+      fallback();
+    }
   }
   const display = short ? value.slice(0, 7) : truncate(value);
   return (

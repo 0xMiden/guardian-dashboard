@@ -47,7 +47,7 @@ describe("GET /api/overview", () => {
     }));
     const res = await GET();
     const body = await res.json();
-    expect(body).toEqual({
+    expect(body).toEqual(expect.objectContaining({
       totalAccounts: 4,
       falcon: 2,
       ecdsa: 2,
@@ -55,7 +55,9 @@ describe("GET /api/overview", () => {
       deltaStatusCounts: { candidate: 1, canonical: 10, discarded: 0 },
       inFlightProposalCount: 3,
       serviceStatus: "healthy",
-    });
+      environment: "testnet",
+      build: expect.objectContaining({ version: "1.0.0", gitCommit: "abc" }),
+    }));
   });
 
   it("returns all zeros when no accounts", async () => {

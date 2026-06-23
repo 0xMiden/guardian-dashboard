@@ -6,7 +6,12 @@ vi.mock("@/lib/endpoints", () => ({
   getEndpoint: vi.fn(),
 }));
 
+vi.mock("@/lib/falcon", () => ({
+  getPublicKey: vi.fn(),
+}));
+
 const { getEndpoint } = await import("@/lib/endpoints");
+const { getPublicKey } = await import("@/lib/falcon");
 
 function mockHeaders(endpointId: string) {
   vi.mocked(headers).mockResolvedValue({
@@ -21,7 +26,7 @@ describe("GET /api/operator-info", () => {
     mockHeaders("");
     const res = await GET();
     const body = await res.json();
-    expect(body).toEqual({ url: null, network: "Unknown", commitment: null });
+    expect(body).toEqual({ url: null, network: "Unknown", publicKey: null });
   });
 
   it("returns endpoint data for a valid id", async () => {
@@ -34,12 +39,13 @@ describe("GET /api/operator-info", () => {
       commitment: "0xabc123",
       privateKey: "secret",
     });
+    vi.mocked(getPublicKey).mockResolvedValue("0xpubkey123");
     const res = await GET();
     const body = await res.json();
     expect(body).toEqual({
       url: "https://guardian.example.com",
       network: "MidenTestnet",
-      commitment: "0xabc123",
+      publicKey: "0xpubkey123",
     });
   });
 
@@ -49,6 +55,6 @@ describe("GET /api/operator-info", () => {
     const res = await GET();
     const body = await res.json();
     expect(body.url).toBeNull();
-    expect(body.commitment).toBeNull();
+    expect(body.publicKey).toBeNull();
   });
 });

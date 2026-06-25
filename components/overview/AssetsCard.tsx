@@ -9,7 +9,7 @@ type AssetTotals = { usd7d?: number; computedAt?: string; error?: string };
 
 export function AssetsCard() {
   const { data } = useSWR<AssetTotals>("/api/accounts/asset-totals", fetcher, {
-    refreshInterval: 5 * 60_000,
+    refreshInterval: 60_000,
   });
 
   return (
@@ -20,7 +20,7 @@ export function AssetsCard() {
           <Skeleton className="h-8 w-20 mt-1" />
         ) : (
           <p className="text-3xl font-bold leading-none text-foreground">
-            {data.usd7d?.toLocaleString() ?? "—"}
+            {data.usd7d != null ? `$${data.usd7d.toLocaleString()}` : "—"}
           </p>
         )}
       </CardContent>

@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { getGuardianClient } from "@/lib/guardian-client";
+import { normalizeAmount } from "@/lib/token-registry";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const MS_7D = 7 * 24 * 60 * 60 * 1000;
-const CACHE_TTL = 5 * 60 * 1000;
+const CACHE_TTL = 60 * 1000;
 const CONCURRENCY = 10;
 
 type AssetTotals = { usd7d: number; computedAt: string };
@@ -48,7 +49,7 @@ export async function GET() {
     const settled = await Promise.allSettled(batch.map((id) => client.getAccountSnapshot(id)));
     for (const r of settled) {
       if (r.status === "fulfilled") {
-        usd7d += r.value.vault.fungible.reduce((sum, a) => sum + Number(a.amount), 0);
+        usd7d += r.value.vault.fungible.reduce((sum, a) => sum + normalizeAmount(a.faucetId, a.amount), 0);
       }
     }
   }

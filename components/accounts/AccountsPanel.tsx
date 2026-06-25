@@ -18,7 +18,7 @@ type AssetTotals = { usd7d?: number; computedAt?: string; inProgress?: boolean; 
 function StatStrip() {
   const { data: stats } = useSWR<AccountStats>("/api/accounts/stats", fetcher);
   const { data: assets } = useSWR<AssetTotals>("/api/accounts/asset-totals", fetcher, {
-    refreshInterval: 5 * 60_000,
+    refreshInterval: 60_000,
   });
   if (!stats || stats.error) return null;
 
@@ -37,7 +37,7 @@ function StatStrip() {
       </span>
       {assets?.usd7d != null && !assets.error && (
         <span className="text-muted-foreground">
-          Assets (7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">{assets.usd7d.toLocaleString()}</span>
+          Assets (7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">${assets.usd7d.toLocaleString()}</span>
         </span>
       )}
     </div>
@@ -203,7 +203,7 @@ export function AccountsPanel() {
                   </td>
                   <td className="px-4 py-3 text-xs">
                     {perAccount[a.accountId] !== undefined
-                      ? <span className="font-mono">{perAccount[a.accountId].toLocaleString()}</span>
+                      ? <span className="font-mono">${perAccount[a.accountId].toLocaleString()}</span>
                       : snapshotsLoading
                       ? <span className="text-muted-foreground">…</span>
                       : <span className="text-muted-foreground">—</span>}

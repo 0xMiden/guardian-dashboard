@@ -98,20 +98,14 @@ function Row({ label, value, sub, info }: { label: string; value: React.ReactNod
   );
 }
 
-let cachedHistory: { t: number; ms: number }[] = [];
-
 export function GuardianStatusCard() {
-  const [history, setHistory] = useState<{ t: number; ms: number }[]>(cachedHistory);
+  const [history, setHistory] = useState<{ t: number; ms: number }[]>([]);
   const [showDetails, setShowDetails] = useState(false);
   const [uptimeSecs, setUptimeSecs] = useState<number | null>(null);
 
   const { data: health } = useSWR<HealthData>("/api/health", fetcher, {
     refreshInterval: 5000,
-    onSuccess: (d) => setHistory((prev) => {
-      const next = [...prev.slice(-19), { t: Date.now(), ms: d.latencyMs }];
-      cachedHistory = next;
-      return next;
-    }),
+    onSuccess: (d) => setHistory((prev) => [...prev.slice(-19), { t: Date.now(), ms: d.latencyMs }]),
   });
 
   const { data: overview } = useSWR<OverviewData>("/api/overview", fetcher, {

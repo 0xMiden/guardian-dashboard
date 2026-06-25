@@ -12,7 +12,8 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const cursor = searchParams.get("cursor") ?? undefined;
     const limitParam = searchParams.get("limit");
-    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+    const limitParsed = parseInt(limitParam ?? "", 10);
+    const limit = !Number.isNaN(limitParsed) ? limitParsed : undefined;
     const data = await getGuardianClient(endpointId).listAccounts({ cursor, limit });
     return NextResponse.json(data);
   } catch (err) {

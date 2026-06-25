@@ -6,8 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardGlobalProposalEntry, PagedResult } from "@openzeppelin/guardian-operator-client";
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { fetcher } from "@/lib/utils";
 
 type GlobalProposalsPage = PagedResult<DashboardGlobalProposalEntry> & { error?: string; available?: false };
 

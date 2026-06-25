@@ -6,8 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
 import { ChevronDown, ChevronUp } from "lucide-react";
-
-const fetcher = (url: string) => fetch(url).then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); });
+import { fetcher } from "@/lib/utils";
+import { truncateId } from "@/lib/format";
 
 interface HealthData {
   status: "up" | "down";
@@ -43,10 +43,6 @@ function formatUptime(secs: number): string {
   return `${m}m`;
 }
 
-function truncate(hex: string): string {
-  return hex.length > 12 ? `${hex.slice(0, 8)}…${hex.slice(-6)}` : hex;
-}
-
 function CopyableHash({ value, short }: { value: string; short?: boolean }) {
   const [copied, setCopied] = useState(false);
   function copy() {
@@ -66,7 +62,7 @@ function CopyableHash({ value, short }: { value: string; short?: boolean }) {
     // Clipboard API fallback (async, requires secure context)
     navigator.clipboard?.writeText(value).then(flash).catch(() => {});
   }
-  const display = short ? value.slice(0, 7) : truncate(value);
+  const display = short ? value.slice(0, 7) : truncateId(value, 8, 6);
   return (
     <button onClick={copy} title={value} className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors">
       {copied ? "copied!" : display}
@@ -102,20 +98,14 @@ function Row({ label, value, sub, info }: { label: string; value: React.ReactNod
   );
 }
 
-let cachedHistory: { t: number; ms: number }[] = [];
-
 export function GuardianStatusCard() {
-  const [history, setHistory] = useState<{ t: number; ms: number }[]>(cachedHistory);
+  const [history, setHistory] = useState<{ t: number; ms: number }[]>([]);
   const [showDetails, setShowDetails] = useState(false);
   const [uptimeSecs, setUptimeSecs] = useState<number | null>(null);
 
   const { data: health } = useSWR<HealthData>("/api/health", fetcher, {
     refreshInterval: 5000,
-    onSuccess: (d) => setHistory((prev) => {
-      const next = [...prev.slice(-19), { t: Date.now(), ms: d.latencyMs }];
-      cachedHistory = next;
-      return next;
-    }),
+    onSuccess: (d) => setHistory((prev) => [...prev.slice(-19), { t: Date.now(), ms: d.latencyMs }]),
   });
 
   const { data: overview } = useSWR<OverviewData>("/api/overview", fetcher, {

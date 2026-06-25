@@ -8,13 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { formatAmount, storageSlotLabel } from "@/lib/format";
+import { fetcher } from "@/lib/utils";
 import type {
   DashboardDeltaDetail,
   DashboardDeltaVaultChange,
   DashboardDeltaDecodedNote,
 } from "@openzeppelin/guardian-operator-client";
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 type DetailResponse = DashboardDeltaDetail & { error?: string; available?: false };
 

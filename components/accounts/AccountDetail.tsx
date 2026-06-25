@@ -9,6 +9,7 @@ import { CopyableId } from "@/components/ui/CopyableId";
 import { ArrowLeft, Snowflake, ArrowLeftRight, ChevronDown, ChevronRight } from "lucide-react";
 import type { DashboardAccountDetail } from "@openzeppelin/guardian-operator-client";
 import posthog from "posthog-js";
+import { fetcher } from "@/lib/utils";
 
 type AccountSnapshot = {
   commitment: string;
@@ -19,8 +20,6 @@ type AccountSnapshot = {
     nonFungible: { faucetId: string; vaultKey: string }[];
   };
 };
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 interface Props {
   accountId: string;

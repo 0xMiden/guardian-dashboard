@@ -8,9 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { formatAmount } from "@/lib/format";
+import { fetcher } from "@/lib/utils";
 import type { DashboardDeltaEntry, DashboardProposalEntry, PagedResult } from "@openzeppelin/guardian-operator-client";
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 type DeltasPage = PagedResult<DashboardDeltaEntry> & { error?: string; available?: false };
 type ProposalsPage = PagedResult<DashboardProposalEntry> & { error?: string };

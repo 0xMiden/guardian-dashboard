@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { formatAmount } from "@/lib/format";
+import { fetcher } from "@/lib/utils";
 import type {
   DashboardGlobalDeltaEntry,
   DashboardGlobalProposalEntry,
@@ -14,8 +15,6 @@ import type {
   DashboardDeltaEntry,
   PagedResult,
 } from "@openzeppelin/guardian-operator-client";
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 type GlobalDeltasPage = PagedResult<DashboardGlobalDeltaEntry> & { error?: string; available?: false };
 type GlobalProposalsPage = PagedResult<DashboardGlobalProposalEntry> & { error?: string };

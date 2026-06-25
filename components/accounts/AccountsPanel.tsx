@@ -8,12 +8,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardAccountSummary, PagedResult } from "@openzeppelin/guardian-operator-client";
 import posthog from "posthog-js";
 import { CopyableId } from "@/components/ui/CopyableId";
-
-const fetcher = (url: string) => fetch(url).then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); });
+import { fetcher } from "@/lib/utils";
 
 type AccountsPage = PagedResult<DashboardAccountSummary> & { error?: string; available?: false };
 type AccountStats = { total: number | null; count7d: number; count30d: number; error?: string };
-type AssetTotals = { usd7d?: number; computedAt?: string; inProgress?: boolean; cached?: { usd7d: number } | null; error?: string };
+type AssetTotals = { usd7d?: number; computedAt?: string; error?: string };
 
 function StatStrip() {
   const { data: stats } = useSWR<AccountStats>("/api/accounts/stats", fetcher);

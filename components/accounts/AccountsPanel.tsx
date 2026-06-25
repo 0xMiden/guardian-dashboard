@@ -9,7 +9,7 @@ import type { DashboardAccountSummary, PagedResult } from "@openzeppelin/guardia
 import posthog from "posthog-js";
 import { CopyableId } from "@/components/ui/CopyableId";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = (url: string) => fetch(url).then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); });
 
 type AccountsPage = PagedResult<DashboardAccountSummary> & { error?: string; available?: false };
 type AccountStats = { total: number | null; count7d: number; count30d: number; error?: string };
@@ -18,7 +18,7 @@ type AssetTotals = { usd7d?: number; computedAt?: string; inProgress?: boolean; 
 function StatStrip() {
   const { data: stats } = useSWR<AccountStats>("/api/accounts/stats", fetcher);
   const { data: assets } = useSWR<AssetTotals>("/api/accounts/asset-totals", fetcher, {
-    refreshInterval: 5 * 60_000,
+    refreshInterval: 60_000,
   });
   if (!stats || stats.error) return null;
 
@@ -37,7 +37,7 @@ function StatStrip() {
       </span>
       {assets?.usd7d != null && !assets.error && (
         <span className="text-muted-foreground">
-          Assets (7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">{assets.usd7d.toLocaleString()}</span>
+          Assets (7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">${assets.usd7d.toLocaleString()}</span>
         </span>
       )}
     </div>
@@ -74,6 +74,7 @@ export function AccountsPanel() {
     setSnapshotsLoading(true);
     try {
       const res = await fetch(`/api/accounts/snapshots?ids=${ids.map(encodeURIComponent).join(",")}`);
+      if (!res.ok) throw new Error(`snapshots ${res.status}`);
       const data: Record<string, number> = await res.json();
       setPerAccount((prev) => ({ ...prev, ...data }));
     } catch {
@@ -89,6 +90,7 @@ export function AccountsPanel() {
     setLoadingMore(true);
     try {
       const res = await fetch(`/api/accounts?cursor=${encodeURIComponent(cursor)}`);
+      if (!res.ok) throw new Error(`accounts ${res.status}`);
       const page: AccountsPage = await res.json();
       const newItems = page.items ?? [];
       setExtraItems((prev) => [...prev, ...newItems]);
@@ -203,7 +205,7 @@ export function AccountsPanel() {
                   </td>
                   <td className="px-4 py-3 text-xs">
                     {perAccount[a.accountId] !== undefined
-                      ? <span className="font-mono">{perAccount[a.accountId].toLocaleString()}</span>
+                      ? <span className="font-mono">${perAccount[a.accountId].toLocaleString()}</span>
                       : snapshotsLoading
                       ? <span className="text-muted-foreground">…</span>
                       : <span className="text-muted-foreground">—</span>}

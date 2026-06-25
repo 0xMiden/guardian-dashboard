@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { getGuardianClient } from "@/lib/guardian-client";
+import { normalizeAmount } from "@/lib/token-registry";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export async function GET(req: Request) {
         const r = settled[j];
         if (r.status === "fulfilled") {
           result[batch[j]] = r.value.vault.fungible.reduce(
-            (sum, a) => sum + Number(a.amount), 0
+            (sum, a) => sum + normalizeAmount(a.faucetId, a.amount), 0
           );
         }
       }

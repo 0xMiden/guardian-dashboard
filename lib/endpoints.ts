@@ -35,7 +35,12 @@ export function getEndpoints(): Endpoint[] {
     }
     return cached;
   }
-  const parsed = JSON.parse(raw) as Endpoint[];
+  let parsed: Endpoint[];
+  try {
+    parsed = JSON.parse(raw) as Endpoint[];
+  } catch {
+    throw new Error("GUARDIAN_ENDPOINTS is not valid JSON — check your environment configuration");
+  }
   // Private keys may be omitted from GUARDIAN_ENDPOINTS (to stay under Vercel's
   // 4KB env var limit) and supplied via GUARDIAN_PRIVATE_KEY_{ID} instead.
   cached = parsed.map((ep) => ({

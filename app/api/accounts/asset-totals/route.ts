@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { getGuardianClient } from "@/lib/guardian-client";
+import { normalizeAmount } from "@/lib/token-registry";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const MS_7D = 7 * 24 * 60 * 60 * 1000;
-const CACHE_TTL = 5 * 60 * 1000;
+const CACHE_TTL = 60 * 1000;
 const CONCURRENCY = 10;
 
 type AssetTotals = { usd7d: number; computedAt: string };
@@ -22,38 +23,43 @@ export async function GET() {
     return NextResponse.json(cached);
   }
 
-  const client = getGuardianClient(endpointId);
-  const now = Date.now();
-  const active7d: string[] = [];
-  let cursor: string | undefined;
+  try {
+    const client = getGuardianClient(endpointId);
+    const now = Date.now();
+    const active7d: string[] = [];
+    let cursor: string | undefined;
 
-  while (true) {
-    const page = await client.listAccounts({ limit: 100, cursor });
-    if (!page.items.length) break;
+    while (true) {
+      const page = await client.listAccounts({ limit: 100, cursor });
+      if (!page.items.length) break;
 
-    let allOld = true;
-    for (const item of page.items) {
-      if (now - new Date(item.updatedAt).getTime() <= MS_7D) {
-        active7d.push(item.accountId);
-        allOld = false;
+      let allOld = true;
+      for (const item of page.items) {
+        if (now - new Date(item.updatedAt).getTime() <= MS_7D) {
+          active7d.push(item.accountId);
+          allOld = false;
+        }
+      }
+      if (allOld || !page.nextCursor) break;
+      cursor = page.nextCursor;
+    }
+
+    let usd7d = 0;
+    for (let i = 0; i < active7d.length; i += CONCURRENCY) {
+      const batch = active7d.slice(i, i + CONCURRENCY);
+      const settled = await Promise.allSettled(batch.map((id) => client.getAccountSnapshot(id)));
+      for (const r of settled) {
+        if (r.status === "fulfilled") {
+          usd7d += r.value.vault.fungible.reduce((sum, a) => sum + normalizeAmount(a.faucetId, a.amount), 0);
+        }
       }
     }
-    if (allOld || !page.nextCursor) break;
-    cursor = page.nextCursor;
-  }
 
-  let usd7d = 0;
-  for (let i = 0; i < active7d.length; i += CONCURRENCY) {
-    const batch = active7d.slice(i, i + CONCURRENCY);
-    const settled = await Promise.allSettled(batch.map((id) => client.getAccountSnapshot(id)));
-    for (const r of settled) {
-      if (r.status === "fulfilled") {
-        usd7d += r.value.vault.fungible.reduce((sum, a) => sum + Number(a.amount), 0);
-      }
-    }
+    const result = { usd7d, computedAt: new Date().toISOString() };
+    cache.set(endpointId, result);
+    return NextResponse.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 503 });
   }
-
-  const result = { usd7d, computedAt: new Date().toISOString() };
-  cache.set(endpointId, result);
-  return NextResponse.json(result);
 }

@@ -9,7 +9,7 @@ import type { DashboardAccountSummary, PagedResult } from "@openzeppelin/guardia
 import posthog from "posthog-js";
 import { CopyableId } from "@/components/ui/CopyableId";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = (url: string) => fetch(url).then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); });
 
 type AccountsPage = PagedResult<DashboardAccountSummary> & { error?: string; available?: false };
 type AccountStats = { total: number | null; count7d: number; count30d: number; error?: string };
@@ -74,6 +74,7 @@ export function AccountsPanel() {
     setSnapshotsLoading(true);
     try {
       const res = await fetch(`/api/accounts/snapshots?ids=${ids.map(encodeURIComponent).join(",")}`);
+      if (!res.ok) throw new Error(`snapshots ${res.status}`);
       const data: Record<string, number> = await res.json();
       setPerAccount((prev) => ({ ...prev, ...data }));
     } catch {
@@ -89,6 +90,7 @@ export function AccountsPanel() {
     setLoadingMore(true);
     try {
       const res = await fetch(`/api/accounts?cursor=${encodeURIComponent(cursor)}`);
+      if (!res.ok) throw new Error(`accounts ${res.status}`);
       const page: AccountsPage = await res.json();
       const newItems = page.items ?? [];
       setExtraItems((prev) => [...prev, ...newItems]);

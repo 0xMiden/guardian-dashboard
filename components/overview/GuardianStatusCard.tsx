@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = (url: string) => fetch(url).then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); });
 
 interface HealthData {
   status: "up" | "down";

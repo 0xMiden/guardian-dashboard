@@ -9,7 +9,9 @@ export function getDecimals(faucetId: string): number {
 }
 
 export function normalizeAmount(faucetId: string, rawAmount: string): number {
+  const n = Number(rawAmount);
+  if (Number.isNaN(n)) throw new Error(`Invalid token amount for faucet ${faucetId}: "${rawAmount}"`);
   const decimals = getDecimals(faucetId);
-  if (decimals === 0) return Number(rawAmount);
-  return Number(rawAmount) / Math.pow(10, decimals);
+  if (decimals === 0) return n;
+  return n / Math.pow(10, decimals);
 }

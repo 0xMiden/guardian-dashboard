@@ -36,7 +36,7 @@ function StatStrip() {
       </span>
       {assets?.usd7d != null && !assets.error && (
         <span className="text-muted-foreground">
-          Assets (7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">${assets.usd7d.toLocaleString()}</span>
+          Assets (7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">${assets.usd7d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </span>
       )}
     </div>
@@ -204,7 +204,7 @@ export function AccountsPanel() {
                   </td>
                   <td className="px-4 py-3 text-xs">
                     {perAccount[a.accountId] !== undefined
-                      ? <span className="font-mono">${perAccount[a.accountId].toLocaleString()}</span>
+                      ? <span className="font-mono">${perAccount[a.accountId].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       : snapshotsLoading
                       ? <span className="text-muted-foreground">…</span>
                       : <span className="text-muted-foreground">—</span>}

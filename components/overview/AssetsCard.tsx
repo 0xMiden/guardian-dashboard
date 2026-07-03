@@ -19,7 +19,7 @@ export function AssetsCard() {
           <Skeleton className="h-8 w-20 mt-1" />
         ) : (
           <p className="text-3xl font-bold leading-none text-foreground">
-            {data.usd7d != null ? `$${data.usd7d.toLocaleString()}` : "—"}
+            {data.usd7d != null ? `$${data.usd7d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
           </p>
         )}
       </CardContent>

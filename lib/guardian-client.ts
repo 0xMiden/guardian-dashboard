@@ -9,7 +9,7 @@ import {
   type DeltaDetailOptions,
 } from "@openzeppelin/guardian-operator-client";
 import { signDigest } from "./falcon";
-import { getEndpoint, getEndpoints } from "./endpoints";
+import { getEndpoint } from "./endpoints";
 
 type AuthFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -182,13 +182,3 @@ export function getGuardianClient(endpointId: string) {
   };
 }
 
-function firstEndpointId(): string {
-  const ep = getEndpoints()[0];
-  if (!ep) throw new Error("No Guardian endpoints configured");
-  return ep.id;
-}
-
-// Legacy single-endpoint helpers for backward compatibility
-export function checkHealth() { return getGuardianClient(firstEndpointId()).checkHealth(); }
-export function listAccounts() { return getGuardianClient(firstEndpointId()).listAccounts(); }
-export function getAccount(accountId: string) { return getGuardianClient(firstEndpointId()).getAccount(accountId); }

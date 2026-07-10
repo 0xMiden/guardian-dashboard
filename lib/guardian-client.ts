@@ -17,6 +17,7 @@ interface ClientState {
   client: GuardianOperatorHttpClient;
   authFetch: AuthFetch;
   sessionCookie: string | null;
+  authInFlight: Promise<void> | null;
 }
 
 const clients = new Map<string, ClientState>();
@@ -28,6 +29,7 @@ function createClient(endpointId: string): ClientState {
     client: null as unknown as GuardianOperatorHttpClient,
     authFetch: null as unknown as AuthFetch,
     sessionCookie: null,
+    authInFlight: null,
   };
   const authFetch: AuthFetch = async (input, init) => {
     const headers = new Headers(init?.headers);
@@ -81,24 +83,48 @@ function getState(endpointId: string): ClientState {
   return state;
 }
 
-async function ensureAuthenticated(state: ClientState, endpointId: string): Promise<void> {
-  if (state.sessionCookie) return;
-  const ep = getEndpoint(endpointId)!;
-  const { challenge } = await state.client.challenge(ep.commitment);
-  const signature = await signDigest(ep.privateKey, challenge.signingDigest);
-  await state.client.verify({ commitment: ep.commitment, signature });
+function ensureAuthenticated(state: ClientState, endpointId: string): Promise<void> {
+  if (state.sessionCookie) return Promise.resolve();
+  // Single-flight: concurrent requests on a fresh instance share one
+  // challenge/verify instead of each running their own handshake — the node
+  // rate-limits per operator commitment, so extra handshakes burn the budget.
+  if (!state.authInFlight) {
+    state.authInFlight = (async () => {
+      const ep = getEndpoint(endpointId)!;
+      const { challenge } = await state.client.challenge(ep.commitment);
+      const signature = await signDigest(ep.privateKey, challenge.signingDigest);
+      await state.client.verify({ commitment: ep.commitment, signature });
+    })().finally(() => { state.authInFlight = null; });
+  }
+  return state.authInFlight;
 }
 
-async function withReauth<T>(state: ClientState, endpointId: string, fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (err) {
-    if (err instanceof GuardianOperatorHttpError && err.status === 401) {
-      state.sessionCookie = null;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const MAX_RATE_LIMIT_RETRIES = 2;
+
+async function withRetry<T>(state: ClientState, endpointId: string, fn: () => Promise<T>): Promise<T> {
+  let reauthed = false;
+  let rateLimitRetries = 0;
+  while (true) {
+    try {
       await ensureAuthenticated(state, endpointId);
-      return fn();
+      return await fn();
+    } catch (err) {
+      if (err instanceof GuardianOperatorHttpError && err.status === 401 && !reauthed) {
+        reauthed = true;
+        state.sessionCookie = null;
+        continue;
+      }
+      // The node rate-limits per operator commitment (429 + retry_after_secs);
+      // honor it instead of failing the whole page load.
+      if (err instanceof GuardianOperatorHttpError && err.status === 429 && rateLimitRetries < MAX_RATE_LIMIT_RETRIES) {
+        rateLimitRetries++;
+        await sleep(Math.min(err.retryAfterSecs ?? 1, 5) * 1000);
+        continue;
+      }
+      throw err;
     }
-    throw err;
   }
 }
 
@@ -116,53 +142,42 @@ export function getGuardianClient(endpointId: string) {
       }
     },
     async listAccounts(options?: PaginationOptions) {
-      await ensureAuthenticated(state, endpointId);
       try {
-        return await withReauth(state, endpointId, () => state.client.listAccounts(options));
+        return await withRetry(state, endpointId, () => state.client.listAccounts(options));
       } catch (err) {
         if (!(err instanceof GuardianOperatorContractError)) throw err;
         return listAccountsLegacy(state, getEndpoint(endpointId)!, options);
       }
     },
     async getDashboardInfo() {
-      await ensureAuthenticated(state, endpointId);
-      return withReauth(state, endpointId, () => state.client.getDashboardInfo());
+      return withRetry(state, endpointId, () => state.client.getDashboardInfo());
     },
     async getAccount(accountId: string) {
-      await ensureAuthenticated(state, endpointId);
-      return withReauth(state, endpointId, () => state.client.getAccount(accountId));
+      return withRetry(state, endpointId, () => state.client.getAccount(accountId));
     },
     async getAccountSnapshot(accountId: string) {
-      await ensureAuthenticated(state, endpointId);
-      return withReauth(state, endpointId, () => state.client.getAccountSnapshot(accountId));
+      return withRetry(state, endpointId, () => state.client.getAccountSnapshot(accountId));
     },
     async listAccountDeltas(accountId: string, options?: PaginationOptions) {
-      await ensureAuthenticated(state, endpointId);
-      return withReauth(state, endpointId, () => state.client.listAccountDeltas(accountId, options));
+      return withRetry(state, endpointId, () => state.client.listAccountDeltas(accountId, options));
     },
     async listAccountProposals(accountId: string, options?: PaginationOptions) {
-      await ensureAuthenticated(state, endpointId);
-      return withReauth(state, endpointId, () => state.client.listAccountProposals(accountId, options));
+      return withRetry(state, endpointId, () => state.client.listAccountProposals(accountId, options));
     },
     async listGlobalDeltas(options?: GlobalDeltasOptions) {
-      await ensureAuthenticated(state, endpointId);
-      return withReauth(state, endpointId, () => state.client.listGlobalDeltas(options));
+      return withRetry(state, endpointId, () => state.client.listGlobalDeltas(options));
     },
     async listGlobalProposals(options?: PaginationOptions) {
-      await ensureAuthenticated(state, endpointId);
-      return withReauth(state, endpointId, () => state.client.listGlobalProposals(options));
+      return withRetry(state, endpointId, () => state.client.listGlobalProposals(options));
     },
     async getAccountDeltaDetail(accountId: string, nonce: number, options?: DeltaDetailOptions) {
-      await ensureAuthenticated(state, endpointId);
-      return withReauth(state, endpointId, () => state.client.getAccountDeltaDetail(accountId, nonce, options));
+      return withRetry(state, endpointId, () => state.client.getAccountDeltaDetail(accountId, nonce, options));
     },
     async pauseAccount(accountId: string, reason: string) {
-      await ensureAuthenticated(state, endpointId);
-      return withReauth(state, endpointId, () => state.client.pauseAccount(accountId, reason));
+      return withRetry(state, endpointId, () => state.client.pauseAccount(accountId, reason));
     },
     async unpauseAccount(accountId: string, reason?: string) {
-      await ensureAuthenticated(state, endpointId);
-      return withReauth(state, endpointId, () => state.client.unpauseAccount(accountId, reason));
+      return withRetry(state, endpointId, () => state.client.unpauseAccount(accountId, reason));
     },
   };
 }

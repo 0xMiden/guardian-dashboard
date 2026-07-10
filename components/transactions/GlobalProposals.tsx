@@ -46,7 +46,8 @@ export function GlobalProposals() {
     );
   }
 
-  if (error || data?.available === false) {
+  // Keep showing cached rows on a failed revalidation — SWR retries in the background
+  if ((error && !data) || data?.available === false) {
     return (
       <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
         {data?.error ?? "Guardian node unavailable"}

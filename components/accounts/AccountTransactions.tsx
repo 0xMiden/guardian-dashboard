@@ -177,7 +177,7 @@ export function AccountTransactions({ accountId }: Props) {
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
         </div>
-      ) : deltasError || deltasData?.available === false ? (
+      ) : (deltasError && !deltasData) || deltasData?.available === false ? (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
           {deltasData?.error ?? "Guardian node unavailable"}
         </div>

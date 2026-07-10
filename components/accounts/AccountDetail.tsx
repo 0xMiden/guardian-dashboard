@@ -258,7 +258,7 @@ export function AccountDetail({ accountId }: Props) {
 
       {!data && !error ? (
         <Card><CardContent className="pt-6 space-y-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-6 w-full" />)}</CardContent></Card>
-      ) : error || data?.error ? (
+      ) : (error && !data) || data?.error ? (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
           {data?.error ?? "Failed to load account"}
         </div>

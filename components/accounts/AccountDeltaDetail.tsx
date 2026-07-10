@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { formatAmount, storageSlotLabel } from "@/lib/format";
 import { fetcher } from "@/lib/utils";
+import { CATEGORY_LABELS, deltaStatusBadge } from "@/components/transactions/activity-cells";
 import type {
   DashboardDeltaDetail,
   DashboardDeltaVaultChange,
@@ -16,15 +17,6 @@ import type {
 } from "@openzeppelin/guardian-operator-client";
 
 type DetailResponse = DashboardDeltaDetail;
-
-const CATEGORY_LABELS: Record<string, string> = {
-  asset_transfer: "Asset Transfer",
-  note_consumption: "Note Consumed",
-  note_creation: "Note Created",
-  account_storage_change: "Account Changed",
-  guardian_switch: "Switch Guardian",
-  custom: "Custom",
-};
 
 const NOTE_TAG_LABELS: Record<string, string> = {
   p2id: "P2ID (standard payment)",
@@ -34,12 +26,6 @@ const NOTE_TAG_LABELS: Record<string, string> = {
   burn: "Burn",
   custom: "Custom script",
 };
-
-function statusBadge(status: string) {
-  if (status === "canonical") return <Badge className="bg-emerald-500 text-white text-xs">Confirmed</Badge>;
-  if (status === "candidate") return <Badge className="bg-amber-500 text-white text-xs">Submitted</Badge>;
-  return <Badge className="bg-zinc-500 text-white text-xs capitalize">{status}</Badge>;
-}
 
 function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {
   return (
@@ -157,7 +143,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
               <CardTitle className="text-sm font-medium text-muted-foreground">Transaction #{nonce}</CardTitle>
             </CardHeader>
             <CardContent className="divide-y">
-              <Row label="Status" value={statusBadge(data!.status)} />
+              <Row label="Status" value={deltaStatusBadge(data!.status)} />
               {data!.category && (
                 <Row label="Type" value={CATEGORY_LABELS[data!.category] ?? data!.category} />
               )}

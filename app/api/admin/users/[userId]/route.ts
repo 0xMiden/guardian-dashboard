@@ -1,5 +1,5 @@
-import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/require-admin";
 import { getPostHogClient } from "@/lib/posthog-server";
 
 export const dynamic = "force-dynamic";
@@ -8,14 +8,9 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ userId: string }> }
 ) {
-  const { userId: callerId } = await auth();
-  if (!callerId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const client = await clerkClient();
-  const caller = await client.users.getUser(callerId);
-  if ((caller.publicMetadata as { role?: string })?.role !== "admin") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const result = await requireAdmin();
+  if (result instanceof NextResponse) return result;
+  const { client, userId: callerId } = result;
 
   const { userId } = await params;
   const { endpointIds, role } = await req.json().catch(() => ({})) as { endpointIds?: string[]; role?: string };

@@ -9,7 +9,8 @@ export default async function AccountTransactionsPage({
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold">Activity</h1>
-      <AccountTransactions accountId={decodeURIComponent(accountId)} />
+      {/* key resets pagination state when navigating between accounts */}
+      <AccountTransactions key={accountId} accountId={decodeURIComponent(accountId)} />
     </div>
   );
 }

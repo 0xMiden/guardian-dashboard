@@ -5,6 +5,11 @@ const mockAuth = vi.fn();
 const mockGetUser = vi.fn();
 const mockCapture = vi.fn();
 
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  after: vi.fn(), // needs a Next request scope, absent in unit tests
+}));
+
 vi.mock("@clerk/nextjs/server", () => ({
   auth: () => mockAuth(),
   clerkClient: vi.fn().mockResolvedValue({
@@ -79,12 +84,15 @@ describe("POST /api/select-endpoint", () => {
     expect(res.status).toBe(403);
   });
 
-  it("sets cookie and fires PostHog event for valid endpoint", async () => {
+  it("sets a signed, user-bound cookie and fires PostHog event for valid endpoint", async () => {
+    vi.stubEnv("CLERK_SECRET_KEY", "test-secret");
+    const { signEndpointCookie } = await import("@/lib/endpoint-cookie");
     mockAuth.mockResolvedValue({ userId: "user_123" });
     mockGetUser.mockResolvedValue({ publicMetadata: { endpointIds: ["testnet"] } });
     const res = await POST(makePostRequest({ endpointId: "testnet" }));
     expect(res.status).toBe(200);
-    expect(res.headers.get("set-cookie")).toContain("cockpit-endpoint=testnet");
+    const expected = encodeURIComponent(signEndpointCookie("user_123", "testnet"));
+    expect(res.headers.get("set-cookie")).toContain(`cockpit-endpoint=${expected}`);
     expect(mockCapture).toHaveBeenCalledWith(
       expect.objectContaining({ event: "endpoint_selected", properties: { endpoint_id: "testnet" } })
     );

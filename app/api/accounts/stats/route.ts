@@ -1,19 +1,12 @@
-import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { getGuardianClient } from "@/lib/guardian-client";
+import { guardianRoute } from "@/lib/guardian-route";
 
 export const dynamic = "force-dynamic";
 
 const MS_7D  = 7  * 24 * 60 * 60 * 1000;
 const MS_30D = 30 * 24 * 60 * 60 * 1000;
 
-export async function GET() {
-  const h = await headers();
-  const endpointId = h.get("x-guardian-endpoint-id") ?? "";
-  if (!endpointId) return NextResponse.json({ error: "No endpoint selected" }, { status: 400 });
-
-  try {
-    const client = getGuardianClient(endpointId);
+export function GET() {
+  return guardianRoute(async (client) => {
     const now = Date.now();
 
     let total: number | null = null;
@@ -21,7 +14,7 @@ export async function GET() {
       const info = await client.getDashboardInfo();
       total = info.totalAccountCount;
     } catch {
-      // older server — total comes from first page below
+      // older server without /dashboard/info — total stays null
     }
 
     let count7d = 0;
@@ -45,9 +38,6 @@ export async function GET() {
       cursor = page.nextCursor;
     }
 
-    return NextResponse.json({ total, count7d, count30d });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 503 });
-  }
+    return { total, count7d, count30d };
+  });
 }

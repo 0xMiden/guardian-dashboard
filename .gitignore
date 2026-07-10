@@ -45,5 +45,6 @@ next-env.d.ts
 # local tooling
 .claude/
 temp/
+tasks/
 *-setup-report.md
 .agents/

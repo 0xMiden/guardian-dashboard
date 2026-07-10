@@ -18,7 +18,6 @@ interface HealthData {
 interface OverviewData {
   environment?: string;
   build?: { version: string; gitCommit: string; startedAt: string; profile: string };
-  error?: string;
 }
 
 interface OperatorInfo {

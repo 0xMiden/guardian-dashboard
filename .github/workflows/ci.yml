@@ -31,7 +31,7 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Tests
-        run: npm test
+        run: npm run test:coverage
 
       - name: Build
         run: npm run build

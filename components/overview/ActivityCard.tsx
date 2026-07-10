@@ -9,7 +9,6 @@ import { fetcher } from "@/lib/utils";
 interface OverviewData {
   deltaStatusCounts: { candidate: number; canonical: number; discarded: number };
   inFlightProposalCount: number;
-  error?: string;
 }
 
 function Row({ label, value, accent }: { label: string; value: React.ReactNode; accent?: string }) {
@@ -22,10 +21,9 @@ function Row({ label, value, accent }: { label: string; value: React.ReactNode; 
 }
 
 export function ActivityCard() {
-  const { data } = useSWR<OverviewData>("/api/overview", fetcher, { refreshInterval: 30_000 });
+  const { data, error } = useSWR<OverviewData>("/api/overview", fetcher, { refreshInterval: 30_000 });
   const [expanded, setExpanded] = useState(false);
-  const loading = !data;
-  const error = data?.error;
+  const loading = !data && !error;
 
   const confirmed = data?.deltaStatusCounts?.canonical;
 
@@ -39,14 +37,14 @@ export function ActivityCard() {
               <Skeleton className="h-8 w-12 mt-1" />
             ) : (
               <p className="text-3xl font-bold leading-none">
-                {error ? "—" : confirmed}
+                {data ? confirmed : "—"}
               </p>
             )}
-            {!loading && !error && (
+            {data && (
               <p className="text-xs text-muted-foreground mt-1">confirmed</p>
             )}
           </div>
-          {!loading && !error && (
+          {data && (
             <button
               onClick={() => setExpanded((v) => !v)}
               className="text-muted-foreground hover:text-foreground transition-colors mt-1"
@@ -55,7 +53,7 @@ export function ActivityCard() {
             </button>
           )}
         </div>
-        {expanded && data && !error && (
+        {expanded && data && (
           <div className="mt-3 pt-3 border-t space-y-1.5">
             <Row
               label="Confirmed"

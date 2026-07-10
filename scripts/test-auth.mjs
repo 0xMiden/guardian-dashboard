@@ -6,7 +6,7 @@
  * the stored private key, prints the public key we'd send the engineer,
  * then does the full challenge→sign→verify flow and logs every byte count.
  */
-import { readFileSync, existsSync } from "fs";
+import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 

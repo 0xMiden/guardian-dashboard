@@ -34,38 +34,63 @@ function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode 
   );
 }
 
-type AccountResponse = DashboardAccountDetail & { error?: string; available?: false };
-type SnapshotResponse = AccountSnapshot & { error?: string; available?: false };
+type AccountResponse = DashboardAccountDetail;
+type SnapshotResponse = AccountSnapshot;
 
-function FreezeModal({
+const PAUSE_MODAL_COPY = {
+  freeze: {
+    endpoint: "pause",
+    title: "Freeze Account",
+    description: "The account will be paused immediately. All pending operations will be blocked until unfrozen.",
+    event: "account_frozen",
+    failure: "Failed to freeze account",
+    busy: "Freezing…",
+    buttonClass: "bg-red-500 hover:bg-red-600",
+  },
+  unfreeze: {
+    endpoint: "unpause",
+    title: "Unfreeze Account",
+    description: "The account will be reactivated and resume normal operations.",
+    event: "account_unfrozen",
+    failure: "Failed to unfreeze account",
+    busy: "Unfreezing…",
+    buttonClass: "bg-emerald-500 hover:bg-emerald-600",
+  },
+} as const;
+
+function PauseModal({
+  action,
   accountId,
   onSuccess,
   onClose,
 }: {
+  action: keyof typeof PAUSE_MODAL_COPY;
   accountId: string;
   onSuccess: () => void;
   onClose: () => void;
 }) {
+  const copy = PAUSE_MODAL_COPY[action];
+  const needsReason = action === "freeze";
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit() {
-    if (!reason.trim()) return;
+    if (needsReason && !reason.trim()) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/accounts/${encodeURIComponent(accountId)}/pause`, {
+      const res = await fetch(`/api/accounts/${encodeURIComponent(accountId)}/${copy.endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: reason.trim() }),
+        body: JSON.stringify(needsReason ? { reason: reason.trim() } : {}),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to freeze account");
-      posthog.capture("account_frozen", { account_id: accountId });
+      if (!res.ok) throw new Error(data.error ?? copy.failure);
+      posthog.capture(copy.event, { account_id: accountId });
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to freeze account");
+      setError(err instanceof Error ? err.message : copy.failure);
       setLoading(false);
     }
   }
@@ -74,25 +99,25 @@ function FreezeModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="bg-background border rounded-xl shadow-xl p-6 w-full max-w-md flex flex-col gap-4">
         <div>
-          <h2 className="text-base font-semibold">Freeze Account</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            The account will be paused immediately. All pending operations will be blocked until unfrozen.
-          </p>
+          <h2 className="text-base font-semibold">{copy.title}</h2>
+          <p className="text-xs text-muted-foreground mt-1">{copy.description}</p>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs text-muted-foreground">
-            Reason <span className="text-red-400">*</span>
-          </label>
-          <textarea
-            className="w-full rounded-md border bg-muted px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
-            rows={3}
-            placeholder="e.g. Suspicious activity detected"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            disabled={loading}
-            autoFocus
-          />
-        </div>
+        {needsReason && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-muted-foreground">
+              Reason <span className="text-red-400">*</span>
+            </label>
+            <textarea
+              className="w-full rounded-md border bg-muted px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+              rows={3}
+              placeholder="e.g. Suspicious activity detected"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              disabled={loading}
+              autoFocus
+            />
+          </div>
+        )}
         {error && <p className="text-xs text-red-400">{error}</p>}
         <div className="flex justify-end gap-2">
           <button
@@ -104,72 +129,10 @@ function FreezeModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading || !reason.trim()}
-            className="px-3 py-1.5 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+            disabled={loading || (needsReason && !reason.trim())}
+            className={`px-3 py-1.5 text-sm rounded-lg text-white transition-colors disabled:opacity-50 ${copy.buttonClass}`}
           >
-            {loading ? "Freezing…" : "Freeze Account"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function UnfreezeModal({
-  accountId,
-  onSuccess,
-  onClose,
-}: {
-  accountId: string;
-  onSuccess: () => void;
-  onClose: () => void;
-}) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit() {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/accounts/${encodeURIComponent(accountId)}/unpause`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to unfreeze account");
-      posthog.capture("account_unfrozen", { account_id: accountId });
-      onSuccess();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to unfreeze account");
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-background border rounded-xl shadow-xl p-6 w-full max-w-md flex flex-col gap-4">
-        <div>
-          <h2 className="text-base font-semibold">Unfreeze Account</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            The account will be reactivated and resume normal operations.
-          </p>
-        </div>
-        {error && <p className="text-xs text-red-400">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="px-3 py-1.5 text-sm rounded-lg border border-zinc-700 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="px-3 py-1.5 text-sm rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
-          >
-            {loading ? "Unfreezing…" : "Unfreeze Account"}
+            {loading ? copy.busy : copy.title}
           </button>
         </div>
       </div>
@@ -184,7 +147,7 @@ export function AccountDetail({ accountId }: Props) {
     fetcher
   );
   const { data: snapshot } = useSWR<SnapshotResponse>(
-    data && !data.error ? `/api/accounts/${encoded}/snapshot` : null,
+    data ? `/api/accounts/${encoded}/snapshot` : null,
     fetcher
   );
   const router = useRouter();
@@ -195,15 +158,9 @@ export function AccountDetail({ accountId }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      {modal === "freeze" && (
-        <FreezeModal
-          accountId={accountId}
-          onSuccess={() => { setModal(null); mutate(); }}
-          onClose={() => setModal(null)}
-        />
-      )}
-      {modal === "unfreeze" && (
-        <UnfreezeModal
+      {modal && (
+        <PauseModal
+          action={modal}
           accountId={accountId}
           onSuccess={() => { setModal(null); mutate(); }}
           onClose={() => setModal(null)}
@@ -228,7 +185,7 @@ export function AccountDetail({ accountId }: Props) {
             <ArrowLeftRight className="h-3.5 w-3.5" />
             Activity
           </button>
-          {data && !data.error && (
+          {data && (
             isPaused ? (
               <button
                 onClick={() => {
@@ -258,9 +215,9 @@ export function AccountDetail({ accountId }: Props) {
 
       {!data && !error ? (
         <Card><CardContent className="pt-6 space-y-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-6 w-full" />)}</CardContent></Card>
-      ) : (error && !data) || data?.error ? (
+      ) : error && !data ? (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-          {data?.error ?? "Failed to load account"}
+          {error.message || "Failed to load account"}
         </div>
       ) : (
         <>
@@ -345,7 +302,7 @@ export function AccountDetail({ accountId }: Props) {
             </CardContent>
           </Card>
 
-          {snapshot && !snapshot.error && (
+          {snapshot && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Assets</CardTitle>

@@ -79,12 +79,15 @@ describe("POST /api/select-endpoint", () => {
     expect(res.status).toBe(403);
   });
 
-  it("sets cookie and fires PostHog event for valid endpoint", async () => {
+  it("sets a signed, user-bound cookie and fires PostHog event for valid endpoint", async () => {
+    vi.stubEnv("CLERK_SECRET_KEY", "test-secret");
+    const { signEndpointCookie } = await import("@/lib/endpoint-cookie");
     mockAuth.mockResolvedValue({ userId: "user_123" });
     mockGetUser.mockResolvedValue({ publicMetadata: { endpointIds: ["testnet"] } });
     const res = await POST(makePostRequest({ endpointId: "testnet" }));
     expect(res.status).toBe(200);
-    expect(res.headers.get("set-cookie")).toContain("cockpit-endpoint=testnet");
+    const expected = encodeURIComponent(signEndpointCookie("user_123", "testnet"));
+    expect(res.headers.get("set-cookie")).toContain(`cockpit-endpoint=${expected}`);
     expect(mockCapture).toHaveBeenCalledWith(
       expect.objectContaining({ event: "endpoint_selected", properties: { endpoint_id: "testnet" } })
     );

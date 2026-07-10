@@ -1,5 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { verifyEndpointCookie } from "@/lib/endpoint-cookie";
+import { getEndpoint } from "@/lib/endpoints";
 
 const isPublic = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
 
@@ -13,11 +15,14 @@ const skipEndpointCheck = createRouteMatcher([
 
 export default clerkMiddleware(async (auth, req) => {
   if (!isPublic(req)) {
-    await auth.protect();
+    const { userId } = await auth.protect();
 
     if (!skipEndpointCheck(req)) {
-      const endpointId = req.cookies.get("cockpit-endpoint")?.value;
-      if (!endpointId) {
+      // The cookie is signed and user-bound (lib/endpoint-cookie.ts) — a
+      // forged or stale value falls through to endpoint re-selection.
+      const cookie = req.cookies.get("cockpit-endpoint")?.value;
+      const endpointId = verifyEndpointCookie(userId, cookie);
+      if (!endpointId || !getEndpoint(endpointId)) {
         return NextResponse.redirect(new URL("/select-endpoint", req.url));
       }
       const headers = new Headers(req.headers);

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/require-admin";
 import { getPostHogClient } from "@/lib/posthog-server";
 
@@ -32,5 +32,7 @@ export async function PATCH(
       endpoint_count: endpointIds.length,
     },
   });
+  // flush after the response so the event isn't lost when the lambda freezes
+  after(() => getPostHogClient().flush());
   return NextResponse.json({ ok: true });
 }

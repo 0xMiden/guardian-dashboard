@@ -7,6 +7,11 @@ const mockGetUser = vi.fn();
 const mockUpdateUser = vi.fn();
 const mockCapture = vi.fn();
 
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  after: vi.fn(), // needs a Next request scope, absent in unit tests
+}));
+
 vi.mock("@clerk/nextjs/server", () => ({
   auth: () => mockAuth(),
   clerkClient: vi.fn().mockResolvedValue({

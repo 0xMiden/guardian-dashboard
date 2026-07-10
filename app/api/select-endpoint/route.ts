@@ -1,5 +1,5 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { getEndpoint, getPublicEndpoints } from "@/lib/endpoints";
 import { signEndpointCookie } from "@/lib/endpoint-cookie";
 import { getPostHogClient } from "@/lib/posthog-server";
@@ -33,6 +33,8 @@ export async function POST(req: Request) {
     event: "endpoint_selected",
     properties: { endpoint_id: endpointId },
   });
+  // flush after the response so the event isn't lost when the lambda freezes
+  after(() => getPostHogClient().flush());
   const res = NextResponse.json({ ok: true });
   res.cookies.set("cockpit-endpoint", signEndpointCookie(userId, endpointId), { httpOnly: true, sameSite: "lax", path: "/" });
   return res;

@@ -10,6 +10,8 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    "coverage/**",
+    "temp/**",
     "next-env.d.ts",
   ]),
   // Test files legitimately need `as any` to mock complex third-party types

@@ -202,7 +202,8 @@ export function TransactionsPanel() {
   const rows = toRows(allDeltas, allProposals, filter);
 
   const loading = (!deltasData && !deltasError && !proposalsOnly) || (!proposalsData && (filter === "" || proposalsOnly));
-  const unavailable = deltasError || deltasData?.available === false;
+  // Keep showing cached rows on a failed revalidation — SWR retries in the background
+  const unavailable = (deltasError && !deltasData) || deltasData?.available === false;
 
   return (
     <div className="flex flex-col gap-4">

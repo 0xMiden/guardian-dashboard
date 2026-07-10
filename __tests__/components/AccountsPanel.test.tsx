@@ -26,6 +26,32 @@ describe("AccountsPanel", () => {
     expect(screen.getByText("Node offline")).toBeInTheDocument();
   });
 
+  it("shows generic error when there is no data at all", () => {
+    useSWR.mockReturnValue({ data: undefined, error: new Error("503") });
+    render(<AccountsPanel />);
+    expect(screen.getByText(/guardian node unavailable/i)).toBeInTheDocument();
+  });
+
+  it("keeps showing cached accounts when a revalidation fails", () => {
+    useSWR.mockImplementation((key: string) => {
+      if (key === "/api/accounts") return { data: { items: [{
+        accountId: "0xabc123",
+        stateStatus: "available",
+        authScheme: "falcon",
+        authorizedSignerCount: 2,
+        hasPendingCandidate: false,
+        pausedAt: null,
+        pausedReason: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }], nextCursor: null }, error: new Error("503") };
+      return { data: undefined, error: undefined };
+    });
+    render(<AccountsPanel />);
+    expect(screen.getByText("0xabc123")).toBeInTheDocument();
+    expect(screen.queryByText(/guardian node unavailable/i)).not.toBeInTheDocument();
+  });
+
   it("shows empty state when no accounts", () => {
     useSWR.mockReturnValue({ data: { items: [], nextCursor: null }, error: undefined });
     render(<AccountsPanel />);

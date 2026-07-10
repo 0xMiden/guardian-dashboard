@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
+import { SWRConfig } from "swr";
 import { NavItem } from "./NavItem";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useClerk, useAuth, useUser } from "@clerk/nextjs";
@@ -19,6 +20,14 @@ import posthog from "posthog-js";
 
 
 const NO_SHELL_PATHS = ["/sign-in", "/sign-up", "/select-endpoint"];
+
+const SWR_CONFIG = {
+  // The Guardian node rate-limits per operator commitment (429, retry after
+  // 1s) — retry sooner than SWR's 5s default so transient errors heal fast,
+  // and dedupe harder so rapid navigation doesn't refire identical requests.
+  errorRetryInterval: 2000,
+  dedupingInterval: 5000,
+};
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -57,6 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   ];
 
   return (
+    <SWRConfig value={SWR_CONFIG}>
     <div className="flex h-screen overflow-hidden bg-background">
       {confirmSignOut && (
         <ConfirmModal
@@ -129,5 +139,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         })}
       </nav>
     </div>
+    </SWRConfig>
   );
 }

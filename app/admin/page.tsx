@@ -62,6 +62,7 @@ function EditModal({ user, onClose }: { user: ClerkUser; onClose: () => void }) 
   const [endpointIds, setEndpointIds] = useState<string[]>(user.publicMetadata.endpointIds ?? []);
   const [role, setRole] = useState(user.publicMetadata.role ?? "viewer");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   function toggle(id: string) {
     setEndpointIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
@@ -69,14 +70,24 @@ function EditModal({ user, onClose }: { user: ClerkUser; onClose: () => void }) 
 
   async function save() {
     setSaving(true);
-    await fetch(`/api/admin/users/${user.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ endpointIds, role }),
-    });
-    await mutate("/api/admin/users");
-    setSaving(false);
-    onClose();
+    setSaveError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpointIds, role }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? `Save failed (${res.status})`);
+      }
+      await mutate("/api/admin/users");
+      onClose();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || user.id;
@@ -120,6 +131,8 @@ function EditModal({ user, onClose }: { user: ClerkUser; onClose: () => void }) 
           )}
         </div>
 
+        {saveError && <p className="text-xs text-red-400">{saveError}</p>}
+
         <div className="flex justify-end gap-3 pt-2">
           <button
             onClick={onClose}
@@ -144,7 +157,7 @@ export default function AdminPage() {
   const { data, error } = useSWR<ClerkUser[]>("/api/admin/users", fetcher);
   const [editing, setEditing] = useState<ClerkUser | null>(null);
 
-  if (error?.status === 403 || (Array.isArray(data) === false && data && "error" in (data as object))) {
+  if (error?.status === 403) {
     return <div className="text-sm text-muted-foreground p-4">Access denied. Admin role required.</div>;
   }
 

@@ -10,16 +10,16 @@ import posthog from "posthog-js";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { fetcher } from "@/lib/utils";
 
-type AccountsPage = PagedResult<DashboardAccountSummary> & { error?: string; available?: false };
-type AccountStats = { total: number | null; count7d: number; count30d: number; error?: string };
-type AssetTotals = { usd7d?: number; computedAt?: string; error?: string };
+type AccountsPage = PagedResult<DashboardAccountSummary>;
+type AccountStats = { total: number | null; count7d: number; count30d: number };
+type AssetTotals = { usd7d?: number; computedAt?: string };
 
 function StatStrip() {
   const { data: stats } = useSWR<AccountStats>("/api/accounts/stats", fetcher);
   const { data: assets } = useSWR<AssetTotals>("/api/accounts/asset-totals", fetcher, {
     refreshInterval: 60_000,
   });
-  if (!stats || stats.error) return null;
+  if (!stats) return null;
 
   return (
     <div className="flex flex-wrap gap-8 text-sm">
@@ -34,7 +34,7 @@ function StatStrip() {
       <span className="text-muted-foreground">
         Updated (last 30d)&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.count30d.toLocaleString()}</span>
       </span>
-      {assets?.usd7d != null && !assets.error && (
+      {assets?.usd7d != null && (
         <span className="text-muted-foreground">
           Assets (7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">${assets.usd7d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </span>
@@ -89,12 +89,14 @@ export function AccountsPanel() {
     setLoadingMore(true);
     try {
       const res = await fetch(`/api/accounts?cursor=${encodeURIComponent(cursor)}`);
-      if (!res.ok) throw new Error(`accounts ${res.status}`);
+      if (!res.ok) return; // keep cursor untouched so the next attempt can retry
       const page: AccountsPage = await res.json();
       const newItems = page.items ?? [];
       setExtraItems((prev) => [...prev, ...newItems]);
       setNextCursor(page.nextCursor ?? null);
       fetchSnapshots(newItems.map((a) => a.accountId));
+    } catch {
+      // network error — leave cursor untouched so the next attempt can retry
     } finally {
       setLoadingMore(false);
     }
@@ -138,10 +140,10 @@ export function AccountsPanel() {
   }
 
   // Keep showing cached rows on a failed revalidation — SWR retries in the background
-  if ((error && !data) || data?.available === false) {
+  if (error && !data) {
     return (
       <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-        {data?.error ?? "Guardian node unavailable"}
+        {error.message || "Guardian node unavailable"}
       </div>
     );
   }

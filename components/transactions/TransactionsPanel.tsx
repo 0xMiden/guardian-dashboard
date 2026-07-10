@@ -16,8 +16,8 @@ import type {
   PagedResult,
 } from "@openzeppelin/guardian-operator-client";
 
-type GlobalDeltasPage = PagedResult<DashboardGlobalDeltaEntry> & { error?: string; available?: false };
-type GlobalProposalsPage = PagedResult<DashboardGlobalProposalEntry> & { error?: string };
+type GlobalDeltasPage = PagedResult<DashboardGlobalDeltaEntry>;
+type GlobalProposalsPage = PagedResult<DashboardGlobalProposalEntry>;
 
 type FilterValue = "" | "awaiting" | "ready" | DashboardDeltaStatus;
 
@@ -183,9 +183,12 @@ export function TransactionsPanel() {
       const params = new URLSearchParams({ cursor });
       if (deltaStatus) params.set("status", deltaStatus);
       const res = await fetch(`/api/global-deltas?${params}`);
+      if (!res.ok) return; // keep cursor untouched so the next attempt can retry
       const page: GlobalDeltasPage = await res.json();
       setExtraDeltas((prev) => [...prev, ...(page.items ?? [])]);
       setNextCursor(page.nextCursor ?? null);
+    } catch {
+      // network error — leave cursor untouched so the next attempt can retry
     } finally {
       setLoadingMore(false);
     }
@@ -203,7 +206,7 @@ export function TransactionsPanel() {
 
   const loading = (!deltasData && !deltasError && !proposalsOnly) || (!proposalsData && (filter === "" || proposalsOnly));
   // Keep showing cached rows on a failed revalidation — SWR retries in the background
-  const unavailable = (deltasError && !deltasData) || deltasData?.available === false;
+  const unavailable = deltasError && !deltasData;
 
   return (
     <div className="flex flex-col gap-4">
@@ -229,7 +232,7 @@ export function TransactionsPanel() {
         </div>
       ) : unavailable ? (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-          Guardian node unavailable
+          {deltasError?.message || "Guardian node unavailable"}
         </div>
       ) : rows.length === 0 ? (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">

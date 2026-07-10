@@ -11,8 +11,8 @@ import { formatAmount } from "@/lib/format";
 import { fetcher } from "@/lib/utils";
 import type { DashboardDeltaEntry, DashboardProposalEntry, PagedResult } from "@openzeppelin/guardian-operator-client";
 
-type DeltasPage = PagedResult<DashboardDeltaEntry> & { error?: string; available?: false };
-type ProposalsPage = PagedResult<DashboardProposalEntry> & { error?: string };
+type DeltasPage = PagedResult<DashboardDeltaEntry>;
+type ProposalsPage = PagedResult<DashboardProposalEntry>;
 
 const CATEGORY_LABELS: Record<string, string> = {
   asset_transfer: "Asset Transfer",
@@ -124,9 +124,12 @@ export function AccountTransactions({ accountId }: Props) {
     setLoadingMore(true);
     try {
       const res = await fetch(`/api/accounts/${encoded}/deltas?cursor=${encodeURIComponent(cursor)}`);
+      if (!res.ok) return; // keep cursor untouched so the next attempt can retry
       const page: DeltasPage = await res.json();
       setExtraDeltas((prev) => [...prev, ...(page.items ?? [])]);
       setNextCursor(page.nextCursor ?? null);
+    } catch {
+      // network error — leave cursor untouched so the next attempt can retry
     } finally {
       setLoadingMore(false);
     }
@@ -177,9 +180,9 @@ export function AccountTransactions({ accountId }: Props) {
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
         </div>
-      ) : (deltasError && !deltasData) || deltasData?.available === false ? (
+      ) : deltasError && !deltasData ? (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-          {deltasData?.error ?? "Guardian node unavailable"}
+          {deltasError.message || "Guardian node unavailable"}
         </div>
       ) : rows.length === 0 ? (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">

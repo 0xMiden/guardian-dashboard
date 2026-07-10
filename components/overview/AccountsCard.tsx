@@ -11,7 +11,6 @@ interface OverviewData {
   falcon: number;
   ecdsa: number;
   evm: number;
-  error?: string;
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -24,10 +23,9 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export function AccountsCard() {
-  const { data } = useSWR<OverviewData>("/api/overview", fetcher, { refreshInterval: 30_000 });
+  const { data, error } = useSWR<OverviewData>("/api/overview", fetcher, { refreshInterval: 30_000 });
   const [expanded, setExpanded] = useState(false);
-  const loading = !data;
-  const error = data?.error;
+  const loading = !data && !error;
 
   return (
     <Card>
@@ -39,11 +37,11 @@ export function AccountsCard() {
               <Skeleton className="h-8 w-12 mt-1" />
             ) : (
               <p className="text-3xl font-bold leading-none">
-                {error ? "—" : data!.totalAccounts}
+                {data ? data.totalAccounts : "—"}
               </p>
             )}
           </div>
-          {!loading && !error && (
+          {data && (
             <button
               onClick={() => setExpanded((v) => !v)}
               className="text-muted-foreground hover:text-foreground transition-colors mt-1"
@@ -52,7 +50,7 @@ export function AccountsCard() {
             </button>
           )}
         </div>
-        {expanded && data && !error && (
+        {expanded && data && (
           <div className="mt-3 pt-3 border-t space-y-1.5">
             <Row label="Falcon" value={data.falcon} />
             <Row label="ECDSA" value={data.ecdsa} />

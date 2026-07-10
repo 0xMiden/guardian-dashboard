@@ -34,8 +34,8 @@ function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode 
   );
 }
 
-type AccountResponse = DashboardAccountDetail & { error?: string; available?: false };
-type SnapshotResponse = AccountSnapshot & { error?: string; available?: false };
+type AccountResponse = DashboardAccountDetail;
+type SnapshotResponse = AccountSnapshot;
 
 function FreezeModal({
   accountId,
@@ -184,7 +184,7 @@ export function AccountDetail({ accountId }: Props) {
     fetcher
   );
   const { data: snapshot } = useSWR<SnapshotResponse>(
-    data && !data.error ? `/api/accounts/${encoded}/snapshot` : null,
+    data ? `/api/accounts/${encoded}/snapshot` : null,
     fetcher
   );
   const router = useRouter();
@@ -228,7 +228,7 @@ export function AccountDetail({ accountId }: Props) {
             <ArrowLeftRight className="h-3.5 w-3.5" />
             Activity
           </button>
-          {data && !data.error && (
+          {data && (
             isPaused ? (
               <button
                 onClick={() => {
@@ -258,9 +258,9 @@ export function AccountDetail({ accountId }: Props) {
 
       {!data && !error ? (
         <Card><CardContent className="pt-6 space-y-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-6 w-full" />)}</CardContent></Card>
-      ) : (error && !data) || data?.error ? (
+      ) : error && !data ? (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-          {data?.error ?? "Failed to load account"}
+          {error.message || "Failed to load account"}
         </div>
       ) : (
         <>
@@ -345,7 +345,7 @@ export function AccountDetail({ accountId }: Props) {
             </CardContent>
           </Card>
 
-          {snapshot && !snapshot.error && (
+          {snapshot && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Assets</CardTitle>

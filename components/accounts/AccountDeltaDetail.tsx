@@ -15,7 +15,7 @@ import type {
   DashboardDeltaDecodedNote,
 } from "@openzeppelin/guardian-operator-client";
 
-type DetailResponse = DashboardDeltaDetail & { error?: string; available?: false };
+type DetailResponse = DashboardDeltaDetail;
 
 const CATEGORY_LABELS: Record<string, string> = {
   asset_transfer: "Asset Transfer",
@@ -137,9 +137,9 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
         <div className="space-y-3">
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
         </div>
-      ) : error || data?.error ? (
+      ) : error && !data ? (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-          {data?.error ?? "Failed to load transaction detail"}
+          {error.message || "Failed to load transaction detail"}
         </div>
       ) : (
         <>

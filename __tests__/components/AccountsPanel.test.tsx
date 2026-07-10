@@ -20,14 +20,14 @@ describe("AccountsPanel", () => {
     expect(container.querySelectorAll(".animate-pulse, [data-slot='skeleton']").length).toBeGreaterThan(0);
   });
 
-  it("shows error message when guardian is unavailable", () => {
-    useSWR.mockReturnValue({ data: { available: false, error: "Node offline" }, error: undefined });
+  it("shows the server error message when guardian is unavailable", () => {
+    useSWR.mockReturnValue({ data: undefined, error: new Error("Node offline") });
     render(<AccountsPanel />);
     expect(screen.getByText("Node offline")).toBeInTheDocument();
   });
 
-  it("shows generic error when there is no data at all", () => {
-    useSWR.mockReturnValue({ data: undefined, error: new Error("503") });
+  it("shows generic error when the error has no message", () => {
+    useSWR.mockReturnValue({ data: undefined, error: new Error("") });
     render(<AccountsPanel />);
     expect(screen.getByText(/guardian node unavailable/i)).toBeInTheDocument();
   });

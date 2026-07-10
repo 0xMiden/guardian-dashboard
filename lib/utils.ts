@@ -5,5 +5,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export const fetcher = (url: string) =>
-  fetch(url).then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); });
+export class FetchError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
+export const fetcher = async (url: string) => {
+  const r = await fetch(url);
+  const body = await r.json().catch(() => null);
+  if (!r.ok) throw new FetchError(body?.error ?? `Request failed (${r.status})`, r.status);
+  return body;
+};

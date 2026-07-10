@@ -18,18 +18,23 @@ export async function PATCH(
   }
 
   const { userId } = await params;
-  const { endpointIds, role } = await req.json() as { endpointIds?: string[]; role?: string };
+  const { endpointIds, role } = await req.json().catch(() => ({})) as { endpointIds?: string[]; role?: string };
+  // publicMetadata is replaced wholesale — require both fields so a partial
+  // PATCH can't silently demote a user or wipe their endpoints
+  if (!Array.isArray(endpointIds) || typeof role !== "string") {
+    return NextResponse.json({ error: "endpointIds (array) and role (string) are required" }, { status: 422 });
+  }
 
   await client.users.updateUser(userId, {
-    publicMetadata: { endpointIds: endpointIds ?? [], role: role ?? "viewer" },
+    publicMetadata: { endpointIds, role },
   });
   getPostHogClient().capture({
     distinctId: callerId,
     event: "user_access_updated",
     properties: {
       target_user_id: userId,
-      role: role ?? "viewer",
-      endpoint_count: (endpointIds ?? []).length,
+      role,
+      endpoint_count: endpointIds.length,
     },
   });
   return NextResponse.json({ ok: true });

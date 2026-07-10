@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { getGuardianClient } from "@/lib/guardian-client";
+import { guardianRoute } from "@/lib/guardian-route";
 import { normalizeAmount } from "@/lib/token-registry";
 
 export const dynamic = "force-dynamic";
@@ -11,20 +11,19 @@ const CACHE_TTL = 60 * 1000;
 const CONCURRENCY = 10;
 
 type AssetTotals = { usd7d: number; computedAt: string };
+// ponytail: per-serverless-instance cache — cold instances recompute; good
+// enough while account counts stay small (upgrade path: KV / CDN caching)
 const cache = new Map<string, AssetTotals>();
 
 export async function GET() {
   const h = await headers();
   const endpointId = h.get("x-guardian-endpoint-id") ?? "";
-  if (!endpointId) return NextResponse.json({ error: "No endpoint selected" }, { status: 400 });
-
   const cached = cache.get(endpointId);
   if (cached && Date.now() - new Date(cached.computedAt).getTime() < CACHE_TTL) {
     return NextResponse.json(cached);
   }
 
-  try {
-    const client = getGuardianClient(endpointId);
+  return guardianRoute(async (client) => {
     const now = Date.now();
     const active7d: string[] = [];
     let cursor: string | undefined;
@@ -57,9 +56,6 @@ export async function GET() {
 
     const result = { usd7d, computedAt: new Date().toISOString() };
     cache.set(endpointId, result);
-    return NextResponse.json(result);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 503 });
-  }
+    return result;
+  });
 }

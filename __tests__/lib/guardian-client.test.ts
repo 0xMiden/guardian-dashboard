@@ -59,6 +59,17 @@ describe("guardian-client withRetry", () => {
     expect(mocks.listAccounts).toHaveBeenCalledTimes(2);
   });
 
+  it("fails fast when the node asks to retry after longer than the cap", async () => {
+    mocks.listAccounts.mockRejectedValue(
+      new GuardianOperatorHttpError(429, "Too Many Requests", "sustained limit", {
+        retryAfterSecs: 60,
+      } as never)
+    );
+    await expect(getGuardianClient("sustained-429").listAccounts()).rejects.toMatchObject({ status: 429 });
+    // no futile retries — the caller keeps stale data and SWR retries later
+    expect(mocks.listAccounts).toHaveBeenCalledTimes(1);
+  });
+
   it("gives up after exhausting 429 retries", async () => {
     mocks.listAccounts.mockRejectedValue(rateLimitError());
     await expect(getGuardianClient("exhaust-429").listAccounts()).rejects.toMatchObject({ status: 429 });

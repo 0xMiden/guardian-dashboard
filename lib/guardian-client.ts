@@ -102,6 +102,7 @@ function ensureAuthenticated(state: ClientState, endpointId: string): Promise<vo
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const MAX_RATE_LIMIT_RETRIES = 2;
+const MAX_RETRY_AFTER_SECS = 5;
 
 async function withRetry<T>(state: ClientState, endpointId: string, fn: () => Promise<T>): Promise<T> {
   let reauthed = false;
@@ -117,10 +118,16 @@ async function withRetry<T>(state: ClientState, endpointId: string, fn: () => Pr
         continue;
       }
       // The node rate-limits per operator commitment (429 + retry_after_secs);
-      // honor it instead of failing the whole page load.
-      if (err instanceof GuardianOperatorHttpError && err.status === 429 && rateLimitRetries < MAX_RATE_LIMIT_RETRIES) {
+      // honor it instead of failing the whole page load. When the node's
+      // sustained limit asks for more than we're willing to wait (e.g. 60s),
+      // fail fast — clients keep stale data and SWR retries later.
+      if (
+        err instanceof GuardianOperatorHttpError && err.status === 429 &&
+        rateLimitRetries < MAX_RATE_LIMIT_RETRIES &&
+        (err.retryAfterSecs ?? 1) <= MAX_RETRY_AFTER_SECS
+      ) {
         rateLimitRetries++;
-        await sleep(Math.min(err.retryAfterSecs ?? 1, 5) * 1000);
+        await sleep((err.retryAfterSecs ?? 1) * 1000);
         continue;
       }
       throw err;

@@ -83,11 +83,21 @@ describe("inventory cache", () => {
     expect(listAccounts).toHaveBeenCalledTimes(2);
   });
 
-  it("refresh ignores a warm entry", async () => {
+  it("refresh re-walks an entry the polls left behind", async () => {
     const { client, listAccounts } = lister([{ items: [account("0xa", 1000)], nextCursor: null }]);
     await getInventory(client, "ep", MS_30D, NOW);
-    await getInventory(client, "ep", MS_30D, NOW, { refresh: true });
+    await getInventory(client, "ep", MS_30D, NOW + 30_000, { refresh: true });
     expect(listAccounts).toHaveBeenCalledTimes(2);
+  });
+
+  it("refresh reuses a walk from the same click instead of paying twice", async () => {
+    // One Refresh click asks stats (30d) and asset-totals (7d) within
+    // milliseconds. The second one must not re-walk the whole list.
+    const { client, listAccounts } = lister([{ items: [account("0xa", 1000)], nextCursor: null }]);
+    await getInventory(client, "ep", MS_30D, NOW, { refresh: true });
+    listAccounts.mockClear();
+    await getInventory(client, "ep", MS_7D, NOW + 50, { refresh: true });
+    expect(listAccounts).not.toHaveBeenCalled();
   });
 
   it("keeps endpoints separate", async () => {

@@ -6,10 +6,12 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 // fetching asset totals lazily.
 const observed = new Set<Element>();
 let trigger: (els: Element[]) => void = () => {};
+let hide: (els: Element[]) => void = () => {};
 
 class StubObserver {
   constructor(private cb: (entries: { isIntersecting: boolean; target: Element }[]) => void) {
     trigger = (els) => this.cb(els.map((target) => ({ isIntersecting: true, target })));
+    hide = (els) => this.cb(els.map((target) => ({ isIntersecting: false, target })));
   }
   observe(el: Element) { observed.add(el); }
   unobserve(el: Element) { observed.delete(el); }
@@ -104,7 +106,7 @@ describe("AccountsPanel asset totals", () => {
     expect(snapshotCalls()).toHaveLength(1);
   });
 
-  it("manual refresh bypasses every cache layer", async () => {
+  it("manual refresh re-reads the aggregates and the rows on screen", async () => {
     mockRows([A, B]);
     render(<AccountsPanel />);
     trigger([...observed]);
@@ -119,6 +121,24 @@ describe("AccountsPanel asset totals", () => {
     expect(urls.some((u: string) => u.includes("/api/accounts/stats?refresh=1"))).toBe(true);
     expect(urls.some((u: string) => u.includes("/api/accounts/asset-totals?refresh=1"))).toBe(true);
     expect(urls.some((u: string) => u.includes("/api/accounts/snapshots") && u.includes("refresh=1"))).toBe(true);
+  });
+
+  it("refresh asks only for the rows on screen, not every row ever loaded", async () => {
+    mockRows([A, B]);
+    render(<AccountsPanel />);
+    // Both rows load their totals, then the user scrolls 0xa out of view.
+    trigger([...observed]);
+    await settle();
+    hide([...observed].filter((el) => (el as HTMLElement).dataset.accountId === "0xa"));
+    fetchSpy.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    await settle();
+
+    const [call] = snapshotCalls();
+    expect(decodeURIComponent(call)).toContain("0xb@");
+    expect(decodeURIComponent(call)).not.toContain("0xa@");
   });
 
   it("leaves the column empty rather than showing a wrong number when the fetch fails", async () => {

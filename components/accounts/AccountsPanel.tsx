@@ -127,6 +127,10 @@ export function AccountsPanel() {
   const pendingRef = useRef(new Map<string, string>());
   const requestedRef = useRef(new Set<string>());
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Which rows are on screen right now. Refresh reads this so it recomputes
+  // what the user is looking at rather than every row they have ever scrolled
+  // past, which on a long session is hundreds of requests.
+  const visibleRef = useRef(new Set<string>());
 
   const queueSnapshot = useCallback((accountId: string, updatedAt: string) => {
     const key = `${accountId}@${updatedAt}`;
@@ -144,26 +148,33 @@ export function AccountsPanel() {
 
   useEffect(() => () => { if (flushTimerRef.current) clearTimeout(flushTimerRef.current); }, []);
 
+  // Refresh is scoped to the rows on screen plus the aggregates. A full
+  // recompute cannot fit in one click: ~470 active accounts against a budget of
+  // 60 requests a minute is minutes of paced fetching, and attempting it as a
+  // burst is what earns the 429s that leave the page with no numbers at all.
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    requestedRef.current.clear();
     try {
-      const rows = [...(data?.items ?? []), ...extraItems]
-        .filter((a) => perAccount[a.accountId] !== undefined)
+      // The account list comes first and the rest waits for it: a row's
+      // `updatedAt` is its cache key, so asking for totals before the new
+      // versions land would just re-read what is already on screen. A failed
+      // revalidation falls back to the rendered rows, which still works because
+      // `refresh=1` re-reads them whatever their version says.
+      const page = await mutate<AccountsPage>("/api/accounts");
+      const rows = [...(page?.items ?? data?.items ?? []), ...extraItems]
+        .filter((a) => visibleRef.current.has(a.accountId))
         .map((a) => ({ accountId: a.accountId, updatedAt: a.updatedAt }));
+      // Let the observer re-queue these once the new versions are rendered.
+      for (const r of rows) requestedRef.current.delete(`${r.accountId}@${r.updatedAt}`);
       await Promise.all([
-        mutate("/api/accounts"),
-        mutate("/api/accounts/stats"),
-        mutate("/api/accounts/asset-totals"),
-        fetch("/api/accounts/stats?refresh=1"),
-        fetch("/api/accounts/asset-totals?refresh=1"),
+        fetch("/api/accounts/stats?refresh=1").then(() => mutate("/api/accounts/stats")),
+        fetch("/api/accounts/asset-totals?refresh=1").then(() => mutate("/api/accounts/asset-totals")),
         fetchSnapshotsRef.current(rows, true),
       ]);
-      await Promise.all([mutate("/api/accounts/stats"), mutate("/api/accounts/asset-totals")]);
     } finally {
       setRefreshing(false);
     }
-  }, [data, extraItems, perAccount]);
+  }, [data, extraItems]);
 
   // Keep a stable ref to loadMore so the observer never needs to be rebuilt on cursor changes
   const loadMoreRef = useRef(loadMore);
@@ -198,12 +209,15 @@ export function AccountsPanel() {
     if (typeof IntersectionObserver === "undefined") return; // jsdom, older browsers
     const root = tbodyRef.current;
     if (!root) return;
+    visibleRef.current.clear(); // the rendered rows changed; the observer refills it
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
           const { accountId, updatedAt } = (entry.target as HTMLElement).dataset;
-          if (accountId && updatedAt) queueSnapshot(accountId, updatedAt);
+          if (!accountId) continue;
+          if (!entry.isIntersecting) { visibleRef.current.delete(accountId); continue; }
+          visibleRef.current.add(accountId);
+          if (updatedAt) queueSnapshot(accountId, updatedAt);
         }
       },
       { rootMargin: "150px" }

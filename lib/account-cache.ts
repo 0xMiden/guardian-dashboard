@@ -33,6 +33,18 @@ import { normalizeAmount } from "@/lib/token-registry";
 
 export const INVENTORY_TTL_MS = 60 * 1000;
 
+// A Refresh click hits stats and asset-totals within milliseconds of each
+// other, and both need the account list. `refresh` therefore means "a much
+// shorter TTL" rather than "no cache": the click still gets a walk the node
+// answered moments ago, and pays for it once instead of twice.
+const REFRESH_TTL_MS = 2 * 1000;
+
+// The node's documented maximum page size. Every page is one request against
+// the same 60/minute budget, so the walk costs 4 requests on the 1,573-account
+// OZ node instead of 16. Verified against all four reachable nodes: they return
+// a full 500 items (OZ in ~750ms).
+const PAGE_SIZE = 500;
+
 // Bounded so a long-lived instance cannot grow without limit. Oldest-first
 // eviction; entries are cheap (a number keyed by a short string).
 const MAX_SNAPSHOT_ENTRIES = 20_000;
@@ -86,15 +98,16 @@ export async function getInventory(
   now: number,
   { refresh = false }: { refresh?: boolean } = {},
 ): Promise<DashboardAccountSummary[]> {
+  const ttl = refresh ? REFRESH_TTL_MS : INVENTORY_TTL_MS;
   const cached = inventoryCache.get(endpointId);
-  if (!refresh && cached && now - cached.computedAt < INVENTORY_TTL_MS && cached.maxAgeMs >= maxAgeMs) {
+  if (cached && now - cached.computedAt < ttl && cached.maxAgeMs >= maxAgeMs) {
     return cached.accounts;
   }
 
   const accounts: DashboardAccountSummary[] = [];
   let cursor: string | undefined;
   while (true) {
-    const page: PagedResult<DashboardAccountSummary> = await client.listAccounts({ limit: 100, cursor });
+    const page: PagedResult<DashboardAccountSummary> = await client.listAccounts({ limit: PAGE_SIZE, cursor });
     if (!page.items.length) break;
     accounts.push(...page.items);
 
@@ -106,7 +119,7 @@ export async function getInventory(
   // Keep the deeper of the two walks so a 7-day caller cannot shrink the
   // entry a 30-day caller is relying on.
   const previous = inventoryCache.get(endpointId);
-  const keepDeeper = !refresh && previous && previous.maxAgeMs > maxAgeMs && now - previous.computedAt < INVENTORY_TTL_MS;
+  const keepDeeper = previous && previous.maxAgeMs > maxAgeMs && now - previous.computedAt < ttl;
   if (!keepDeeper) inventoryCache.set(endpointId, { accounts, computedAt: now, maxAgeMs });
   return accounts;
 }

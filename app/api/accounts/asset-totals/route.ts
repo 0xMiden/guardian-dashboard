@@ -8,10 +8,12 @@ export const maxDuration = 120;
 
 const MS_7D = 7 * 24 * 60 * 60 * 1000;
 
-// Per-invocation ceiling on snapshot fetches. The node allows 60 requests a
-// minute across every route, and this one poll must not consume the whole
-// budget and starve the pages the user is actually looking at. A cold instance
-// therefore warms up over a few polls instead of in one burst.
+// Per-invocation ceiling on snapshot fetches, and it holds on a manual refresh
+// too. The node allows 60 requests a minute across every route, so this figure
+// must not starve the rows the user is actually looking at. The cost is warm-up
+// time on a cold instance: ~470 active accounts at 25 a pass is about 19 polls
+// before the first total can be published. Until then the card shows nothing
+// rather than a partial sum.
 const MAX_SNAPSHOTS_PER_PASS = 25;
 
 type AssetTotals = { usd7d: number; computedAt: string };
@@ -36,9 +38,14 @@ export async function GET(req: Request) {
     const accounts = await getInventory(client, endpointId, MS_7D, now, { refresh });
     const active7d = accounts.filter((a) => now - new Date(a.updatedAt).getTime() <= MS_7D);
 
+    // `refresh` is deliberately NOT forwarded here, and the ceiling holds on a
+    // refresh too. Snapshots are keyed by `accountId@updatedAt`, so a cache hit
+    // is a value the node itself says cannot have changed: re-reading it buys
+    // nothing and costs one request out of 60. What a refresh does buy is the
+    // re-walked inventory above, which surfaces the accounts whose version
+    // moved, and those miss the cache and are refetched on their own.
     const { totals, complete } = await getSnapshotTotalsChecked(client, endpointId, active7d, {
-      refresh,
-      maxFetches: refresh ? Infinity : MAX_SNAPSHOTS_PER_PASS,
+      maxFetches: MAX_SNAPSHOTS_PER_PASS,
     });
 
     // Publishing a partial sum would show a confidently wrong number. Until the

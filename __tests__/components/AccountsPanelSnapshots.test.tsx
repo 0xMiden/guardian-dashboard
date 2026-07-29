@@ -1,0 +1,135 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+
+// jsdom has no IntersectionObserver. This stub records what the panel observes
+// so a test can decide which rows "become visible", which is the whole point of
+// fetching asset totals lazily.
+const observed = new Set<Element>();
+let trigger: (els: Element[]) => void = () => {};
+
+class StubObserver {
+  constructor(private cb: (entries: { isIntersecting: boolean; target: Element }[]) => void) {
+    trigger = (els) => this.cb(els.map((target) => ({ isIntersecting: true, target })));
+  }
+  observe(el: Element) { observed.add(el); }
+  unobserve(el: Element) { observed.delete(el); }
+  disconnect() { observed.clear(); }
+}
+vi.stubGlobal("IntersectionObserver", StubObserver);
+
+vi.mock("swr", async () => {
+  const actual = await vi.importActual<typeof import("swr")>("swr");
+  return { ...actual, default: vi.fn(), mutate: vi.fn(async () => undefined) };
+});
+vi.mock("next/navigation", () => ({ useRouter: vi.fn(() => ({ push: vi.fn() })) }));
+
+const { AccountsPanel } = await import("@/components/accounts/AccountsPanel");
+const useSWR = (await import("swr")).default as ReturnType<typeof vi.fn>;
+
+const row = (id: string, updatedAt: string) => ({
+  accountId: id, stateStatus: "available", authScheme: "ecdsa", authorizedSignerCount: 2,
+  hasPendingCandidate: false, pausedAt: null, pausedReason: null,
+  createdAt: "2026-07-01T00:00:00.000Z", updatedAt,
+});
+
+const A = row("0xa", "2026-07-29T10:00:00.000Z");
+const B = row("0xb", "2026-07-29T11:00:00.000Z");
+
+function mockRows(items: unknown[]) {
+  useSWR.mockImplementation((key: string) =>
+    key === "/api/accounts" ? { data: { items, nextCursor: null }, error: undefined } : { data: undefined, error: undefined }
+  );
+}
+
+let fetchSpy: ReturnType<typeof vi.fn>;
+beforeEach(() => {
+  vi.clearAllMocks();
+  observed.clear();
+  fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    new Response(JSON.stringify({ "0xa": 1, "0xb": 2 }), { status: 200 })
+  );
+});
+afterEach(() => fetchSpy.mockRestore());
+
+// The panel coalesces newly-visible rows on a 150ms timer. Fake timers fight
+// with waitFor here, so wait for real: the windows are short.
+const settle = (ms = 300) => new Promise((r) => setTimeout(r, ms));
+
+const snapshotCalls = () =>
+  fetchSpy.mock.calls.map((c: unknown[]) => String(c[0])).filter((u: string) => u.includes("/api/accounts/snapshots"));
+
+describe("AccountsPanel asset totals", () => {
+  it("fetches nothing until a row is actually visible", async () => {
+    mockRows([A, B]);
+    render(<AccountsPanel />);
+    await settle(500);
+    expect(snapshotCalls()).toHaveLength(0);
+  });
+
+  it("fetches only the rows that came into view, with their versions", async () => {
+    mockRows([A, B]);
+    render(<AccountsPanel />);
+    const visible = [...observed].filter((el) => (el as HTMLElement).dataset.accountId === "0xa");
+    trigger(visible);
+    await settle();
+
+    const calls = snapshotCalls();
+    expect(calls).toHaveLength(1);
+    expect(decodeURIComponent(calls[0])).toContain("0xa@2026-07-29T10:00:00.000Z");
+    expect(decodeURIComponent(calls[0])).not.toContain("0xb");
+  });
+
+  it("coalesces a burst of rows into one request", async () => {
+    mockRows([A, B]);
+    render(<AccountsPanel />);
+    trigger([...observed]);
+    await settle();
+
+    const calls = snapshotCalls();
+    expect(calls).toHaveLength(1);
+    expect(decodeURIComponent(calls[0])).toContain("0xa@");
+    expect(decodeURIComponent(calls[0])).toContain("0xb@");
+  });
+
+  it("does not refetch a row that has already been requested", async () => {
+    mockRows([A, B]);
+    render(<AccountsPanel />);
+    const rows = [...observed];
+    trigger(rows);
+    await settle();
+    expect(snapshotCalls()).toHaveLength(1);
+
+    trigger(rows);
+    await settle();
+    expect(snapshotCalls()).toHaveLength(1);
+  });
+
+  it("manual refresh bypasses every cache layer", async () => {
+    mockRows([A, B]);
+    render(<AccountsPanel />);
+    trigger([...observed]);
+    await settle();
+    fetchSpy.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    await settle();
+
+    const urls: string[] = fetchSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(urls.some((u: string) => u.includes("/api/accounts/stats?refresh=1"))).toBe(true);
+    expect(urls.some((u: string) => u.includes("/api/accounts/asset-totals?refresh=1"))).toBe(true);
+    expect(urls.some((u: string) => u.includes("/api/accounts/snapshots") && u.includes("refresh=1"))).toBe(true);
+  });
+
+  it("leaves the column empty rather than showing a wrong number when the fetch fails", async () => {
+    mockRows([A]);
+    fetchSpy.mockResolvedValue(new Response("nope", { status: 503 }));
+    render(<AccountsPanel />);
+    trigger([...observed]);
+    await settle();
+
+    // the row still renders; the asset cell stays as the placeholder
+    expect(screen.getByText("0xa")).toBeInTheDocument();
+    expect(screen.queryByText(/^\$/)).not.toBeInTheDocument();
+  });
+});

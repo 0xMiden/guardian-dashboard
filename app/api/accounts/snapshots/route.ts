@@ -1,31 +1,35 @@
+import { headers } from "next/headers";
 import { guardianRoute } from "@/lib/guardian-route";
-import { normalizeAmount } from "@/lib/token-registry";
+import { getSnapshotTotals } from "@/lib/account-cache";
 
 export const dynamic = "force-dynamic";
 
-const CONCURRENCY = 10;
-
+/**
+ * Vault totals for the requested rows.
+ *
+ * `ids` carries `accountId@updatedAt` pairs. The version half is what lets the
+ * cache skip accounts that provably have not changed. A bare id (no `@`) still
+ * works, and bypasses the cache entirely in both directions, because a value
+ * with no version has no way to ever be invalidated.
+ */
 export function GET(req: Request) {
+  const url = new URL(req.url);
+  const refresh = url.searchParams.get("refresh") === "1";
+  const raw = url.searchParams.get("ids") ?? "";
+
+  const accounts = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const at = entry.lastIndexOf("@");
+      return at === -1
+        ? { accountId: entry, updatedAt: "" }
+        : { accountId: entry.slice(0, at), updatedAt: entry.slice(at + 1) };
+    });
+
   return guardianRoute(async (client) => {
-    const raw = new URL(req.url).searchParams.get("ids") ?? "";
-    const ids = raw.split(",").map((s) => s.trim()).filter(Boolean);
-    const result: Record<string, number> = {};
-
-    for (let i = 0; i < ids.length; i += CONCURRENCY) {
-      const batch = ids.slice(i, i + CONCURRENCY);
-      const settled = await Promise.allSettled(
-        batch.map((id) => client.getAccountSnapshot(id))
-      );
-      for (let j = 0; j < settled.length; j++) {
-        const r = settled[j];
-        if (r.status === "fulfilled") {
-          result[batch[j]] = r.value.vault.fungible.reduce(
-            (sum, a) => sum + normalizeAmount(a.faucetId, a.amount), 0
-          );
-        }
-      }
-    }
-
-    return result;
+    const endpointId = (await headers()).get("x-guardian-endpoint-id") ?? "";
+    return getSnapshotTotals(client, endpointId, accounts, { refresh });
   });
 }

@@ -1,7 +1,8 @@
 "use client";
 import { useState, useCallback, useEffect, useRef } from "react";
-import useSWR from "swr";
+import useSWR, { mutate } from "swr";
 import { useRouter } from "next/navigation";
+import { RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,6 +14,10 @@ import { isWalletAccount } from "@/lib/format";
 
 type AccountsPage = PagedResult<DashboardAccountSummary>;
 type AccountKind = "all" | "wallet" | "other";
+type SnapshotTarget = { accountId: string; updatedAt: string };
+
+// Coalescing window for rows scrolling into view.
+const SNAPSHOT_BATCH_MS = 150;
 type AccountStats = { total: number | null; count7d: number; count30d: number };
 type AssetTotals = { usd7d?: number; computedAt?: string };
 
@@ -66,6 +71,7 @@ export function AccountsPanel() {
   const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
   const [loadingMore, setLoadingMore] = useState(false);
   const [kind, setKind] = useState<AccountKind>("all");
+  const [refreshing, setRefreshing] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const initialCursor = data?.nextCursor ?? null;
@@ -74,11 +80,15 @@ export function AccountsPanel() {
   // string    → more pages available
   const hasMore = nextCursor === undefined ? initialCursor !== null : nextCursor !== null;
 
-  const fetchSnapshots = useCallback(async (ids: string[]) => {
-    if (!ids.length) return;
+  // The node has no batch read, so one row's asset total is one request to it.
+  // Rows carry `updatedAt` so the server can skip accounts that provably have
+  // not changed since it last looked.
+  const fetchSnapshots = useCallback(async (rows: SnapshotTarget[], refresh = false) => {
+    if (!rows.length) return;
     setSnapshotsLoading(true);
     try {
-      const res = await fetch(`/api/accounts/snapshots?ids=${ids.map(encodeURIComponent).join(",")}`);
+      const ids = rows.map((r) => encodeURIComponent(`${r.accountId}@${r.updatedAt}`)).join(",");
+      const res = await fetch(`/api/accounts/snapshots?ids=${ids}${refresh ? "&refresh=1" : ""}`);
       if (!res.ok) throw new Error(`snapshots ${res.status}`);
       const data: Record<string, number> = await res.json();
       setPerAccount((prev) => ({ ...prev, ...data }));
@@ -100,20 +110,60 @@ export function AccountsPanel() {
       const newItems = page.items ?? [];
       setExtraItems((prev) => [...prev, ...newItems]);
       setNextCursor(page.nextCursor ?? null);
-      fetchSnapshots(newItems.map((a) => a.accountId));
     } catch {
       // network error — leave cursor untouched so the next attempt can retry
     } finally {
       setLoadingMore(false);
     }
-  }, [nextCursor, initialCursor, fetchSnapshots]);
+  }, [nextCursor, initialCursor]);
 
-  // Fetch snapshots for the initial page once it arrives
   const fetchSnapshotsRef = useRef(fetchSnapshots);
   useEffect(() => { fetchSnapshotsRef.current = fetchSnapshots; }, [fetchSnapshots]);
-  useEffect(() => {
-    if (data?.items?.length) fetchSnapshotsRef.current(data.items.map((a) => a.accountId));
-  }, [data]);
+
+  // Asset totals are fetched for rows the user can actually see. Loading a
+  // 100-row page used to cost 100 node requests up front; a viewport holds
+  // roughly 15. Rows are registered by the observer below and drained on a
+  // short timer so a fast scroll coalesces into one request instead of many.
+  const pendingRef = useRef(new Map<string, string>());
+  const requestedRef = useRef(new Set<string>());
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const queueSnapshot = useCallback((accountId: string, updatedAt: string) => {
+    const key = `${accountId}@${updatedAt}`;
+    if (requestedRef.current.has(key)) return;
+    requestedRef.current.add(key);
+    pendingRef.current.set(accountId, updatedAt);
+    if (flushTimerRef.current) return;
+    flushTimerRef.current = setTimeout(() => {
+      flushTimerRef.current = null;
+      const rows = [...pendingRef.current].map(([accountId, updatedAt]) => ({ accountId, updatedAt }));
+      pendingRef.current.clear();
+      fetchSnapshotsRef.current(rows);
+    }, SNAPSHOT_BATCH_MS);
+  }, []);
+
+  useEffect(() => () => { if (flushTimerRef.current) clearTimeout(flushTimerRef.current); }, []);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    requestedRef.current.clear();
+    try {
+      const rows = [...(data?.items ?? []), ...extraItems]
+        .filter((a) => perAccount[a.accountId] !== undefined)
+        .map((a) => ({ accountId: a.accountId, updatedAt: a.updatedAt }));
+      await Promise.all([
+        mutate("/api/accounts"),
+        mutate("/api/accounts/stats"),
+        mutate("/api/accounts/asset-totals"),
+        fetch("/api/accounts/stats?refresh=1"),
+        fetch("/api/accounts/asset-totals?refresh=1"),
+        fetchSnapshotsRef.current(rows, true),
+      ]);
+      await Promise.all([mutate("/api/accounts/stats"), mutate("/api/accounts/asset-totals")]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [data, extraItems, perAccount]);
 
   // Keep a stable ref to loadMore so the observer never needs to be rebuilt on cursor changes
   const loadMoreRef = useRef(loadMore);
@@ -136,6 +186,31 @@ export function AccountsPanel() {
     observer.observe(el);
     return () => observer.disconnect();
   }, [hasMore]);
+
+  // A row entering view queues its asset total. Rows stay observed rather than
+  // being unobserved after first sight: the queue key includes `updatedAt`, so
+  // an account that changes re-queues on its own the next time it is on screen.
+  // Rebuild the observer when the rendered row set changes: a new page, or a
+  // filter that swaps which rows are mounted.
+  const rowCount = (data?.items?.length ?? 0) + extraItems.length;
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return; // jsdom, older browsers
+    const root = tbodyRef.current;
+    if (!root) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const { accountId, updatedAt } = (entry.target as HTMLElement).dataset;
+          if (accountId && updatedAt) queueSnapshot(accountId, updatedAt);
+        }
+      },
+      { rootMargin: "150px" }
+    );
+    root.querySelectorAll("tr[data-account-id]").forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [rowCount, kind, queueSnapshot]);
 
   if (!data && !error) {
     return (
@@ -173,7 +248,7 @@ export function AccountsPanel() {
           infinite scroll rather than the node's full inventory. The node has no
           filter parameter for this; upgrade path is a server-side one, which
           needs the client-attribution field proposed upstream. */}
-      <div className="flex gap-2 text-xs">
+      <div className="flex items-center gap-2 text-xs">
         {([
           ["all", `All (${loaded.length})`],
           ["wallet", `Wallet (${walletCount})`],
@@ -190,6 +265,17 @@ export function AccountsPanel() {
             {label}
           </button>
         ))}
+        {/* Accounts move quickly, so the caches must never be the only way to
+            get a current number. This bypasses every one of them. */}
+        <button
+          onClick={refresh}
+          disabled={refreshing}
+          title="Refetch from the Guardian node, ignoring caches"
+          className="ml-auto flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1 text-muted-foreground transition-colors hover:text-foreground hover:border-zinc-500 disabled:opacity-50"
+        >
+          <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+          {refreshing ? "Refreshing…" : "Refresh"}
+        </button>
       </div>
       <Card>
         <CardContent className="p-0 overflow-x-auto">
@@ -207,10 +293,12 @@ export function AccountsPanel() {
                 <th className="px-4 py-3 text-left font-medium">Updated</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody ref={tbodyRef}>
               {items.map((a, i) => (
                 <tr
                   key={a.accountId}
+                  data-account-id={a.accountId}
+                  data-updated-at={a.updatedAt}
                   className="border-b last:border-0 cursor-pointer hover:bg-muted/40 transition-colors"
                   onClick={() => {
                     posthog.capture("account_clicked", {

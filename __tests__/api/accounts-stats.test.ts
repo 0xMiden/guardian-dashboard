@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { __resetAccountCaches } from "@/lib/account-cache";
 import { headers } from "next/headers";
 import { GET } from "@/app/api/accounts/stats/route";
 
@@ -25,6 +26,7 @@ const account = (id: string, ageDays: number) => ({
 });
 
 beforeEach(() => {
+  __resetAccountCaches();
   vi.clearAllMocks();
   mockHeaders("testnet");
 });
@@ -36,7 +38,7 @@ describe("GET /api/accounts/stats", () => {
       items: [account("a", 1), account("b", 10), account("c", 40)],
       nextCursor: null,
     });
-    const res = await GET();
+    const res = await GET(new Request("http://localhost/api/accounts/stats"));
     expect(await res.json()).toEqual({ total: 42, count7d: 1, count30d: 2 });
   });
 
@@ -45,7 +47,7 @@ describe("GET /api/accounts/stats", () => {
     mockListAccounts
       .mockResolvedValueOnce({ items: [account("a", 1)], nextCursor: "page2" })
       .mockResolvedValueOnce({ items: [account("b", 45)], nextCursor: "page3" });
-    const res = await GET();
+    const res = await GET(new Request("http://localhost/api/accounts/stats"));
     expect(await res.json()).toEqual({ total: 400, count7d: 1, count30d: 1 });
     expect(mockListAccounts).toHaveBeenCalledTimes(2);
   });
@@ -53,14 +55,14 @@ describe("GET /api/accounts/stats", () => {
   it("returns total null when dashboard info is unavailable (older server)", async () => {
     mockGetDashboardInfo.mockRejectedValue(new Error("404"));
     mockListAccounts.mockResolvedValue({ items: [account("a", 1)], nextCursor: null });
-    const res = await GET();
+    const res = await GET(new Request("http://localhost/api/accounts/stats"));
     expect(await res.json()).toEqual({ total: null, count7d: 1, count30d: 1 });
   });
 
   it("returns 503 with the message when the account list fails", async () => {
     mockGetDashboardInfo.mockResolvedValue({ totalAccountCount: 1 });
     mockListAccounts.mockRejectedValue(new Error("rate limited"));
-    const res = await GET();
+    const res = await GET(new Request("http://localhost/api/accounts/stats"));
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "rate limited" });
   });

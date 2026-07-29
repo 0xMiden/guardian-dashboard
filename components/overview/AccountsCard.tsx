@@ -8,9 +8,11 @@ import { fetcher } from "@/lib/utils";
 
 interface OverviewData {
   totalAccounts: number;
-  falcon: number;
-  ecdsa: number;
-  evm: number;
+  // null when the node has stopped computing the breakdown, which it does above
+  // a per-node account threshold. The total stays exact either way.
+  falcon: number | null;
+  ecdsa: number | null;
+  evm: number | null;
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -52,9 +54,20 @@ export function AccountsCard() {
         </div>
         {expanded && data && (
           <div className="mt-3 pt-3 border-t space-y-1.5">
-            <Row label="Falcon" value={data.falcon} />
-            <Row label="ECDSA" value={data.ecdsa} />
-            {data.evm > 0 && <Row label="EVM" value={data.evm} />}
+            {data.falcon === null ? (
+              <p
+                className="text-xs text-muted-foreground"
+                title="This Guardian node stops computing the per-auth-method breakdown above a certain account count. The total above is still exact."
+              >
+                Breakdown unavailable on this node
+              </p>
+            ) : (
+              <>
+                <Row label="Falcon" value={data.falcon} />
+                <Row label="ECDSA" value={data.ecdsa} />
+                {!!data.evm && <Row label="EVM" value={data.evm} />}
+              </>
+            )}
           </div>
         )}
       </CardContent>

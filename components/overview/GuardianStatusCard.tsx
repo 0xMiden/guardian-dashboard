@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +32,53 @@ const networkColor: Record<string, string> = {
   MidenTestnet: "bg-amber-500",
   MidenMainnet: "bg-emerald-500",
 };
+
+type LatencySample = { t: number; ms: number };
+
+/**
+ * Latency samples survive leaving the Overview tab, because the card is
+ * unmounted on every navigation and a fresh chart needs two polls (10s) before
+ * it can draw a line at all.
+ *
+ * Keyed by endpoint URL, which is the part that matters: an earlier version kept
+ * these in a module-level array and plotted one Guardian node's latency as
+ * another's after switching endpoints. sessionStorage also scopes them to the
+ * tab, so two tabs on different nodes cannot contaminate each other.
+ *
+ * // ponytail: sessionStorage, so history is per tab and gone when it closes.
+ * // Fine for a live latency sparkline; a real retention window would need the
+ * // node to serve its own health history.
+ */
+const SAMPLES_KEY = "guardian:latency";
+const MAX_SAMPLES = 20;
+// Beyond this a sample says nothing about current latency, and plotting it next
+// to a fresh one implies continuity the chart does not have.
+const MAX_SAMPLE_AGE_MS = 10 * 60 * 1000;
+
+function readSamples(url: string): LatencySample[] {
+  try {
+    const raw = sessionStorage.getItem(`${SAMPLES_KEY}:${url}`);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (!Array.isArray(parsed)) return [];
+    const cutoff = Date.now() - MAX_SAMPLE_AGE_MS;
+    return parsed.filter(
+      (s): s is LatencySample =>
+        !!s && typeof s.t === "number" && typeof s.ms === "number" && s.t > cutoff,
+    );
+  } catch {
+    return []; // private mode, quota, or a shape we no longer write
+  }
+}
+
+function appendSample(url: string, ms: number): LatencySample[] {
+  const next = [...readSamples(url), { t: Date.now(), ms }].slice(-MAX_SAMPLES);
+  try {
+    sessionStorage.setItem(`${SAMPLES_KEY}:${url}`, JSON.stringify(next));
+  } catch {
+    // over quota or blocked — the chart still works for this mount
+  }
+  return next;
+}
 
 function formatUptime(secs: number): string {
   const d = Math.floor(secs / 86400);
@@ -98,28 +145,36 @@ function Row({ label, value, sub, info }: { label: string; value: React.ReactNod
 }
 
 export function GuardianStatusCard() {
-  const [history, setHistory] = useState<{ t: number; ms: number }[]>([]);
+  const [history, setHistory] = useState<LatencySample[]>([]);
   const [showDetails, setShowDetails] = useState(false);
-  const [uptimeSecs, setUptimeSecs] = useState<number | null>(null);
+
+  const { data: opInfo } = useSWR<OperatorInfo>("/api/operator-info", fetcher);
+  const endpointUrl = opInfo?.url;
 
   const { data: health } = useSWR<HealthData>("/api/health", fetcher, {
     refreshInterval: 5000,
-    onSuccess: (d) => setHistory((prev) => [...prev.slice(-19), { t: Date.now(), ms: d.latencyMs }]),
+    // A sample that cannot be attributed to an endpoint is dropped rather than
+    // guessed at. `opInfo` resolves alongside the first health poll, so at worst
+    // this skips one 5s sample on a cold load.
+    onSuccess: (d) => { if (endpointUrl) setHistory(appendSample(endpointUrl, d.latencyMs)); },
   });
 
-  const { data: overview } = useSWR<OverviewData>("/api/overview", fetcher, {
-    refreshInterval: 30_000,
-    onSuccess: (d) => {
-      if (d.build?.startedAt) {
-        setUptimeSecs(Math.floor((Date.now() - new Date(d.build.startedAt).getTime()) / 1000));
-      }
-    },
-  });
+  const { data: overview } = useSWR<OverviewData>("/api/overview", fetcher, { refreshInterval: 30_000 });
 
-  const { data: opInfo } = useSWR<OperatorInfo>("/api/operator-info", fetcher);
+  // Load whatever this endpoint already has, and start clean when the endpoint
+  // changes: the previous node's samples say nothing about this one.
+  useEffect(() => { setHistory(endpointUrl ? readSamples(endpointUrl) : []); }, [endpointUrl]);
 
   const isUp = health?.status === "up";
   const build = overview?.build;
+  // Derived at render rather than kept in state. As state set from `onSuccess`
+  // it read "—" whenever the overview came from SWR's cache, because a cache
+  // read fires no success callback: leaving the tab and coming straight back was
+  // enough to blank it while the "since ..." line below it stayed populated.
+  const startedAt = build?.startedAt ? new Date(build.startedAt) : null;
+  const uptimeSecs = startedAt && !Number.isNaN(startedAt.getTime())
+    ? Math.floor((Date.now() - startedAt.getTime()) / 1000)
+    : null;
   const hasDetails = !!(build?.gitCommit && build.gitCommit !== "unknown") || !!opInfo?.publicKey;
 
   return (
@@ -189,11 +244,13 @@ export function GuardianStatusCard() {
                   }
                   info="The Miden network this Guardian node is operating on."
                 />
-                {build && (
+                {/* No start time means no uptime to show: the row is dropped
+                    rather than rendered as a dash next to a "since" line. */}
+                {uptimeSecs !== null && startedAt && (
                   <Row
                     label="Uptime"
-                    value={uptimeSecs !== null ? formatUptime(uptimeSecs) : "—"}
-                    sub={`since ${new Date(build.startedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
+                    value={formatUptime(uptimeSecs)}
+                    sub={`since ${startedAt.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
                     info="Time elapsed since the Guardian process last started."
                   />
                 )}

@@ -24,3 +24,14 @@ const STORAGE_SLOT_LABELS: Record<string, string> = {
 export function storageSlotLabel(slotName: string): string {
   return STORAGE_SLOT_LABELS[slotName] ?? slotName;
 }
+
+// ponytail: inferred from auth shape, since Guardian records nothing about
+// which client registered an account. The Miden Wallet creates every account
+// with ECDSA auth and two signers (hot + cold, alongside the guardian
+// cosigner); older wallet builds registered a single key. Anyone using the
+// multisig SDK with the same shape reads as a wallet account here. Upgrade
+// path: the client-attribution field proposed upstream, which would replace
+// this with a value the server actually recorded.
+export function isWalletAccount(a: { authScheme: string; authorizedSignerCount: number }): boolean {
+  return a.authScheme === "ecdsa" && a.authorizedSignerCount === 2;
+}

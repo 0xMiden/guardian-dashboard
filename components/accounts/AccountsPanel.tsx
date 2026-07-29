@@ -9,8 +9,10 @@ import type { DashboardAccountSummary, PagedResult } from "@openzeppelin/guardia
 import posthog from "posthog-js";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { fetcher } from "@/lib/utils";
+import { isWalletAccount } from "@/lib/format";
 
 type AccountsPage = PagedResult<DashboardAccountSummary>;
+type AccountKind = "all" | "wallet" | "other";
 type AccountStats = { total: number | null; count7d: number; count30d: number };
 type AssetTotals = { usd7d?: number; computedAt?: string };
 
@@ -43,7 +45,10 @@ function StatStrip() {
   );
 }
 
-function statusBadge(status: string, pausedAt: string | null) {
+// Released wins over paused: an account that moved to another guardian is
+// terminal for this node, so an operator unpause can never bring it back.
+function statusBadge(status: string, pausedAt: string | null, releasedAt?: string | null) {
+  if (releasedAt) return <Badge className="bg-purple-500 text-white">released</Badge>;
   if (pausedAt) return <Badge className="bg-orange-500 text-white">paused</Badge>;
   if (status === "available") return <Badge className="bg-emerald-500 text-white">available</Badge>;
   return <Badge className="bg-zinc-500 text-white">{status}</Badge>;
@@ -60,6 +65,7 @@ export function AccountsPanel() {
   // string    = cursor for the next page
   const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [kind, setKind] = useState<AccountKind>("all");
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const initialCursor = data?.nextCursor ?? null;
@@ -148,9 +154,11 @@ export function AccountsPanel() {
     );
   }
 
-  const items = [...(data?.items ?? []), ...extraItems];
+  const loaded = [...(data?.items ?? []), ...extraItems];
+  const walletCount = loaded.filter(isWalletAccount).length;
+  const items = kind === "all" ? loaded : loaded.filter((a) => isWalletAccount(a) === (kind === "wallet"));
 
-  if (!items.length) {
+  if (!loaded.length) {
     return (
       <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
         No accounts registered on this Guardian node yet.
@@ -161,6 +169,25 @@ export function AccountsPanel() {
   return (
     <div className="flex flex-col gap-4">
       <StatStrip />
+      {/* Filters the rows already loaded, so the counts track infinite scroll
+          rather than the node's full inventory. */}
+      <div className="flex gap-2 text-xs">
+        {([
+          ["all", `All (${loaded.length})`],
+          ["wallet", `Wallet (${walletCount})`],
+          ["other", `Other (${loaded.length - walletCount})`],
+        ] as const).map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => setKind(value)}
+            className={`rounded-full border px-3 py-1 transition-colors ${
+              kind === value ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
@@ -169,6 +196,7 @@ export function AccountsPanel() {
                 <th className="px-4 py-3 text-left font-medium">#</th>
                 <th className="px-4 py-3 text-left font-medium">Account ID</th>
                 <th className="px-4 py-3 text-left font-medium">Status</th>
+                <th className="px-4 py-3 text-left font-medium">Type</th>
                 <th className="px-4 py-3 text-left font-medium">Signers</th>
                 <th className="px-4 py-3 text-left font-medium">Pending</th>
                 <th className="px-4 py-3 text-left font-medium">Total Assets</th>
@@ -194,7 +222,16 @@ export function AccountsPanel() {
                   <td className="px-4 py-3">
                     <CopyableId id={a.accountIdBech32 ?? a.accountId} />
                   </td>
-                  <td className="px-4 py-3">{statusBadge(a.stateStatus, a.pausedAt)}</td>
+                  <td className="px-4 py-3">{statusBadge(a.stateStatus, a.pausedAt, a.releasedAt)}</td>
+                  <td className="px-4 py-3">
+                    {isWalletAccount(a) ? (
+                      <Badge variant="outline" className="border-sky-500 text-sky-500 text-xs" title="Inferred from auth shape (ECDSA, 2 signers)">
+                        wallet
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">{a.authorizedSignerCount}</td>
                   <td className="px-4 py-3">
                     {a.hasPendingCandidate ? (

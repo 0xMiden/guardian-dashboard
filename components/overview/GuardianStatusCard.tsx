@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -145,35 +145,47 @@ function Row({ label, value, sub, info }: { label: string; value: React.ReactNod
 }
 
 export function GuardianStatusCard() {
-  const [history, setHistory] = useState<LatencySample[]>([]);
   const [showDetails, setShowDetails] = useState(false);
 
   const { data: opInfo } = useSWR<OperatorInfo>("/api/operator-info", fetcher);
   const endpointUrl = opInfo?.url;
+
+  // Read from storage as soon as the endpoint is known, and again if it changes.
+  // Adjusting during render rather than in an effect, because waiting for a
+  // commit (or worse, for the next health poll) is what left the chart empty:
+  // SWR does not revalidate a hidden tab, so "when the next fetch lands" can be
+  // minutes away, and this card is meant to show the samples it already has.
+  const [samples, setSamples] = useState<{ url?: string; list: LatencySample[] }>({ list: [] });
+  if (endpointUrl && samples.url !== endpointUrl) {
+    setSamples({ url: endpointUrl, list: readSamples(endpointUrl) });
+  }
 
   const { data: health } = useSWR<HealthData>("/api/health", fetcher, {
     refreshInterval: 5000,
     // A sample that cannot be attributed to an endpoint is dropped rather than
     // guessed at. `opInfo` resolves alongside the first health poll, so at worst
     // this skips one 5s sample on a cold load.
-    onSuccess: (d) => { if (endpointUrl) setHistory(appendSample(endpointUrl, d.latencyMs)); },
+    onSuccess: (d) => {
+      if (endpointUrl) setSamples({ url: endpointUrl, list: appendSample(endpointUrl, d.latencyMs) });
+    },
   });
 
   const { data: overview } = useSWR<OverviewData>("/api/overview", fetcher, { refreshInterval: 30_000 });
 
-  // Load whatever this endpoint already has, and start clean when the endpoint
-  // changes: the previous node's samples say nothing about this one.
-  useEffect(() => { setHistory(endpointUrl ? readSamples(endpointUrl) : []); }, [endpointUrl]);
-
+  const history = samples.list;
   const isUp = health?.status === "up";
   const build = overview?.build;
-  // Derived at render rather than kept in state. As state set from `onSuccess`
-  // it read "—" whenever the overview came from SWR's cache, because a cache
-  // read fires no success callback: leaving the tab and coming straight back was
-  // enough to blank it while the "since ..." line below it stayed populated.
-  const startedAt = build?.startedAt ? new Date(build.startedAt) : null;
-  const uptimeSecs = startedAt && !Number.isNaN(startedAt.getTime())
-    ? Math.floor((Date.now() - startedAt.getTime()) / 1000)
+
+  // Uptime is derived from the two timestamps the polls already carry, rather
+  // than from state set in `onSuccess`. A cache read fires no success callback,
+  // so leaving the Overview tab and coming straight back was enough to leave
+  // this reading "—" under a "since ..." line that was clearly populated.
+  // `checkedAt` is the clock: it arrives as data, so this stays a pure function
+  // of what the node reported and still advances with every 5s poll.
+  const startedMs = build?.startedAt ? new Date(build.startedAt).getTime() : NaN;
+  const checkedMs = health ? new Date(health.checkedAt).getTime() : NaN;
+  const uptimeSecs = Number.isFinite(startedMs) && Number.isFinite(checkedMs)
+    ? Math.max(0, Math.floor((checkedMs - startedMs) / 1000))
     : null;
   const hasDetails = !!(build?.gitCommit && build.gitCommit !== "unknown") || !!opInfo?.publicKey;
 
@@ -246,11 +258,11 @@ export function GuardianStatusCard() {
                 />
                 {/* No start time means no uptime to show: the row is dropped
                     rather than rendered as a dash next to a "since" line. */}
-                {uptimeSecs !== null && startedAt && (
+                {uptimeSecs !== null && (
                   <Row
                     label="Uptime"
                     value={formatUptime(uptimeSecs)}
-                    sub={`since ${startedAt.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
+                    sub={`since ${new Date(startedMs).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
                     info="Time elapsed since the Guardian process last started."
                   />
                 )}

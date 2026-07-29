@@ -233,13 +233,25 @@ export function AccountDetail({ accountId }: Props) {
               <Row
                 label="Status"
                 value={
-                  data!.pausedAt
+                  data!.releasedAt
+                    ? <Badge className="bg-purple-500 text-white">Released</Badge>
+                    : data!.pausedAt
                     ? <Badge className="bg-orange-500 text-white">Paused</Badge>
                     : <Badge className={data!.stateStatus === "available" ? "bg-emerald-500 text-white" : "bg-zinc-500 text-white"}>
                         {data!.stateStatus === "available" ? "Active" : data!.stateStatus}
                       </Badge>
                 }
               />
+              {data!.releasedAt && (
+                <Row
+                  label="Released"
+                  value={
+                    <span className="text-purple-400 text-xs">
+                      Switched to another guardian on {new Date(data!.releasedAt).toLocaleString()}
+                    </span>
+                  }
+                />
+              )}
               {data!.pausedAt && (
                 <Row
                   label="Paused"

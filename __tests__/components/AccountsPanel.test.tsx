@@ -77,6 +77,63 @@ describe("AccountsPanel", () => {
     expect(screen.getByText("available")).toBeInTheDocument();
   });
 
+  it("badges a released account, and released wins over paused", () => {
+    useSWR.mockImplementation((key: string) => {
+      if (key === "/api/accounts") return { data: { items: [{
+        accountId: "0xreleased",
+        stateStatus: "available",
+        authScheme: "falcon",
+        authorizedSignerCount: 2,
+        hasPendingCandidate: false,
+        pausedAt: new Date().toISOString(),
+        pausedReason: "incident",
+        releasedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }], nextCursor: null }, error: undefined };
+      return { data: undefined, error: undefined };
+    });
+    render(<AccountsPanel />);
+    expect(screen.getByText("released")).toBeInTheDocument();
+    expect(screen.queryByText("paused")).not.toBeInTheDocument();
+  });
+
+  it("badges ecdsa 2-signer accounts as wallet and filters on it", () => {
+    useSWR.mockImplementation((key: string) => {
+      if (key === "/api/accounts") return { data: { items: [
+        { accountId: "0xwallet", stateStatus: "available", authScheme: "ecdsa", authorizedSignerCount: 2,
+          hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: new Date().toISOString() },
+        { accountId: "0xsdk", stateStatus: "available", authScheme: "falcon", authorizedSignerCount: 3,
+          hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: new Date().toISOString() },
+      ], nextCursor: null }, error: undefined };
+      return { data: undefined, error: undefined };
+    });
+    render(<AccountsPanel />);
+    expect(screen.getByText("wallet")).toBeInTheDocument();
+    expect(screen.getByText("Wallet (1)")).toBeInTheDocument();
+    expect(screen.getByText("Other (1)")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Wallet (1)"));
+    expect(screen.getByText("0xwallet")).toBeInTheDocument();
+    expect(screen.queryByText("0xsdk")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Other (1)"));
+    expect(screen.getByText("0xsdk")).toBeInTheDocument();
+    expect(screen.queryByText("0xwallet")).not.toBeInTheDocument();
+  });
+
+  it("says so when a filter matches nothing in the loaded rows", () => {
+    useSWR.mockImplementation((key: string) => {
+      if (key === "/api/accounts") return { data: { items: [
+        { accountId: "0xsdk", stateStatus: "available", authScheme: "falcon", authorizedSignerCount: 3,
+          hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: new Date().toISOString() },
+      ], nextCursor: null }, error: undefined };
+      return { data: undefined, error: undefined };
+    });
+    render(<AccountsPanel />);
+    fireEvent.click(screen.getByText("Wallet (0)"));
+    expect(screen.getByText(/no wallet accounts among the 1 loaded so far/i)).toBeInTheDocument();
+  });
+
   it("fires account_clicked PostHog event and navigates on row click", () => {
     const mockPush = vi.fn();
     vi.mocked(useRouter).mockReturnValue({ push: mockPush } as any);

@@ -180,6 +180,7 @@ export function AccountsPanel() {
           <button
             key={value}
             onClick={() => setKind(value)}
+            aria-pressed={kind === value}
             className={`rounded-full border px-3 py-1 transition-colors ${
               kind === value ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
             }`}

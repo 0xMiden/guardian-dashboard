@@ -169,8 +169,10 @@ export function AccountsPanel() {
   return (
     <div className="flex flex-col gap-4">
       <StatStrip />
-      {/* Filters the rows already loaded, so the counts track infinite scroll
-          rather than the node's full inventory. */}
+      {/* ponytail: filters the rows already loaded, so the counts track
+          infinite scroll rather than the node's full inventory. The node has no
+          filter parameter for this; upgrade path is a server-side one, which
+          needs the client-attribution field proposed upstream. */}
       <div className="flex gap-2 text-xs">
         {([
           ["all", `All (${loaded.length})`],
@@ -260,6 +262,11 @@ export function AccountsPanel() {
               ))}
             </tbody>
           </table>
+          {!items.length && (
+            <p className="px-4 py-6 text-center text-xs text-muted-foreground">
+              No {kind} accounts among the {loaded.length} loaded so far{hasMore ? " — keep scrolling to load more." : "."}
+            </p>
+          )}
         </CardContent>
       </Card>
       {hasMore && (

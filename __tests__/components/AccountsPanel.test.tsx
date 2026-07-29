@@ -121,6 +121,19 @@ describe("AccountsPanel", () => {
     expect(screen.queryByText("0xwallet")).not.toBeInTheDocument();
   });
 
+  it("says so when a filter matches nothing in the loaded rows", () => {
+    useSWR.mockImplementation((key: string) => {
+      if (key === "/api/accounts") return { data: { items: [
+        { accountId: "0xsdk", stateStatus: "available", authScheme: "falcon", authorizedSignerCount: 3,
+          hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: new Date().toISOString() },
+      ], nextCursor: null }, error: undefined };
+      return { data: undefined, error: undefined };
+    });
+    render(<AccountsPanel />);
+    fireEvent.click(screen.getByText("Wallet (0)"));
+    expect(screen.getByText(/no wallet accounts among the 1 loaded so far/i)).toBeInTheDocument();
+  });
+
   it("fires account_clicked PostHog event and navigates on row click", () => {
     const mockPush = vi.fn();
     vi.mocked(useRouter).mockReturnValue({ push: mockPush } as any);

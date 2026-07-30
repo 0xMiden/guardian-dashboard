@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { __resetAccountCaches } from "@/lib/account-cache";
 import { headers } from "next/headers";
 import { GET } from "@/app/api/accounts/asset-totals/route";
 
@@ -31,7 +32,10 @@ const snapshot = (amount: number) => ({
   vault: { fungible: [{ faucetId: "0xf", amount: String(amount) }] },
 });
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  __resetAccountCaches();
+});
 
 // NOTE: the route keeps a module-level 60s cache per endpoint id — each test
 // that must compute fresh uses its own endpoint id.
@@ -43,7 +47,7 @@ describe("GET /api/accounts/asset-totals", () => {
       nextCursor: null,
     });
     mockGetAccountSnapshot.mockResolvedValue(snapshot(100));
-    const res = await GET();
+    const res = await GET(new Request("http://localhost/api/accounts/asset-totals"));
     const body = await res.json();
     expect(body.usd7d).toBe(100);
     expect(mockGetAccountSnapshot).toHaveBeenCalledTimes(1);
@@ -54,8 +58,8 @@ describe("GET /api/accounts/asset-totals", () => {
     mockHeaders("ep-cache");
     mockListAccounts.mockResolvedValue({ items: [account("0xa", 1)], nextCursor: null });
     mockGetAccountSnapshot.mockResolvedValue(snapshot(50));
-    await GET();
-    const res = await GET();
+    await GET(new Request("http://localhost/api/accounts/asset-totals"));
+    const res = await GET(new Request("http://localhost/api/accounts/asset-totals"));
     expect((await res.json()).usd7d).toBe(50);
     expect(mockListAccounts).toHaveBeenCalledTimes(1);
   });
@@ -69,14 +73,14 @@ describe("GET /api/accounts/asset-totals", () => {
     mockGetAccountSnapshot
       .mockResolvedValueOnce(snapshot(30))
       .mockRejectedValueOnce(new Error("boom"));
-    const res = await GET();
+    const res = await GET(new Request("http://localhost/api/accounts/asset-totals"));
     expect((await res.json()).usd7d).toBe(30);
   });
 
   it("returns 503 with the message when the account list fails", async () => {
     mockHeaders("ep-error");
     mockListAccounts.mockRejectedValue(new Error("rate limited"));
-    const res = await GET();
+    const res = await GET(new Request("http://localhost/api/accounts/asset-totals"));
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "rate limited" });
   });

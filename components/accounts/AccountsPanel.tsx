@@ -243,7 +243,10 @@ export function AccountsPanel() {
           infinite scroll rather than the node's full inventory. The node has no
           filter parameter for this; upgrade path is a server-side one, which
           needs the client-attribution field proposed upstream. */}
-      <div className="flex items-center gap-2 text-xs">
+      {/* Search sits at the left edge, over the Account ID column it filters.
+          Row-scoped controls stay on the left, table-scoped ones on the right. */}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <AccountIdFilter value={query} onChange={setQuery} />
         {([
           ["all", `All (${loaded.length})`],
           ["wallet", `Wallet (${walletCount})`],
@@ -260,8 +263,7 @@ export function AccountsPanel() {
             {label}
           </button>
         ))}
-        <div className="ml-auto flex items-center gap-2">
-          <AccountIdFilter value={query} onChange={setQuery} />
+        <div className="ml-auto">
           <RefreshButton onClick={refresh} busy={refreshing} />
         </div>
       </div>

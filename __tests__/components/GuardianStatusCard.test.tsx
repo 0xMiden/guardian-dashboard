@@ -5,7 +5,9 @@ import { GuardianStatusCard } from "@/components/overview/GuardianStatusCard";
 vi.mock("swr", () => ({ default: vi.fn() }));
 vi.mock("recharts", () => ({
   LineChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Line: () => null,
+  // Stands in for the drawn line, so a test can tell whether the sparkline was
+  // rendered at all without measuring anything in jsdom.
+  Line: () => <div data-testid="latency-chart" />,
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Tooltip: () => null,
 }));
@@ -31,9 +33,12 @@ function mockSWR(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sessionStorage.clear();
   Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
   Object.assign(document, { execCommand: vi.fn().mockReturnValue(true) });
 });
+
+const SAMPLES_KEY = `guardian:latency:${opInfo.url}`;
 
 describe("GuardianStatusCard", () => {
   it("shows skeleton while health is loading", () => {
@@ -107,6 +112,55 @@ describe("GuardianStatusCard", () => {
     });
     render(<GuardianStatusCard />);
     expect(screen.queryByText("Show details")).not.toBeInTheDocument();
+  });
+
+  // Uptime used to be state set from SWR's onSuccess, which does not fire when
+  // the data comes from the cache. Switching tabs and coming straight back left
+  // the row reading "—" next to a "since ..." line that was clearly populated.
+  it("shows uptime on a cache read, without waiting for a fetch", () => {
+    mockSWR();
+    render(<GuardianStatusCard />);
+    expect(screen.getByText("1h 0m")).toBeInTheDocument();
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
+  });
+
+  it("shows no uptime when the node reports no start time", () => {
+    mockSWR({ overview: { build: { version: "0.15.0", gitCommit: "abc1234", startedAt: "", profile: "release" } } });
+    render(<GuardianStatusCard />);
+    expect(screen.queryByText("Uptime")).not.toBeInTheDocument();
+  });
+
+  // The latency sparkline used to be component state only, so every return to
+  // Overview started from an empty chart and needed two polls (10s) to draw a
+  // line at all.
+  it("draws the sparkline from samples kept for this endpoint", () => {
+    sessionStorage.setItem(SAMPLES_KEY, JSON.stringify([
+      { t: Date.now() - 10_000, ms: 40 },
+      { t: Date.now() - 5_000, ms: 44 },
+    ]));
+    mockSWR();
+    const { container } = render(<GuardianStatusCard />);
+    expect(container.querySelector("[data-testid='latency-chart']")).toBeTruthy();
+  });
+
+  it("ignores samples belonging to a different endpoint", () => {
+    sessionStorage.setItem("guardian:latency:https://other.example.com", JSON.stringify([
+      { t: Date.now() - 10_000, ms: 900 },
+      { t: Date.now() - 5_000, ms: 950 },
+    ]));
+    mockSWR();
+    const { container } = render(<GuardianStatusCard />);
+    expect(container.querySelector("[data-testid='latency-chart']")).toBeFalsy();
+  });
+
+  it("discards samples too old to describe current latency", () => {
+    sessionStorage.setItem(SAMPLES_KEY, JSON.stringify([
+      { t: Date.now() - 3600_000, ms: 40 },
+      { t: Date.now() - 3500_000, ms: 44 },
+    ]));
+    mockSWR();
+    const { container } = render(<GuardianStatusCard />);
+    expect(container.querySelector("[data-testid='latency-chart']")).toBeFalsy();
   });
 
   it("copies public key to clipboard on click", async () => {

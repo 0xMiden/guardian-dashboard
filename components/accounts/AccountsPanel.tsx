@@ -2,15 +2,17 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import useSWR, { mutate } from "swr";
 import { useRouter } from "next/navigation";
-import { RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardAccountSummary, PagedResult } from "@openzeppelin/guardian-operator-client";
 import posthog from "posthog-js";
 import { CopyableId } from "@/components/ui/CopyableId";
+import { RefreshButton } from "@/components/ui/RefreshButton";
+import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
+import { StatStrip, refreshStatStrip } from "@/components/accounts/StatStrip";
 import { fetcher } from "@/lib/utils";
-import { isWalletAccount } from "@/lib/format";
+import { isWalletAccount, matchesAccountId, looksLikeAccountId } from "@/lib/format";
 
 type AccountsPage = PagedResult<DashboardAccountSummary>;
 type AccountKind = "all" | "wallet" | "other";
@@ -18,37 +20,6 @@ type SnapshotTarget = { accountId: string; updatedAt: string };
 
 // Coalescing window for rows scrolling into view.
 const SNAPSHOT_BATCH_MS = 150;
-type AccountStats = { total: number | null; count7d: number; count30d: number };
-type AssetTotals = { usd7d?: number; computedAt?: string };
-
-function StatStrip() {
-  const { data: stats } = useSWR<AccountStats>("/api/accounts/stats", fetcher);
-  const { data: assets } = useSWR<AssetTotals>("/api/accounts/asset-totals", fetcher, {
-    refreshInterval: 60_000,
-  });
-  if (!stats) return null;
-
-  return (
-    <div className="flex flex-wrap gap-8 text-sm">
-      {stats.total !== null && (
-        <span className="text-muted-foreground">
-          Total&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.total.toLocaleString()}</span>
-        </span>
-      )}
-      <span className="text-muted-foreground">
-        Updated (last 7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.count7d.toLocaleString()}</span>
-      </span>
-      <span className="text-muted-foreground">
-        Updated (last 30d)&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.count30d.toLocaleString()}</span>
-      </span>
-      {assets?.usd7d != null && (
-        <span className="text-muted-foreground">
-          Assets (7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">${assets.usd7d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </span>
-      )}
-    </div>
-  );
-}
 
 // Released wins over paused: an account that moved to another guardian is
 // terminal for this node, so an operator unpause can never bring it back.
@@ -63,7 +34,10 @@ export function AccountsPanel() {
   const { data, error } = useSWR<AccountsPage>("/api/accounts", fetcher, { refreshInterval: 30_000 });
   const router = useRouter();
   const [perAccount, setPerAccount] = useState<Record<string, number>>({});
-  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+  // Which rows have a request out right now. One global "loading" flag put a
+  // spinner on every row without a value, including rows that were never
+  // requested and rows whose fetch had already failed.
+  const [inFlight, setInFlight] = useState<Set<string>>(new Set());
   const [extraItems, setExtraItems] = useState<DashboardAccountSummary[]>([]);
   // undefined = haven't paginated yet (fall through to initialCursor)
   // null      = last page loaded, no more pages
@@ -71,6 +45,7 @@ export function AccountsPanel() {
   const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
   const [loadingMore, setLoadingMore] = useState(false);
   const [kind, setKind] = useState<AccountKind>("all");
+  const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -85,17 +60,23 @@ export function AccountsPanel() {
   // not changed since it last looked.
   const fetchSnapshots = useCallback(async (rows: SnapshotTarget[], refresh = false) => {
     if (!rows.length) return;
-    setSnapshotsLoading(true);
+    const ids = rows.map((r) => r.accountId);
+    setInFlight((prev) => new Set([...prev, ...ids]));
     try {
-      const ids = rows.map((r) => encodeURIComponent(`${r.accountId}@${r.updatedAt}`)).join(",");
-      const res = await fetch(`/api/accounts/snapshots?ids=${ids}${refresh ? "&refresh=1" : ""}`);
+      const query = rows.map((r) => encodeURIComponent(`${r.accountId}@${r.updatedAt}`)).join(",");
+      const res = await fetch(`/api/accounts/snapshots?ids=${query}${refresh ? "&refresh=1" : ""}`);
       if (!res.ok) throw new Error(`snapshots ${res.status}`);
       const data: Record<string, number> = await res.json();
       setPerAccount((prev) => ({ ...prev, ...data }));
     } catch {
       // snapshots are best-effort — leave column as "—" on failure
     } finally {
-      setSnapshotsLoading(false);
+      // Only this batch's rows: another batch may still be out.
+      setInFlight((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
     }
   }, []);
 
@@ -166,11 +147,7 @@ export function AccountsPanel() {
         .map((a) => ({ accountId: a.accountId, updatedAt: a.updatedAt }));
       // Let the observer re-queue these once the new versions are rendered.
       for (const r of rows) requestedRef.current.delete(`${r.accountId}@${r.updatedAt}`);
-      await Promise.all([
-        fetch("/api/accounts/stats?refresh=1").then(() => mutate("/api/accounts/stats")),
-        fetch("/api/accounts/asset-totals?refresh=1").then(() => mutate("/api/accounts/asset-totals")),
-        fetchSnapshotsRef.current(rows, true),
-      ]);
+      await Promise.all([refreshStatStrip(), fetchSnapshotsRef.current(rows, true)]);
     } finally {
       setRefreshing(false);
     }
@@ -245,7 +222,11 @@ export function AccountsPanel() {
 
   const loaded = [...(data?.items ?? []), ...extraItems];
   const walletCount = loaded.filter(isWalletAccount).length;
-  const items = kind === "all" ? loaded : loaded.filter((a) => isWalletAccount(a) === (kind === "wallet"));
+  const items = loaded.filter(
+    (a) =>
+      (kind === "all" || isWalletAccount(a) === (kind === "wallet")) &&
+      matchesAccountId(query, a.accountId, a.accountIdBech32),
+  );
 
   if (!loaded.length) {
     return (
@@ -279,21 +260,29 @@ export function AccountsPanel() {
             {label}
           </button>
         ))}
-        {/* Accounts move quickly, so the caches must never be the only way to
-            get a current number. This bypasses every one of them. */}
-        <button
-          onClick={refresh}
-          disabled={refreshing}
-          title="Refetch from the Guardian node, ignoring caches"
-          className="ml-auto flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1 text-muted-foreground transition-colors hover:text-foreground hover:border-zinc-500 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
-          {refreshing ? "Refreshing…" : "Refresh"}
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <AccountIdFilter value={query} onChange={setQuery} />
+          <RefreshButton onClick={refresh} busy={refreshing} />
+        </div>
       </div>
       <Card>
         <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm">
+          {/* table-fixed + colgroup so the columns keep their widths when a
+              filter changes which rows are mounted. Auto layout re-measured the
+              content on every switch, and the whole table jumped. Same pattern
+              as the Activity table. */}
+          <table className="w-full text-sm table-fixed">
+            <colgroup>
+              <col className="w-12" />
+              <col className="w-52" />
+              <col className="w-28" />
+              <col className="w-24" />
+              <col className="w-20" />
+              <col className="w-24" />
+              <col className="w-32" />
+              <col className="w-40" />
+              <col className="w-40" />
+            </colgroup>
             <thead>
               <tr className="border-b text-xs text-muted-foreground">
                 <th className="px-4 py-3 text-left font-medium">#</th>
@@ -350,8 +339,8 @@ export function AccountsPanel() {
                   <td className="px-4 py-3 text-xs">
                     {perAccount[a.accountId] !== undefined
                       ? <span className="font-mono">${perAccount[a.accountId].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      : snapshotsLoading
-                      ? <span className="text-muted-foreground">…</span>
+                      : inFlight.has(a.accountId)
+                      ? <Skeleton className="h-3 w-16" data-testid={`assets-loading-${a.accountId}`} />
                       : <span className="text-muted-foreground">—</span>}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">
@@ -365,9 +354,24 @@ export function AccountsPanel() {
             </tbody>
           </table>
           {!items.length && (
-            <p className="px-4 py-6 text-center text-xs text-muted-foreground">
-              No {kind} accounts among the {loaded.length} loaded so far{hasMore ? " — keep scrolling to load more." : "."}
-            </p>
+            <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+              <p>
+                {query
+                  ? `No account matching "${query.trim()}" among the ${loaded.length} loaded so far`
+                  : `No ${kind} accounts among the ${loaded.length} loaded so far`}
+                {hasMore ? ", keep scrolling to load more." : "."}
+              </p>
+              {/* The filter can only see rows that have been paged in. A full ID
+                  needs no search endpoint to open, so offer that directly. */}
+              {looksLikeAccountId(query) && (
+                <button
+                  onClick={() => router.push(`/accounts/${encodeURIComponent(query.trim())}`)}
+                  className="mt-2 rounded-lg border border-zinc-700 px-3 py-1 transition-colors hover:text-foreground hover:border-zinc-500"
+                >
+                  Open this account directly
+                </button>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>

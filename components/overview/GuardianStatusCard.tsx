@@ -33,6 +33,53 @@ const networkColor: Record<string, string> = {
   MidenMainnet: "bg-emerald-500",
 };
 
+type LatencySample = { t: number; ms: number };
+
+/**
+ * Latency samples survive leaving the Overview tab, because the card is
+ * unmounted on every navigation and a fresh chart needs two polls (10s) before
+ * it can draw a line at all.
+ *
+ * Keyed by endpoint URL, which is the part that matters: an earlier version kept
+ * these in a module-level array and plotted one Guardian node's latency as
+ * another's after switching endpoints. sessionStorage also scopes them to the
+ * tab, so two tabs on different nodes cannot contaminate each other.
+ *
+ * // ponytail: sessionStorage, so history is per tab and gone when it closes.
+ * // Fine for a live latency sparkline; a real retention window would need the
+ * // node to serve its own health history.
+ */
+const SAMPLES_KEY = "guardian:latency";
+const MAX_SAMPLES = 20;
+// Beyond this a sample says nothing about current latency, and plotting it next
+// to a fresh one implies continuity the chart does not have.
+const MAX_SAMPLE_AGE_MS = 10 * 60 * 1000;
+
+function readSamples(url: string): LatencySample[] {
+  try {
+    const raw = sessionStorage.getItem(`${SAMPLES_KEY}:${url}`);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (!Array.isArray(parsed)) return [];
+    const cutoff = Date.now() - MAX_SAMPLE_AGE_MS;
+    return parsed.filter(
+      (s): s is LatencySample =>
+        !!s && typeof s.t === "number" && typeof s.ms === "number" && s.t > cutoff,
+    );
+  } catch {
+    return []; // private mode, quota, or a shape we no longer write
+  }
+}
+
+function appendSample(url: string, ms: number): LatencySample[] {
+  const next = [...readSamples(url), { t: Date.now(), ms }].slice(-MAX_SAMPLES);
+  try {
+    sessionStorage.setItem(`${SAMPLES_KEY}:${url}`, JSON.stringify(next));
+  } catch {
+    // over quota or blocked — the chart still works for this mount
+  }
+  return next;
+}
+
 function formatUptime(secs: number): string {
   const d = Math.floor(secs / 86400);
   const h = Math.floor((secs % 86400) / 3600);
@@ -98,28 +145,48 @@ function Row({ label, value, sub, info }: { label: string; value: React.ReactNod
 }
 
 export function GuardianStatusCard() {
-  const [history, setHistory] = useState<{ t: number; ms: number }[]>([]);
   const [showDetails, setShowDetails] = useState(false);
-  const [uptimeSecs, setUptimeSecs] = useState<number | null>(null);
+
+  const { data: opInfo } = useSWR<OperatorInfo>("/api/operator-info", fetcher);
+  const endpointUrl = opInfo?.url;
+
+  // Read from storage as soon as the endpoint is known, and again if it changes.
+  // Adjusting during render rather than in an effect, because waiting for a
+  // commit (or worse, for the next health poll) is what left the chart empty:
+  // SWR does not revalidate a hidden tab, so "when the next fetch lands" can be
+  // minutes away, and this card is meant to show the samples it already has.
+  const [samples, setSamples] = useState<{ url?: string; list: LatencySample[] }>({ list: [] });
+  if (endpointUrl && samples.url !== endpointUrl) {
+    setSamples({ url: endpointUrl, list: readSamples(endpointUrl) });
+  }
 
   const { data: health } = useSWR<HealthData>("/api/health", fetcher, {
     refreshInterval: 5000,
-    onSuccess: (d) => setHistory((prev) => [...prev.slice(-19), { t: Date.now(), ms: d.latencyMs }]),
-  });
-
-  const { data: overview } = useSWR<OverviewData>("/api/overview", fetcher, {
-    refreshInterval: 30_000,
+    // A sample that cannot be attributed to an endpoint is dropped rather than
+    // guessed at. `opInfo` resolves alongside the first health poll, so at worst
+    // this skips one 5s sample on a cold load.
     onSuccess: (d) => {
-      if (d.build?.startedAt) {
-        setUptimeSecs(Math.floor((Date.now() - new Date(d.build.startedAt).getTime()) / 1000));
-      }
+      if (endpointUrl) setSamples({ url: endpointUrl, list: appendSample(endpointUrl, d.latencyMs) });
     },
   });
 
-  const { data: opInfo } = useSWR<OperatorInfo>("/api/operator-info", fetcher);
+  const { data: overview } = useSWR<OverviewData>("/api/overview", fetcher, { refreshInterval: 30_000 });
 
+  const history = samples.list;
   const isUp = health?.status === "up";
   const build = overview?.build;
+
+  // Uptime is derived from the two timestamps the polls already carry, rather
+  // than from state set in `onSuccess`. A cache read fires no success callback,
+  // so leaving the Overview tab and coming straight back was enough to leave
+  // this reading "—" under a "since ..." line that was clearly populated.
+  // `checkedAt` is the clock: it arrives as data, so this stays a pure function
+  // of what the node reported and still advances with every 5s poll.
+  const startedMs = build?.startedAt ? new Date(build.startedAt).getTime() : NaN;
+  const checkedMs = health ? new Date(health.checkedAt).getTime() : NaN;
+  const uptimeSecs = Number.isFinite(startedMs) && Number.isFinite(checkedMs)
+    ? Math.max(0, Math.floor((checkedMs - startedMs) / 1000))
+    : null;
   const hasDetails = !!(build?.gitCommit && build.gitCommit !== "unknown") || !!opInfo?.publicKey;
 
   return (
@@ -189,11 +256,13 @@ export function GuardianStatusCard() {
                   }
                   info="The Miden network this Guardian node is operating on."
                 />
-                {build && (
+                {/* No start time means no uptime to show: the row is dropped
+                    rather than rendered as a dash next to a "since" line. */}
+                {uptimeSecs !== null && (
                   <Row
                     label="Uptime"
-                    value={uptimeSecs !== null ? formatUptime(uptimeSecs) : "—"}
-                    sub={`since ${new Date(build.startedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
+                    value={formatUptime(uptimeSecs)}
+                    sub={`since ${new Date(startedMs).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
                     info="Time elapsed since the Guardian process last started."
                   />
                 )}

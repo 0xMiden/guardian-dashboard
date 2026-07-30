@@ -1,11 +1,15 @@
 "use client";
 import { useState, useCallback } from "react";
-import useSWR from "swr";
+import useSWR, { mutate } from "swr";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
+import { RefreshButton } from "@/components/ui/RefreshButton";
+import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
+import { StatStrip, refreshStatStrip } from "@/components/accounts/StatStrip";
 import { fetcher } from "@/lib/utils";
+import { matchesAccountId } from "@/lib/format";
 import { activityLabel, deltaStatusBadge, proposalStatusBadge, AmountCell, CounterpartyCell } from "@/components/transactions/activity-cells";
 import type {
   DashboardGlobalDeltaEntry,
@@ -95,6 +99,8 @@ export function TransactionsPanel() {
   const [extraDeltas, setExtraDeltas] = useState<DashboardGlobalDeltaEntry[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [query, setQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
   const proposalsOnly = PROPOSALS_ONLY.includes(filter);
   const deltaStatus = (filter === "" || proposalsOnly) ? undefined : filter as DashboardDeltaStatus;
@@ -133,9 +139,26 @@ export function TransactionsPanel() {
     setNextCursor(undefined);
   };
 
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    // Paged-in entries are dropped: the first page comes back with whatever is
+    // newest, and keeping the old tail would list some entries twice.
+    setExtraDeltas([]);
+    setNextCursor(undefined);
+    try {
+      await Promise.all([
+        deltaUrl ? mutate(deltaUrl) : Promise.resolve(),
+        mutate("/api/global-proposals"),
+        refreshStatStrip(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [deltaUrl]);
+
   const allDeltas = [...(deltasData?.items ?? []), ...extraDeltas];
   const allProposals = proposalsData?.items ?? [];
-  const rows = toRows(allDeltas, allProposals, filter);
+  const rows = toRows(allDeltas, allProposals, filter).filter((r) => matchesAccountId(query, r.accountId));
 
   const loading = (!deltasData && !deltasError && !proposalsOnly) || (!proposalsData && (filter === "" || proposalsOnly));
   // Keep showing cached rows on a failed revalidation — SWR retries in the background
@@ -143,12 +166,13 @@ export function TransactionsPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-2 flex-wrap">
+      <StatStrip />
+      <div className="flex items-center gap-2 flex-wrap text-xs">
         {FILTERS.map((f) => (
           <button
             key={f.value}
             onClick={() => handleFilterChange(f.value)}
-            className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+            className={`px-3 py-1 rounded-full border transition-colors ${
               filter === f.value
                 ? "bg-foreground text-background border-foreground"
                 : "border-zinc-700 text-muted-foreground hover:text-foreground hover:border-zinc-500"
@@ -157,6 +181,10 @@ export function TransactionsPanel() {
             {f.label}
           </button>
         ))}
+        <div className="ml-auto flex items-center gap-2">
+          <AccountIdFilter value={query} onChange={setQuery} />
+          <RefreshButton onClick={refresh} busy={refreshing} />
+        </div>
       </div>
 
       {loading ? (
@@ -168,8 +196,12 @@ export function TransactionsPanel() {
           {deltasError?.message || "Guardian node unavailable"}
         </div>
       ) : rows.length === 0 ? (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-          No activity found.
+        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed px-4 text-center text-sm text-muted-foreground">
+          {/* The filter sees the entries loaded so far. The node's activity feeds
+              take a cursor and a status, so there is nothing to search with. */}
+          {query
+            ? `No activity for an account matching "${query.trim()}" in the entries loaded so far.`
+            : "No activity found."}
         </div>
       ) : (
         <>

@@ -141,6 +141,26 @@ describe("AccountsPanel asset totals", () => {
     expect(decodeURIComponent(call)).not.toContain("0xa@");
   });
 
+  // One global loading flag put a placeholder on every row without a value,
+  // including rows nobody had asked for yet.
+  it("marks only the rows with a request out as loading", async () => {
+    mockRows([A, B]);
+    let release: (r: Response) => void = () => {};
+    fetchSpy.mockImplementation(() => new Promise<Response>((r) => { release = r; }));
+    const { container } = render(<AccountsPanel />);
+
+    trigger([...observed].filter((el) => (el as HTMLElement).dataset.accountId === "0xa"));
+    await settle();
+
+    expect(container.querySelector("[data-testid='assets-loading-0xa']")).toBeTruthy();
+    expect(container.querySelector("[data-testid='assets-loading-0xb']")).toBeFalsy();
+
+    release(new Response(JSON.stringify({ "0xa": 5 }), { status: 200 }));
+    await waitFor(() =>
+      expect(container.querySelector("[data-testid='assets-loading-0xa']")).toBeFalsy(),
+    );
+  });
+
   it("leaves the column empty rather than showing a wrong number when the fetch fails", async () => {
     mockRows([A]);
     fetchSpy.mockResolvedValue(new Response("nope", { status: 503 }));

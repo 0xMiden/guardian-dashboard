@@ -70,6 +70,24 @@ describe("GET /api/overview", () => {
     expect(body.ecdsa).toBe(0);
   });
 
+  // A node past its aggregate threshold returns an empty breakdown and names it
+  // in `degradedAggregates`. Reporting that as zero Falcon and zero ECDSA
+  // accounts on a node with 1,573 of them is a wrong number, not a missing one.
+  it("reports the auth-method breakdown as unavailable when the node degrades it", async () => {
+    mockHeaders("testnet");
+    mockGetDashboardInfo.mockResolvedValue(makeDashboardInfo({
+      totalAccountCount: 1573,
+      accountsByAuthMethod: {},
+      degradedAggregates: ["accounts_by_auth_method"],
+    }));
+    const res = await GET();
+    const body = await res.json();
+    expect(body.totalAccounts).toBe(1573);
+    expect(body.falcon).toBeNull();
+    expect(body.ecdsa).toBeNull();
+    expect(body.evm).toBeNull();
+  });
+
   it("returns 503 when guardian client throws", async () => {
     mockHeaders("testnet");
     mockGetDashboardInfo.mockRejectedValue(new Error("Connection refused"));

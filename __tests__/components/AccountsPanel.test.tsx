@@ -291,3 +291,58 @@ describe("AccountsPanel sorting and export", () => {
     expect(button).toBeDisabled();
   });
 });
+
+// The chips used to count the rows paged in, so they read "All (50)" on a node
+// holding 1,418 and only moved when scrolling happened to load more.
+describe("AccountsPanel kind counts", () => {
+  const row = (id: string, over: Record<string, unknown> = {}) => ({
+    accountId: id, stateStatus: "available", authScheme: "ecdsa", authorizedSignerCount: 2,
+    hasPendingCandidate: false, pausedAt: null, pausedReason: null,
+    createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", ...over,
+  });
+
+  function mock({ items, stats }: { items: unknown[]; stats?: unknown }) {
+    useSWR.mockImplementation((key: string) => {
+      if (key === "/api/accounts") return { data: { items, nextCursor: null }, error: undefined };
+      if (key === "/api/accounts/stats") return { data: stats, error: undefined };
+      return { data: undefined, error: undefined };
+    });
+  }
+
+  it("counts what the node holds, not the page that has been loaded", () => {
+    mock({
+      items: [row("0xa"), row("0xb")],
+      stats: { total: 1418, count7d: 0, count30d: 0, counted: 1418, wallet: 1410, other: 8 },
+    });
+    render(<AccountsPanel />);
+    expect(screen.getByText("All (1,418)")).toBeInTheDocument();
+    expect(screen.getByText("Wallet (1,410)")).toBeInTheDocument();
+    expect(screen.getByText("Other (8)")).toBeInTheDocument();
+  });
+
+  it("says how many rows are loaded, so the chips do not look wrong next to the table", () => {
+    mock({
+      items: [row("0xa"), row("0xb")],
+      stats: { total: 1418, count7d: 0, count30d: 0, counted: 1418, wallet: 1410, other: 8 },
+    });
+    render(<AccountsPanel />);
+    expect(screen.getByText("2 loaded")).toBeInTheDocument();
+  });
+
+  it("omits the loaded note once every account is on screen", () => {
+    mock({
+      items: [row("0xa"), row("0xb")],
+      stats: { total: 2, count7d: 0, count30d: 0, counted: 2, wallet: 2, other: 0 },
+    });
+    render(<AccountsPanel />);
+    expect(screen.queryByText(/loaded$/)).not.toBeInTheDocument();
+  });
+
+  it("falls back to the loaded rows before the walk has answered", () => {
+    mock({ items: [row("0xa"), row("0xb", { authScheme: "falcon" })], stats: undefined });
+    render(<AccountsPanel />);
+    expect(screen.getByText("All (2)")).toBeInTheDocument();
+    expect(screen.getByText("Wallet (1)")).toBeInTheDocument();
+    expect(screen.getByText("Other (1)")).toBeInTheDocument();
+  });
+});

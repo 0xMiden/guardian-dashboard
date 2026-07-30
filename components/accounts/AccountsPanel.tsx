@@ -11,7 +11,7 @@ import posthog from "posthog-js";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
-import { StatStrip, refreshStatStrip } from "@/components/accounts/StatStrip";
+import { StatStrip, refreshStatStrip, STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
 import { fetcher } from "@/lib/utils";
 import { isWalletAccount, matchesAccountId, looksLikeAccountId, accountState, accountsToCsv } from "@/lib/format";
 
@@ -91,6 +91,8 @@ function SortableHeader({
 
 export function AccountsPanel() {
   const { data, error } = useSWR<AccountsPage>("/api/accounts", fetcher, { refreshInterval: 30_000 });
+  // Same key StatStrip already polls, so SWR serves both from one request.
+  const { data: stats } = useSWR<AccountStats>(STATS_KEY, fetcher);
   const router = useRouter();
   const [perAccount, setPerAccount] = useState<Record<string, number>>({});
   // Which rows have a request out right now. One global "loading" flag put a
@@ -295,6 +297,15 @@ export function AccountsPanel() {
   );
   const items = sort ? sortAccounts(filtered, sort, perAccount) : filtered;
 
+  // The chips count what the node holds, from the same paged walk that feeds
+  // the stat strip above, so they no longer read as a total while showing one
+  // page. Until that answers, they fall back to the loaded rows, which is what
+  // they always were. The filters themselves still act on loaded rows, hence
+  // the "of" line beside them.
+  const counts = stats?.counted != null
+    ? { all: stats.counted, wallet: stats.wallet ?? 0, other: stats.other ?? 0 }
+    : { all: loaded.length, wallet: walletCount, other: loaded.length - walletCount };
+
   // Exports exactly what the table shows: same filter, same sort, same rows.
   // ponytail: loaded rows only, so an export after scrolling three pages holds
   // three pages. The empty state and the column ceilings say the same thing;
@@ -336,18 +347,14 @@ export function AccountsPanel() {
   return (
     <div className="flex flex-col gap-4">
       <StatStrip />
-      {/* ponytail: filters the rows already loaded, so the counts track
-          infinite scroll rather than the node's full inventory. The node has no
-          filter parameter for this; upgrade path is a server-side one, which
-          needs the client-attribution field proposed upstream. */}
       {/* Search sits at the left edge, over the Account ID column it filters.
           Row-scoped controls stay on the left, table-scoped ones on the right. */}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <AccountIdFilter value={query} onChange={setQuery} />
         {([
-          ["all", `All (${loaded.length})`],
-          ["wallet", `Wallet (${walletCount})`],
-          ["other", `Other (${loaded.length - walletCount})`],
+          ["all", `All (${counts.all.toLocaleString()})`],
+          ["wallet", `Wallet (${counts.wallet.toLocaleString()})`],
+          ["other", `Other (${counts.other.toLocaleString()})`],
         ] as const).map(([value, label]) => (
           <button
             key={value}
@@ -360,6 +367,16 @@ export function AccountsPanel() {
             {label}
           </button>
         ))}
+        {/* Without this the chips look like they disagree with the table: the
+            counts describe the node, the rows are one page of it. */}
+        {counts.all > loaded.length && (
+          <span
+            className="text-muted-foreground"
+            title="Filters, sort and export cover the rows loaded so far. Scroll to load more."
+          >
+            {loaded.length.toLocaleString()} loaded
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={exportCsv}

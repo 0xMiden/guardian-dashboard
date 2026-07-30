@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
+import Link from "next/link";
 import { ArrowLeft, Snowflake, Sun, ArrowLeftRight, ChevronDown, ChevronRight } from "lucide-react";
 import type { DashboardAccountDetail } from "@openzeppelin/guardian-operator-client";
 import posthog from "posthog-js";
@@ -168,12 +169,16 @@ export function AccountDetail({ accountId }: Props) {
       )}
 
       <div className="flex items-center justify-between gap-4">
-        <button
-          onClick={() => router.back()}
+        {/* A Link rather than router.back(): "Back to accounts" has to reach the
+            accounts list. History said otherwise for anyone arriving on a shared
+            URL, where back is whatever page they came from, including outside
+            the app. */}
+        <Link
+          href="/accounts"
           className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors w-fit"
         >
           <ArrowLeft className="h-4 w-4" /> Back to accounts
-        </button>
+        </Link>
         <div className="flex items-center gap-2">
           <button
             onClick={() => {

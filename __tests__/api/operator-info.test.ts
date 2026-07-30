@@ -49,6 +49,29 @@ describe("GET /api/operator-info", () => {
     });
   });
 
+  // A key the SDK cannot deserialize used to reject out of the route, which 500s
+  // it and blanks the whole Guardian Node card. The endpoint's url and network
+  // are known without the key, so they are still worth returning.
+  it("still returns endpoint data when the private key format is unsupported", async () => {
+    mockHeaders("testnet");
+    vi.mocked(getEndpoint).mockReturnValue({
+      id: "testnet",
+      label: "Testnet",
+      url: "https://guardian.example.com",
+      network: "MidenTestnet",
+      commitment: "0xabc123",
+      privateKey: "0xnotafalconkey",
+    });
+    vi.mocked(getPublicKey).mockRejectedValue(new Error("unsupported key format"));
+    const res = await GET();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      url: "https://guardian.example.com",
+      network: "MidenTestnet",
+      publicKey: null,
+    });
+  });
+
   it("returns nulls for an unknown endpoint id", async () => {
     mockHeaders("unknown");
     vi.mocked(getEndpoint).mockReturnValue(undefined);

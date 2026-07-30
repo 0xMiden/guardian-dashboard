@@ -96,17 +96,6 @@ The private key never leaves the server process.
 
 ---
 
-## Pending Guardian API features
-
-Some dashboard sections are mocked because the required Guardian API endpoints do not yet exist:
-
-| Feature | Missing endpoint |
-|---|---|
-| Per-account transaction history | `GET /accounts/:id/delta/since` |
-| Aggregate transaction stats | `GET /delta/since` across all accounts |
-
----
-
 ## Tech stack
 
 - **Next.js 16** (App Router, TypeScript)

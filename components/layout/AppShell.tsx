@@ -97,9 +97,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Image src="/orangerobot.png" alt="Guardian" width={20} height={20} className="shrink-0" />
             <span className="text-sm font-semibold text-white">Guardian Dashboard</span>
           </div>
-          <span className="mt-1.5 inline-block rounded border border-zinc-700 px-2 py-0.5 text-xs text-zinc-500">
-            Read-only MVP
-          </span>
         </div>
         <nav className="flex flex-col gap-1 flex-1">
           {navItems.map(({ href, label, icon }) => (

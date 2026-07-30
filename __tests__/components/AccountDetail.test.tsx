@@ -54,7 +54,7 @@ describe("AccountDetail", () => {
 
   // Released is terminal and its remedy differs from pause's, so it has to win
   // the header even when the account also carries a pause.
-  it("prefers released over paused in the header", () => {
+  it("prefers released over frozen in the header", () => {
     mockAccount({
       releasedAt: new Date("2026-03-04T05:06:07Z").toISOString(),
       pausedAt: new Date("2026-02-01T00:00:00Z").toISOString(),
@@ -122,7 +122,7 @@ describe("AccountDetail", () => {
     fetchSpy.mockRestore();
   });
 
-  it("offers unfreeze instead of freeze when the account is paused", () => {
+  it("offers unfreeze instead of freeze when the account is frozen", () => {
     mockAccount({ pausedAt: new Date().toISOString(), pausedReason: "incident" });
     render(<AccountDetail accountId="0xabc123" />);
     expect(screen.getByText("Unfreeze Account")).toBeInTheDocument();

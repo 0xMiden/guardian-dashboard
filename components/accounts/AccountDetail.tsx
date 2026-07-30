@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
-import { ArrowLeft, Snowflake, ArrowLeftRight, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Snowflake, Sun, ArrowLeftRight, ChevronDown, ChevronRight } from "lucide-react";
 import type { DashboardAccountDetail } from "@openzeppelin/guardian-operator-client";
 import posthog from "posthog-js";
 import { fetcher } from "@/lib/utils";
@@ -41,7 +41,7 @@ const PAUSE_MODAL_COPY = {
   freeze: {
     endpoint: "pause",
     title: "Freeze Account",
-    description: "The account will be paused immediately. All pending operations will be blocked until unfrozen.",
+    description: "The account will be frozen immediately. All pending operations will be blocked until it is unfrozen.",
     event: "account_frozen",
     failure: "Failed to freeze account",
     busy: "Freezing…",
@@ -194,7 +194,7 @@ export function AccountDetail({ accountId }: Props) {
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-emerald-600 text-emerald-500 hover:bg-emerald-500/10 transition-colors"
               >
-                <Snowflake className="h-3.5 w-3.5" />
+                <Sun className="h-3.5 w-3.5" />
                 Unfreeze Account
               </button>
             ) : (
@@ -236,7 +236,7 @@ export function AccountDetail({ accountId }: Props) {
                   data!.releasedAt
                     ? <Badge className="bg-purple-500 text-white">Released</Badge>
                     : data!.pausedAt
-                    ? <Badge className="bg-orange-500 text-white">Paused</Badge>
+                    ? <Badge className="bg-orange-500 text-white">Frozen</Badge>
                     : <Badge className={data!.stateStatus === "available" ? "bg-emerald-500 text-white" : "bg-zinc-500 text-white"}>
                         {data!.stateStatus === "available" ? "Active" : data!.stateStatus}
                       </Badge>
@@ -254,7 +254,7 @@ export function AccountDetail({ accountId }: Props) {
               )}
               {data!.pausedAt && (
                 <Row
-                  label="Paused"
+                  label="Frozen"
                   value={<span className="text-orange-400 text-xs">{data!.pausedReason ?? new Date(data!.pausedAt).toLocaleString()}</span>}
                 />
               )}

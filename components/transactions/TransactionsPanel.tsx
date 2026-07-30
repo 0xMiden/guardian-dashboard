@@ -167,7 +167,10 @@ export function TransactionsPanel() {
   return (
     <div className="flex flex-col gap-4">
       <StatStrip />
+      {/* Same toolbar order as Accounts: search over the Account column it
+          filters, status chips next, refresh pinned right. */}
       <div className="flex items-center gap-2 flex-wrap text-xs">
+        <AccountIdFilter value={query} onChange={setQuery} />
         {FILTERS.map((f) => (
           <button
             key={f.value}
@@ -181,8 +184,7 @@ export function TransactionsPanel() {
             {f.label}
           </button>
         ))}
-        <div className="ml-auto flex items-center gap-2">
-          <AccountIdFilter value={query} onChange={setQuery} />
+        <div className="ml-auto">
           <RefreshButton onClick={refresh} busy={refreshing} />
         </div>
       </div>

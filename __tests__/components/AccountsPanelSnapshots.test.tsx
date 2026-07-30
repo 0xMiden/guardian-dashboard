@@ -4,20 +4,36 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 // jsdom has no IntersectionObserver. This stub records what the panel observes
 // so a test can decide which rows "become visible", which is the whole point of
 // fetching asset totals lazily.
+//
+// Visibility is delivered to every live observer that actually watches the
+// element, rather than to whichever one was constructed last. The panel is not
+// the only thing observing: `next/link` runs its own observer per link, so a
+// last-one-wins stub silently sent the panel's rows to a link's callback and the
+// panel never learned a row had scrolled away.
 const observed = new Set<Element>();
-let trigger: (els: Element[]) => void = () => {};
-let hide: (els: Element[]) => void = () => {};
+const instances = new Set<StubObserver>();
 
 class StubObserver {
+  private els = new Set<Element>();
   constructor(private cb: (entries: { isIntersecting: boolean; target: Element }[]) => void) {
-    trigger = (els) => this.cb(els.map((target) => ({ isIntersecting: true, target })));
-    hide = (els) => this.cb(els.map((target) => ({ isIntersecting: false, target })));
+    instances.add(this);
   }
-  observe(el: Element) { observed.add(el); }
-  unobserve(el: Element) { observed.delete(el); }
-  disconnect() { observed.clear(); }
+  observe(el: Element) { this.els.add(el); observed.add(el); }
+  unobserve(el: Element) { this.els.delete(el); observed.delete(el); }
+  disconnect() {
+    for (const el of this.els) observed.delete(el);
+    this.els.clear();
+    instances.delete(this);
+  }
+  deliver(els: Element[], isIntersecting: boolean) {
+    const mine = els.filter((el) => this.els.has(el));
+    if (mine.length) this.cb(mine.map((target) => ({ isIntersecting, target })));
+  }
 }
 vi.stubGlobal("IntersectionObserver", StubObserver);
+
+const trigger = (els: Element[]) => instances.forEach((o) => o.deliver(els, true));
+const hide = (els: Element[]) => instances.forEach((o) => o.deliver(els, false));
 
 vi.mock("swr", async () => {
   const actual = await vi.importActual<typeof import("swr")>("swr");
@@ -47,6 +63,7 @@ let fetchSpy: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.clearAllMocks();
   observed.clear();
+  instances.clear();
   fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
     new Response(JSON.stringify({ "0xa": 1, "0xb": 2 }), { status: 200 })
   );

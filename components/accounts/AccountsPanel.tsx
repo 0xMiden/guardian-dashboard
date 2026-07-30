@@ -24,6 +24,15 @@ type Sort = { key: SortKey; dir: "asc" | "desc" };
 // Coalescing window for rows scrolling into view.
 const SNAPSHOT_BATCH_MS = 150;
 
+// The node's documented maximum page size, the same figure the server-side
+// inventory walk uses and verified there against every reachable node. A page
+// costs one request whatever size it is, so leaving this to the node's 50-row
+// default meant 29 round trips to scroll the 1,418-account node instead of 3.
+// Asset totals are still fetched per visible row, so a larger page pulls no
+// extra snapshots.
+const PAGE_SIZE = 500;
+export const ACCOUNTS_KEY = `/api/accounts?limit=${PAGE_SIZE}`;
+
 const STATE_TONE: Record<string, string> = {
   released: "bg-purple-500",
   frozen: "bg-orange-500",
@@ -90,7 +99,7 @@ function SortableHeader({
 }
 
 export function AccountsPanel() {
-  const { data, error } = useSWR<AccountsPage>("/api/accounts", fetcher, { refreshInterval: 30_000 });
+  const { data, error } = useSWR<AccountsPage>(ACCOUNTS_KEY, fetcher, { refreshInterval: 30_000 });
   // Same key StatStrip already polls, so SWR serves both from one request.
   const { data: stats } = useSWR<AccountStats>(STATS_KEY, fetcher);
   const router = useRouter();
@@ -153,7 +162,7 @@ export function AccountsPanel() {
     if (!cursor) return;
     setLoadingMore(true);
     try {
-      const res = await fetch(`/api/accounts?cursor=${encodeURIComponent(cursor)}`);
+      const res = await fetch(`${ACCOUNTS_KEY}&cursor=${encodeURIComponent(cursor)}`);
       if (!res.ok) return; // keep cursor untouched so the next attempt can retry
       const page: AccountsPage = await res.json();
       const newItems = page.items ?? [];
@@ -209,7 +218,7 @@ export function AccountsPanel() {
       // versions land would just re-read what is already on screen. A failed
       // revalidation falls back to the rendered rows, which still works because
       // `refresh=1` re-reads them whatever their version says.
-      const page = await mutate<AccountsPage>("/api/accounts");
+      const page = await mutate<AccountsPage>(ACCOUNTS_KEY);
       const rows = [...(page?.items ?? data?.items ?? []), ...extraItems]
         .filter((a) => visibleRef.current.has(a.accountId))
         .map((a) => ({ accountId: a.accountId, updatedAt: a.updatedAt }));

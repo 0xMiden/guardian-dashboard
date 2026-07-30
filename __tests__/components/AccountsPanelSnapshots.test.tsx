@@ -41,7 +41,7 @@ vi.mock("swr", async () => {
 });
 vi.mock("next/navigation", () => ({ useRouter: vi.fn(() => ({ push: vi.fn() })) }));
 
-const { AccountsPanel } = await import("@/components/accounts/AccountsPanel");
+const { AccountsPanel, ACCOUNTS_KEY } = await import("@/components/accounts/AccountsPanel");
 const useSWR = (await import("swr")).default as ReturnType<typeof vi.fn>;
 
 const row = (id: string, updatedAt: string) => ({
@@ -55,7 +55,7 @@ const B = row("0xb", "2026-07-29T11:00:00.000Z");
 
 function mockRows(items: unknown[]) {
   useSWR.mockImplementation((key: string) =>
-    key === "/api/accounts" ? { data: { items, nextCursor: null }, error: undefined } : { data: undefined, error: undefined }
+    key === ACCOUNTS_KEY ? { data: { items, nextCursor: null }, error: undefined } : { data: undefined, error: undefined }
   );
 }
 
@@ -188,5 +188,33 @@ describe("AccountsPanel asset totals", () => {
     // the row still renders; the asset cell stays as the placeholder
     expect(screen.getByText("0xa")).toBeInTheDocument();
     expect(screen.queryByText(/^\$/)).not.toBeInTheDocument();
+  });
+});
+
+// The node defaults to 50 per page. Leaving it there meant 29 round trips to
+// scroll a 1,418-account node, so the panel asks for the documented maximum and
+// has to keep asking for it once it starts paging.
+describe("AccountsPanel page size", () => {
+  it("requests the node's maximum page rather than its default", () => {
+    expect(ACCOUNTS_KEY).toBe("/api/accounts?limit=500");
+  });
+
+  it("keeps the page size when it pages in more rows", async () => {
+    useSWR.mockImplementation((key: string) =>
+      key === ACCOUNTS_KEY
+        ? { data: { items: [A], nextCursor: "next-page" }, error: undefined }
+        : { data: undefined, error: undefined });
+    fetchSpy.mockResolvedValue(
+      new Response(JSON.stringify({ items: [B], nextCursor: null }), { status: 200 }),
+    );
+    render(<AccountsPanel />);
+
+    // The sentinel is the observed element that is not a row.
+    trigger([...observed].filter((el) => !(el as HTMLElement).dataset.accountId));
+
+    await waitFor(() => {
+      const urls = fetchSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+      expect(urls.some((u: string) => u.includes("limit=500") && u.includes("cursor=next-page"))).toBe(true);
+    });
   });
 });

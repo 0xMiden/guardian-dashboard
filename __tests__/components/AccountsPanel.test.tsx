@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { AccountsPanel } from "@/components/accounts/AccountsPanel";
+import { AccountsPanel, ACCOUNTS_KEY } from "@/components/accounts/AccountsPanel";
 import posthog from "posthog-js";
 
 vi.mock("swr", () => ({ default: vi.fn() }));
@@ -34,7 +34,7 @@ describe("AccountsPanel", () => {
 
   it("keeps showing cached accounts when a revalidation fails", () => {
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [{
+      if (key === ACCOUNTS_KEY) return { data: { items: [{
         accountId: "0xabc123",
         stateStatus: "available",
         authScheme: "falcon",
@@ -60,7 +60,7 @@ describe("AccountsPanel", () => {
 
   it("renders account rows", () => {
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [{
+      if (key === ACCOUNTS_KEY) return { data: { items: [{
         accountId: "0xabc123",
         stateStatus: "available",
         authScheme: "falcon",
@@ -79,7 +79,7 @@ describe("AccountsPanel", () => {
 
   it("badges a released account, and released wins over frozen", () => {
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [{
+      if (key === ACCOUNTS_KEY) return { data: { items: [{
         accountId: "0xreleased",
         stateStatus: "available",
         authScheme: "falcon",
@@ -99,7 +99,7 @@ describe("AccountsPanel", () => {
 
   it("badges ecdsa 2-signer accounts as wallet and filters on it", () => {
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [
+      if (key === ACCOUNTS_KEY) return { data: { items: [
         { accountId: "0xwallet", stateStatus: "available", authScheme: "ecdsa", authorizedSignerCount: 2,
           hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: new Date().toISOString() },
         { accountId: "0xsdk", stateStatus: "available", authScheme: "falcon", authorizedSignerCount: 3,
@@ -123,7 +123,7 @@ describe("AccountsPanel", () => {
 
   it("says so when a filter matches nothing in the loaded rows", () => {
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [
+      if (key === ACCOUNTS_KEY) return { data: { items: [
         { accountId: "0xsdk", stateStatus: "available", authScheme: "falcon", authorizedSignerCount: 3,
           hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: new Date().toISOString() },
       ], nextCursor: null }, error: undefined };
@@ -136,7 +136,7 @@ describe("AccountsPanel", () => {
 
   it("narrows the rows to an account ID substring, in either encoding", () => {
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [
+      if (key === ACCOUNTS_KEY) return { data: { items: [
         { accountId: "0xaaa111", accountIdBech32: "mtst1aaa111", stateStatus: "available", authScheme: "falcon",
           authorizedSignerCount: 3, hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: new Date().toISOString() },
         { accountId: "0xbbb222", accountIdBech32: "mtst1bbb222", stateStatus: "available", authScheme: "falcon",
@@ -162,7 +162,7 @@ describe("AccountsPanel", () => {
     const mockPush = vi.fn();
     vi.mocked(useRouter).mockReturnValue({ push: mockPush } as any);
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [
+      if (key === ACCOUNTS_KEY) return { data: { items: [
         { accountId: "0xaaa111", stateStatus: "available", authScheme: "falcon", authorizedSignerCount: 3,
           hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: new Date().toISOString() },
       ], nextCursor: null }, error: undefined };
@@ -184,7 +184,7 @@ describe("AccountsPanel", () => {
   // rows, so the whole table jumped sideways on each chip click.
   it("pins the column widths so switching filters cannot shift the table", () => {
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [
+      if (key === ACCOUNTS_KEY) return { data: { items: [
         { accountId: "0xaaa111", stateStatus: "available", authScheme: "falcon", authorizedSignerCount: 3,
           hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: new Date().toISOString() },
       ], nextCursor: null }, error: undefined };
@@ -212,7 +212,7 @@ describe("AccountsPanel", () => {
       updatedAt: new Date().toISOString(),
     };
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [account], nextCursor: null }, error: undefined };
+      if (key === ACCOUNTS_KEY) return { data: { items: [account], nextCursor: null }, error: undefined };
       return { data: undefined, error: undefined };
     });
     render(<AccountsPanel />);
@@ -235,7 +235,7 @@ describe("AccountsPanel sorting and export", () => {
 
   function mockRows(items: ReturnType<typeof row>[]) {
     useSWR.mockImplementation((key: string) =>
-      key === "/api/accounts"
+      key === ACCOUNTS_KEY
         ? { data: { items, nextCursor: null }, error: undefined }
         : { data: undefined, error: undefined });
   }
@@ -303,7 +303,7 @@ describe("AccountsPanel kind counts", () => {
 
   function mock({ items, stats }: { items: unknown[]; stats?: unknown }) {
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items, nextCursor: null }, error: undefined };
+      if (key === ACCOUNTS_KEY) return { data: { items, nextCursor: null }, error: undefined };
       if (key === "/api/accounts/stats") return { data: stats, error: undefined };
       return { data: undefined, error: undefined };
     });

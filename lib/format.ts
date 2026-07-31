@@ -51,6 +51,13 @@ export function accountState(
   return status;
 }
 
+// Counts carry a thousands separator wherever they are shown. Left to each
+// call site this drifts: the stat strip formatted and the overview cards did
+// not, so the same node read "1,813" in one place and "1813" in another.
+export function formatCount(n: number): string {
+  return n.toLocaleString();
+}
+
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;

@@ -33,7 +33,7 @@ describe("AccountsCard", () => {
   it("says the breakdown is unavailable instead of showing zeros", () => {
     mockData({ totalAccounts: 1573, falcon: null, ecdsa: null, evm: null });
     render(<AccountsCard />);
-    expect(screen.getByText("1573")).toBeInTheDocument();
+    expect(screen.getByText("1,573")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button"));
     expect(screen.getByText(/unavailable on this node/i)).toBeInTheDocument();
     expect(screen.queryByText("Falcon")).not.toBeInTheDocument();

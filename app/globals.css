@@ -30,6 +30,10 @@
   --text-title--line-height: 1.2;
   --text-title--font-weight: 600;
 
+  --text-subtitle: 1.25rem;       /* 20px, between a page title and a card title */
+  --text-subtitle--line-height: 1.2;
+  --text-subtitle--font-weight: 600;
+
   --text-section: 1rem;           /* 16px, card titles */
   --text-section--line-height: 1.4;
   --text-section--font-weight: 500;
@@ -42,10 +46,11 @@
   --text-data--line-height: 1.4;
   --text-data--font-weight: 400;
 
-  /* Deliberately below the data it labels. A column header the same size and
-     colour as its own column reads as another row of content. Weight, tracking
-     and colour carry the distinction, so this does not have to be tiny. */
-  --text-label: 0.75rem;          /* 12px, against 13px data */
+  /* Level with the data it labels, at 13px. The distinction is carried by
+     weight, letter-spacing and a muted colour rather than by size, which is
+     what most financial tables do. The original defect was a header identical
+     to its column in all four respects, not the size on its own. */
+  --text-label: 0.8125rem;        /* 13px, same as data */
   --text-label--line-height: 1.3;
   --text-label--font-weight: 500;
   --text-label--letter-spacing: 0.04em;
@@ -143,22 +148,25 @@
 
 .dark {
   --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
+  /* Not pure white. #fafafa on a near-black page haloes and is tiring to
+     read for long stretches, which is what this screen is for. #e1e1e1 is
+     still 15.14:1, so nothing is given up. */
+  --foreground: oklch(0.91 0 0);
   --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
+  --card-foreground: oklch(0.91 0 0);
   --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  --popover-foreground: oklch(0.91 0 0);
   /* Miden orange, darkened from the #ff5500 of the mark. The brand value is
      bright enough that a filled button in it reads as an alert, and white on it
      only reaches 3.21:1. This is 4.78:1, so a button label passes AA. */
   --primary: #cc4400;
   --primary-foreground: #ffffff;
   --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
+  --secondary-foreground: oklch(0.91 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --accent-foreground: oklch(0.91 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
@@ -171,11 +179,11 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.91 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary-foreground: oklch(0.91 0 0);
   --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-accent-foreground: oklch(0.91 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }

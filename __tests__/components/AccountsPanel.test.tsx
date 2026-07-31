@@ -339,13 +339,15 @@ describe("AccountsPanel kind counts", () => {
     expect(screen.getByText("Other (8)")).toBeInTheDocument();
   });
 
-  it("says how many rows are loaded, so the chips do not look wrong next to the table", () => {
+  // Below the table rather than beside the chips: sitting in the chip row it
+  // read as a fourth filter rather than as a note on the table's completeness.
+  it("says how much of the node the table is showing", () => {
     mock({
       items: [row("0xa"), row("0xb")],
       stats: { total: 1418, count7d: 0, count30d: 0, counted: 1418, wallet: 1410, other: 8 },
     });
     render(<AccountsPanel />);
-    expect(screen.getByText("2 loaded")).toBeInTheDocument();
+    expect(screen.getByText(/Showing 2 of 1,418/)).toBeInTheDocument();
   });
 
   it("omits the loaded note once every account is on screen", () => {

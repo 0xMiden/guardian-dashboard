@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { fetcher } from "@/lib/utils";
+import { formatCount } from "@/lib/format";
 
 interface OverviewData {
   totalAccounts: number;
@@ -16,6 +17,7 @@ interface OverviewData {
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  if (typeof value === "number") value = formatCount(value);
   return (
     <div className="flex items-center justify-between text-sm">
       <span className="text-muted-foreground">{label}</span>
@@ -39,7 +41,7 @@ export function AccountsCard() {
               <Skeleton className="h-8 w-12 mt-1" />
             ) : (
               <p className="text-stat">
-                {data ? data.totalAccounts : "—"}
+                {data ? formatCount(data.totalAccounts) : "—"}
               </p>
             )}
           </div>

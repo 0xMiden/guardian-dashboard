@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { fetcher } from "@/lib/utils";
+import { formatCount } from "@/lib/format";
 import { truncateId } from "@/lib/format";
 
 interface HealthData {
@@ -196,7 +197,7 @@ export function GuardianStatusCard() {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-section text-muted-foreground">Guardian Node</CardTitle>
+        <CardTitle className="text-section text-muted-foreground">Guardian Server</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -213,7 +214,7 @@ export function GuardianStatusCard() {
                   >
                     {isUp ? "Online" : "Offline"}
                   </Badge>
-                  <span className="text-stat">{health.latencyMs}ms</span>
+                  <span className="text-title">{formatCount(health.latencyMs)}ms</span>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Last checked {new Date(health.checkedAt).toLocaleTimeString()}

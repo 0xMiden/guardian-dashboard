@@ -11,12 +11,13 @@ import posthog from "posthog-js";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
+import { FilterChip } from "@/components/ui/FilterChip";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { TableControls, useTablePrefs, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
 import { StatStrip, refreshStatStrip, STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
 import { fetcher } from "@/lib/utils";
-import { isWalletAccount, matchesAccountId, looksLikeAccountId, accountState, accountsToCsv } from "@/lib/format";
+import { isWalletAccount, matchesAccountId, looksLikeAccountId, accountState, accountsToCsv, formatCount } from "@/lib/format";
 
 type AccountsPage = PagedResult<DashboardAccountSummary>;
 type AccountKind = "all" | "wallet" | "other";
@@ -461,27 +462,10 @@ export function AccountsPanel() {
           ["wallet", `Wallet (${counts.wallet.toLocaleString()})`],
           ["other", `Other (${counts.other.toLocaleString()})`],
         ] as const).map(([value, label]) => (
-          <button
-            key={value}
-            onClick={() => setKind(value)}
-            aria-pressed={kind === value}
-            className={`rounded-full border px-3 py-1 transition-colors ${
-              kind === value ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
+          <FilterChip key={value} active={kind === value} onClick={() => setKind(value)}>
             {label}
-          </button>
+          </FilterChip>
         ))}
-        {/* Without this the chips look like they disagree with the table: the
-            counts describe the node, the rows are one page of it. */}
-        {counts.all > loaded.length && (
-          <span
-            className="text-muted-foreground"
-            title="Filters, sort and export cover the rows loaded so far. Scroll to load more."
-          >
-            {loaded.length.toLocaleString()} loaded
-          </span>
-        )}
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={exportCsv}
@@ -571,6 +555,14 @@ export function AccountsPanel() {
           )}
         </CardContent>
       </Card>
+      {counts.all > loaded.length && (
+        <p
+          className="text-center text-label text-muted-foreground"
+          title="Filters, sort and export cover the rows loaded so far."
+        >
+          Showing {formatCount(loaded.length)} of {formatCount(counts.all)}
+        </p>
+      )}
       {hasMore && (
         <>
           <div ref={sentinelRef} className="h-1" />

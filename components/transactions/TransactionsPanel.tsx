@@ -10,6 +10,7 @@ import { RefreshButton } from "@/components/ui/RefreshButton";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { TableControls, useTablePrefs, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
 import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
+import { FilterChip } from "@/components/ui/FilterChip";
 import { StatStrip, refreshStatStrip } from "@/components/accounts/StatStrip";
 import { fetcher } from "@/lib/utils";
 import { matchesAccountId } from "@/lib/format";
@@ -196,17 +197,9 @@ export function TransactionsPanel() {
       <div className="flex items-center gap-2 flex-wrap text-xs">
         <AccountIdFilter value={query} onChange={setQuery} />
         {FILTERS.map((f) => (
-          <button
-            key={f.value}
-            onClick={() => handleFilterChange(f.value)}
-            className={`px-3 py-1 rounded-full border transition-colors ${
-              filter === f.value
-                ? "bg-foreground text-background border-foreground"
-                : "border-zinc-700 text-muted-foreground hover:text-foreground hover:border-zinc-500"
-            }`}
-          >
+          <FilterChip key={f.value} active={filter === f.value} onClick={() => handleFilterChange(f.value)}>
             {f.label}
-          </button>
+          </FilterChip>
         ))}
         <div className="ml-auto flex items-center gap-2">
           <TableControls

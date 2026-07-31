@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetcher } from "@/lib/utils";
 
-type AssetTotals = { usd7d?: number; computedAt?: string };
+type AssetTotals = { usd7d?: number; computedAt?: string; warming?: boolean };
 
 export function AssetsCard() {
   const { data, error } = useSWR<AssetTotals>("/api/accounts/asset-totals", fetcher, {
@@ -21,14 +21,17 @@ export function AssetsCard() {
           <p className="text-stat text-foreground">
             ${data.usd7d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
+        ) : data?.warming ? (
+          // Says so rather than showing the same dash a dead node would. The
+          // walk is paced against the node's rate limit, so on a cold start
+          // this is minutes, not seconds.
+          <p className="text-section text-muted-foreground" title="Walking the account inventory. This takes a few minutes after a restart.">
+            Calculating…
+          </p>
         ) : (
-          // A dash where a figure belongs means one of two different things,
-          // and an operator reading a total needs to know which. The card is
-          // too small for a full ErrorPanel, so the distinction goes in the
-          // tooltip rather than being dropped.
           <p
             className="text-stat text-muted-foreground"
-            title={error ? "The guardian node did not answer." : "Not computed yet. Totals fill in as accounts are walked."}
+            title={error ? "The guardian server did not answer." : "Not computed yet."}
           >
             —
           </p>

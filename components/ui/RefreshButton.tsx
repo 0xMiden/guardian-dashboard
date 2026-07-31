@@ -1,5 +1,6 @@
 "use client";
 import { RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 /**
  * Manual refresh control, shared by the panels that poll the node. Accounts move
@@ -16,14 +17,9 @@ export function RefreshButton({
   title?: string;
 }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={busy}
-      title={title}
-      className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1 text-muted-foreground transition-colors hover:text-foreground hover:border-zinc-500 disabled:opacity-50"
-    >
+    <Button onClick={onClick} disabled={busy} title={title} size="sm">
       <RefreshCw className={`h-3 w-3 ${busy ? "animate-spin" : ""}`} />
       {busy ? "Refreshing…" : "Refresh"}
-    </button>
+    </Button>
   );
 }

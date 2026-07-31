@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { headers } from "next/headers";
 import { GET } from "@/app/api/accounts/route";
+import { GuardianOperatorHttpError } from "@openzeppelin/guardian-operator-client";
 
 const mockListAccounts = vi.fn();
 
@@ -43,6 +44,38 @@ describe("GET /api/accounts", () => {
     expect(res.status).toBe(503);
     const body = await res.json();
     expect(body.error).toBe("timeout");
+  });
+
+  // Every failure used to collapse to a 503 carrying the client's diagnostic
+  // Error text, so the UI could not tell a permission denial from a dead node.
+  it("forwards the node's status and error envelope instead of flattening to 503", async () => {
+    mockHeaders("testnet");
+    mockListAccounts.mockRejectedValue(
+      new GuardianOperatorHttpError(403, "Forbidden", "{}", {
+        code: "insufficient_operator_permission",
+        message: "You don't have permission to do that",
+        missingPermissions: ["accounts:pause"],
+      } as any),
+    );
+    const res = await GET(makeRequest());
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({
+      error: "You don't have permission to do that",
+      code: "insufficient_operator_permission",
+      missingPermissions: ["accounts:pause"],
+    });
+  });
+
+  it("forwards the retry-after the node asked for on a rate limit", async () => {
+    mockHeaders("testnet");
+    mockListAccounts.mockRejectedValue(
+      new GuardianOperatorHttpError(429, "Too Many Requests", "{}", {
+        code: "rate_limited", message: "Slow down", retryAfterSecs: 7,
+      } as any),
+    );
+    const res = await GET(makeRequest());
+    expect(res.status).toBe(429);
+    expect((await res.json()).retryAfterSecs).toBe(7);
   });
 
   it("passes cursor and limit query params to listAccounts", async () => {

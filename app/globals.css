@@ -43,8 +43,9 @@
   --text-data--font-weight: 400;
 
   /* Deliberately below the data it labels. A column header the same size and
-     colour as its own column reads as another row of content. */
-  --text-label: 0.6875rem;        /* 11px */
+     colour as its own column reads as another row of content. Weight, tracking
+     and colour carry the distinction, so this does not have to be tiny. */
+  --text-label: 0.75rem;          /* 12px, against 13px data */
   --text-label--line-height: 1.3;
   --text-label--font-weight: 500;
   --text-label--letter-spacing: 0.04em;

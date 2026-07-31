@@ -83,7 +83,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="fixed top-0 inset-x-0 flex md:hidden items-center justify-between bg-zinc-900 px-4 py-3 border-b border-zinc-800 z-50">
         <div className="flex items-center gap-2">
           <Image src="/orangerobot.png" alt="Guardian" width={16} height={16} className="shrink-0" />
-          <span className="font-heading text-base font-semibold leading-tight text-foreground">Guardian Dashboard</span>
+          <span className="font-heading text-subtitle leading-tight text-foreground">Guardian Dashboard</span>
         </div>
         <button onClick={() => setConfirmSignOut(true)} className="text-zinc-400 hover:text-foreground transition-colors">
           <LogOut className="h-4 w-4" />
@@ -95,7 +95,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mb-8 px-3 flex flex-col items-center">
           <div className="flex items-center gap-2">
             <Image src="/orangerobot.png" alt="Guardian" width={20} height={20} className="shrink-0" />
-            <span className="font-heading text-base font-semibold leading-tight text-foreground">Guardian Dashboard</span>
+            <span className="font-heading text-subtitle leading-tight text-foreground">Guardian Dashboard</span>
           </div>
         </div>
         <nav className="flex flex-col gap-1 flex-1">

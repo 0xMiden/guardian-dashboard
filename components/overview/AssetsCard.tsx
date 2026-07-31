@@ -18,7 +18,7 @@ export function AssetsCard() {
         {!data && !error ? (
           <Skeleton className="h-8 w-20 mt-1" />
         ) : data?.usd7d != null ? (
-          <p className="text-3xl font-bold leading-none text-foreground">
+          <p className="text-stat text-foreground">
             ${data.usd7d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
         ) : (
@@ -27,7 +27,7 @@ export function AssetsCard() {
           // too small for a full ErrorPanel, so the distinction goes in the
           // tooltip rather than being dropped.
           <p
-            className="text-3xl font-bold leading-none text-muted-foreground"
+            className="text-stat text-muted-foreground"
             title={error ? "The guardian node did not answer." : "Not computed yet. Totals fill in as accounts are walked."}
           >
             —

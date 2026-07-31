@@ -1,26 +1,34 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Hedvig_Letters_Serif, Bitter } from "next/font/google";
+import { Geist, Geist_Mono, Bitter } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { AppShell } from "@/components/layout/AppShell";
 import { PostHogPageView } from "@/components/analytics/PostHogPageView";
 import { Suspense } from "react";
 import "./globals.css";
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const hedvig = Hedvig_Letters_Serif({
-  variable: "--font-heading",
-  subsets: ["latin"],
-  weight: "400",
-});
-
-const bitter = Bitter({
+// Body, tables and every piece of UI chrome. Geist rather than the slab serif
+// this used to be: a slab's rectangular serifs are what make it slow to scan in
+// a 500-row numeric table, which is most of what this product is. It is also
+// Geist Mono's sibling, drawn as one family, so an account id sits next to its
+// label at a matched x-height instead of borrowing an unrelated design's.
+const geist = Geist({
   variable: "--font-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+});
+
+// Account ids and money figures.
+const geistMono = Geist_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
+});
+
+// Headings only, where a slab serif does its best work and where the editorial
+// character is worth having. Promoted out of the body; Hedvig Letters Serif is
+// gone, so the count of loaded families is unchanged.
+const bitter = Bitter({
+  variable: "--font-heading",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -46,7 +54,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistMono.variable} ${hedvig.variable} ${bitter.variable} h-full antialiased dark`}>
+    <html lang="en" className={`${geist.variable} ${geistMono.variable} ${bitter.variable} h-full antialiased dark`}>
       <body className="h-full">
         <ClerkProvider>
           <Suspense fallback={null}>

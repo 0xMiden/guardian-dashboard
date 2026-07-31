@@ -38,7 +38,7 @@ export function AccountsCard() {
             {loading ? (
               <Skeleton className="h-8 w-12 mt-1" />
             ) : (
-              <p className="text-3xl font-bold leading-none">
+              <p className="text-stat">
                 {data ? data.totalAccounts : "—"}
               </p>
             )}

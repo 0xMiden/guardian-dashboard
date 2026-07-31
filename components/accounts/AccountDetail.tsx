@@ -242,7 +242,7 @@ export function AccountDetail({ accountId }: Props) {
         <>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardTitle className="text-section text-muted-foreground">
                 {data!.accountIdBech32
                   ? <CopyableId id={data!.accountIdBech32} prefixLen={20} suffixLen={8} />
                   : <CopyableId id={data!.accountId} />}
@@ -343,7 +343,7 @@ export function AccountDetail({ accountId }: Props) {
           {snapshot && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Assets</CardTitle>
+                <CardTitle className="text-section text-muted-foreground">Assets</CardTitle>
               </CardHeader>
               <CardContent className="divide-y">
                 {snapshot.hasPendingCandidate && (

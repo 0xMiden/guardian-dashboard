@@ -8,7 +8,7 @@ export default async function AccountTransactionsPage({
   const { accountId } = await params;
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">Activity</h1>
+      <h1 className="text-title">Activity</h1>
       {/* key resets pagination state when navigating between accounts */}
       <AccountTransactions key={accountId} accountId={decodeURIComponent(accountId)} />
     </div>

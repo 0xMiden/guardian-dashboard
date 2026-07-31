@@ -142,7 +142,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Transaction #{nonce}</CardTitle>
+              <CardTitle className="text-section text-muted-foreground">Transaction #{nonce}</CardTitle>
             </CardHeader>
             <CardContent className="divide-y">
               <Row label="Status" value={deltaStatusBadge(data!.status)} />
@@ -162,7 +162,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
           {data!.vaultChanges.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Balance Changes</CardTitle>
+                <CardTitle className="text-section text-muted-foreground">Balance Changes</CardTitle>
               </CardHeader>
               <CardContent className="divide-y">
                 {data!.vaultChanges.map((c, i) => <VaultChangeRow key={i} change={c} />)}
@@ -173,7 +173,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
           {(data!.inputNotes.length > 0 || data!.outputNotes.length > 0) && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Notes</CardTitle>
+                <CardTitle className="text-section text-muted-foreground">Notes</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {data!.inputNotes.length > 0 && (
@@ -199,7 +199,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
           {data!.storageChanges.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Account State Changes</CardTitle>
+                <CardTitle className="text-section text-muted-foreground">Account State Changes</CardTitle>
               </CardHeader>
               <CardContent className="divide-y">
                 {data!.storageChanges.map((s, i) => (
@@ -217,7 +217,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
           {data!.proposal && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Details</CardTitle>
+                <CardTitle className="text-section text-muted-foreground">Details</CardTitle>
               </CardHeader>
               <CardContent className="divide-y">
                 {data!.proposal.recipientId && (

@@ -91,7 +91,7 @@ function SortableHeader({
   const active = sort?.key === sortKey;
   return (
     <th
-      className={`${padding} font-medium ${align === "right" ? "text-right" : "text-left"}`}
+      className={`${padding} text-label ${align === "right" ? "text-right" : "text-left"}`}
       aria-sort={active ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"}
     >
       <button
@@ -373,11 +373,11 @@ export function AccountsPanel() {
   const columns: Column[] = [
     {
       key: "index", label: "#", width: "w-12", align: "right",
-      cellClass: "text-xs text-muted-foreground tabular-nums",
+      cellClass: "text-data text-muted-foreground tabular-nums",
       cell: (_a, i) => i + 1,
     },
     {
-      key: "id", label: "Account ID", width: "w-52",
+      key: "id", label: "Account ID", width: "w-52", cellClass: "text-data",
       cell: (a) => (
         <CopyableId
           id={a.accountIdBech32 ?? a.accountId}
@@ -387,11 +387,11 @@ export function AccountsPanel() {
       ),
     },
     {
-      key: "status", label: "Status", width: "w-28", sortKey: "status",
+      key: "status", label: "Status", width: "w-28", sortKey: "status", cellClass: "text-data",
       cell: (a) => statusBadge(a.stateStatus, a.pausedAt, a.releasedAt),
     },
     {
-      key: "type", label: "Type", width: "w-24",
+      key: "type", label: "Type", width: "w-24", cellClass: "text-data",
       cell: (a) => isWalletAccount(a) ? (
         <Badge variant="outline" className="border-sky-500 text-sky-500 text-xs" title="Inferred from auth shape (ECDSA, 2 signers)">
           wallet
@@ -402,11 +402,11 @@ export function AccountsPanel() {
     },
     {
       key: "signers", label: "Signers", width: "w-20", align: "right", sortKey: "signers",
-      cellClass: "tabular-nums",
+      cellClass: "text-data tabular-nums text-muted-foreground",
       cell: (a) => a.authorizedSignerCount,
     },
     {
-      key: "pending", label: "Pending", width: "w-24",
+      key: "pending", label: "Pending", width: "w-24", cellClass: "text-data",
       cell: (a) => a.hasPendingCandidate ? (
         <Badge variant="outline" className="border-amber-500 text-amber-500 text-xs">pending</Badge>
       ) : (
@@ -414,22 +414,25 @@ export function AccountsPanel() {
       ),
     },
     {
+      // The number a row exists to show, so it outranks everything beside it.
+      // It used to be 12px and dimmed, which put it below the signer count and
+      // level with its own column header.
       key: "assets", label: "Total Assets", width: "w-32", align: "right", sortKey: "assets",
-      cellClass: "text-xs",
+      cellClass: "text-figure",
       cell: (a) => perAccount[a.accountId] !== undefined
-        ? <span className="font-mono tabular-nums">${perAccount[a.accountId].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        ? <span className="font-mono tabular-nums text-foreground">${perAccount[a.accountId].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         : inFlight.has(a.accountId)
         ? <Skeleton className="ml-auto h-3 w-16" data-testid={`assets-loading-${a.accountId}`} />
         : <span className="text-muted-foreground" title="Not fetched yet. Totals load for rows as they scroll into view.">—</span>,
     },
     {
       key: "created", label: "Created", width: "w-40", sortKey: "created",
-      cellClass: "text-muted-foreground text-xs",
+      cellClass: "text-data text-muted-foreground",
       cell: (a) => <Timestamp iso={a.createdAt} />,
     },
     {
       key: "updated", label: "Updated", width: "w-40", sortKey: "updated",
-      cellClass: "text-muted-foreground text-xs",
+      cellClass: "text-data text-muted-foreground",
       cell: (a) => <Timestamp iso={a.updatedAt} />,
     },
   ];
@@ -503,12 +506,12 @@ export function AccountsPanel() {
               filter changes which rows are mounted. Auto layout re-measured the
               content on every switch, and the whole table jumped. Same pattern
               as the Activity table. */}
-          <table className="w-full text-sm table-fixed">
+          <table className="w-full table-fixed">
             <colgroup>
               {shownColumns.map((c) => <col key={c.key} className={c.width} />)}
             </colgroup>
             <thead>
-              <tr className="border-b text-xs text-muted-foreground">
+              <tr className="border-b text-muted-foreground">
                 {shownColumns.map((c) => c.sortKey ? (
                   <SortableHeader
                     key={c.key}
@@ -520,7 +523,7 @@ export function AccountsPanel() {
                     padding={pad}
                   />
                 ) : (
-                  <th key={c.key} className={`${pad} font-medium ${c.align === "right" ? "text-right" : "text-left"}`}>
+                  <th key={c.key} className={`${pad} text-label ${c.align === "right" ? "text-right" : "text-left"}`}>
                     {c.label}
                   </th>
                 ))}
@@ -536,7 +539,7 @@ export function AccountsPanel() {
                   onClick={() => { openAccount(a); router.push(`/accounts/${a.accountId}`); }}
                 >
                   {shownColumns.map((c) => (
-                    <td key={c.key} className={`${pad} ${c.align === "right" ? "text-right" : ""} ${c.cellClass ?? ""}`}>
+                    <td key={c.key} className={`${pad} ${c.align === "right" ? "text-right" : ""} ${c.cellClass}`}>
                       {c.cell(a, i)}
                     </td>
                   ))}

@@ -8,7 +8,7 @@ function Placeholder() {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Compliance Provider</CardTitle>
+          <CardTitle className="text-section text-muted-foreground">Compliance Provider</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <Skeleton className="h-9 w-64" />
@@ -17,7 +17,7 @@ function Placeholder() {
       </Card>
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">KYC &amp; Whitelist</CardTitle>
+          <CardTitle className="text-section text-muted-foreground">KYC &amp; Whitelist</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <table className="w-full text-sm">
@@ -44,7 +44,7 @@ function Placeholder() {
       </Card>
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Policy Rules</CardTitle>
+          <CardTitle className="text-section text-muted-foreground">Policy Rules</CardTitle>
         </CardHeader>
         <CardContent className="divide-y">
           {Array.from({ length: 4 }).map((_, i) => (

@@ -53,7 +53,7 @@ export default function SelectEndpointPage() {
       <div className="w-full max-w-sm space-y-6 rounded-xl border bg-card p-8 shadow-sm">
         <div className="flex flex-col items-center gap-2">
           <Image src="/orangerobot.png" alt="Guardian" width={32} height={32} />
-          <h1 className="text-xl font-semibold">Select Guardian</h1>
+          <h1 className="text-title">Select Guardian</h1>
         </div>
 
         {fetching ? (

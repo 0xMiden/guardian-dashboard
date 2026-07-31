@@ -8,7 +8,7 @@ export default async function DeltaDetailPage({
   const { accountId, nonce } = await params;
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">Transaction Details</h1>
+      <h1 className="text-title">Transaction Details</h1>
       <AccountDeltaDetail
         accountId={decodeURIComponent(accountId)}
         nonce={parseInt(nonce, 10)}

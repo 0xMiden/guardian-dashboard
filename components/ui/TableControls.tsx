@@ -14,7 +14,9 @@ export type TableColumn<T, K extends string> = {
   label: string;
   width: string;
   align?: "left" | "right";
-  cellClass?: string;
+  /** Required: the cell's size role. Without it a column renders at the
+   *  browser default, which is how a table ends up with no hierarchy. */
+  cellClass: string;
   cell: (item: T, index: number) => React.ReactNode;
 };
 

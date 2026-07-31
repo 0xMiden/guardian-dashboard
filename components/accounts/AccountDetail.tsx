@@ -6,11 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
+import { Timestamp } from "@/components/ui/Timestamp";
+import { ErrorPanel, describeError } from "@/components/ui/ErrorPanel";
 import Link from "next/link";
 import { ArrowLeft, Snowflake, Sun, ArrowLeftRight, ChevronDown, ChevronRight } from "lucide-react";
 import type { DashboardAccountDetail } from "@openzeppelin/guardian-operator-client";
 import posthog from "posthog-js";
-import { fetcher } from "@/lib/utils";
+import { fetcher, FetchError } from "@/lib/utils";
 
 type AccountSnapshot = {
   commitment: string;
@@ -74,7 +76,7 @@ function PauseModal({
   const needsReason = action === "freeze";
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
   async function handleSubmit() {
     if (needsReason && !reason.trim()) return;
@@ -86,15 +88,22 @@ function PauseModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(needsReason ? { reason: reason.trim() } : {}),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? copy.failure);
+      const data = await res.json().catch(() => null);
+      // A FetchError rather than a bare Error, so the node's error envelope
+      // survives as far as the message the operator reads. This is the button
+      // that produced "Guardian operator HTTP error 403: Forbidden - You don't
+      // have permission to do that", which names neither the permission that is
+      // missing nor who can grant it.
+      if (!res.ok) throw new FetchError(data?.error ?? copy.failure, res.status, data ?? undefined);
       posthog.capture(copy.event, { account_id: accountId });
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : copy.failure);
+      setError(err);
       setLoading(false);
     }
   }
+
+  const failure = error === null ? null : describeError(error);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
@@ -119,7 +128,12 @@ function PauseModal({
             />
           </div>
         )}
-        {error && <p className="text-xs text-red-400">{error}</p>}
+        {failure && (
+          <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2">
+            <p className="text-xs font-medium text-red-400">{failure.title}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{failure.detail}</p>
+          </div>
+        )}
         <div className="flex justify-end gap-2">
           <button
             onClick={onClose}
@@ -221,8 +235,8 @@ export function AccountDetail({ accountId }: Props) {
       {!data && !error ? (
         <Card><CardContent className="pt-6 space-y-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-6 w-full" />)}</CardContent></Card>
       ) : error && !data ? (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-          {error.message || "Failed to load account"}
+        <div className="rounded-lg border border-dashed">
+          <ErrorPanel error={error} onRetry={() => mutate()} />
         </div>
       ) : (
         <>
@@ -252,7 +266,7 @@ export function AccountDetail({ accountId }: Props) {
                   label="Released"
                   value={
                     <span className="text-purple-400 text-xs">
-                      Switched to another guardian on {new Date(data!.releasedAt).toLocaleString()}
+                      Switched to another guardian <Timestamp iso={data!.releasedAt} />
                     </span>
                   }
                 />
@@ -260,7 +274,14 @@ export function AccountDetail({ accountId }: Props) {
               {data!.pausedAt && (
                 <Row
                   label="Frozen"
-                  value={<span className="text-orange-400 text-xs">{data!.pausedReason ?? new Date(data!.pausedAt).toLocaleString()}</span>}
+                  // Both, rather than the reason standing in for the time: an
+                  // operator reviewing a freeze needs to know when as well as why.
+                  value={
+                    <span className="text-orange-400 text-xs">
+                      <Timestamp iso={data!.pausedAt} />
+                      {data!.pausedReason && <> · {data!.pausedReason}</>}
+                    </span>
+                  }
                 />
               )}
               <Row label="Auth" value={data!.authScheme === "falcon" ? "Falcon (post-quantum)" : data!.authScheme.toUpperCase()} />
@@ -271,8 +292,8 @@ export function AccountDetail({ accountId }: Props) {
                   : "No"}
               />
               <Row label="Signers" value={data!.authorizedSignerIds.length} />
-              <Row label="Created" value={new Date(data!.createdAt).toLocaleString()} />
-              <Row label="Last updated" value={new Date(data!.updatedAt).toLocaleString()} />
+              <Row label="Created" value={<Timestamp iso={data!.createdAt} />} />
+              <Row label="Last updated" value={<Timestamp iso={data!.updatedAt} />} />
 
               {data!.authorizedSignerIds.length > 0 && (
                 <div className="py-2">
@@ -305,13 +326,13 @@ export function AccountDetail({ accountId }: Props) {
                   {data!.stateCreatedAt && (
                     <div className="flex items-start justify-between gap-4 text-xs">
                       <span className="text-muted-foreground">State created</span>
-                      <span>{new Date(data!.stateCreatedAt).toLocaleString()}</span>
+                      <Timestamp iso={data!.stateCreatedAt} />
                     </div>
                   )}
                   {data!.stateUpdatedAt && (
                     <div className="flex items-start justify-between gap-4 text-xs">
                       <span className="text-muted-foreground">State updated</span>
-                      <span>{new Date(data!.stateUpdatedAt).toLocaleString()}</span>
+                      <Timestamp iso={data!.stateUpdatedAt} />
                     </div>
                   )}
                 </div>

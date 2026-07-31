@@ -49,7 +49,7 @@ describe("AccountDetail", () => {
     mockAccount({ releasedAt: new Date("2026-03-04T05:06:07Z").toISOString() });
     const { container } = render(<AccountDetail accountId="0xabc123" />);
     expect(badge(container, "bg-purple-500")).toHaveTextContent("Released");
-    expect(screen.getByText(/switched to another guardian on/i)).toBeInTheDocument();
+    expect(screen.getByText(/switched to another guardian/i)).toBeInTheDocument();
   });
 
   // Released is terminal and its remedy differs from pause's, so it has to win
@@ -63,8 +63,8 @@ describe("AccountDetail", () => {
     const { container } = render(<AccountDetail accountId="0xabc123" />);
     expect(badge(container, "bg-purple-500")).toHaveTextContent("Released");
     expect(badge(container, "bg-orange-500")).toBeNull();
-    // the pause row still renders, so the reason is not lost
-    expect(screen.getByText("incident")).toBeInTheDocument();
+    // the pause row still renders, so neither the reason nor the time is lost
+    expect(screen.getByText(/incident/)).toBeInTheDocument();
   });
 
   it("shows skeletons while loading and the server message on failure", () => {

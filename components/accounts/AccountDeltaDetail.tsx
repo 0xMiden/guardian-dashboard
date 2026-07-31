@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
+import { Timestamp } from "@/components/ui/Timestamp";
+import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { formatAmount, storageSlotLabel } from "@/lib/format";
 import { fetcher } from "@/lib/utils";
 import { CATEGORY_LABELS, deltaStatusBadge } from "@/components/transactions/activity-cells";
@@ -105,7 +107,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
   const encoded = encodeURIComponent(accountId);
   const [showTechnical, setShowTechnical] = useState(false);
 
-  const { data, error } = useSWR<DetailResponse>(
+  const { data, error, mutate: revalidate } = useSWR<DetailResponse>(
     `/api/accounts/${encoded}/deltas/${nonce}`,
     fetcher
   );
@@ -124,8 +126,8 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
         </div>
       ) : error && !data ? (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-          {error.message || "Failed to load transaction detail"}
+        <div className="rounded-lg border border-dashed">
+          <ErrorPanel error={error} onRetry={() => revalidate()} />
         </div>
       ) : (
         <>
@@ -150,7 +152,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
               {data!.proposal?.proposalType && (
                 <Row label="Action" value={data!.proposal.proposalType.replace(/_/g, " ")} />
               )}
-              <Row label="Date" value={new Date(data!.statusTimestamp).toLocaleString()} />
+              <Row label="Date" value={<Timestamp iso={data!.statusTimestamp} />} />
               {data!.retryCount !== undefined && data!.retryCount > 0 && (
                 <Row label="Retries" value={data!.retryCount} />
               )}

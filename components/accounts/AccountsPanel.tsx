@@ -11,6 +11,9 @@ import posthog from "posthog-js";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
+import { Timestamp } from "@/components/ui/Timestamp";
+import { ErrorPanel } from "@/components/ui/ErrorPanel";
+import { TableControls, useTablePrefs, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
 import { StatStrip, refreshStatStrip, STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
 import { fetcher } from "@/lib/utils";
 import { isWalletAccount, matchesAccountId, looksLikeAccountId, accountState, accountsToCsv } from "@/lib/format";
@@ -20,6 +23,11 @@ type AccountKind = "all" | "wallet" | "other";
 type SnapshotTarget = { accountId: string; updatedAt: string };
 type SortKey = "status" | "signers" | "assets" | "created" | "updated";
 type Sort = { key: SortKey; dir: "asc" | "desc" };
+type ColumnKey = "index" | "id" | "status" | "type" | "signers" | "pending" | "assets" | "created" | "updated";
+
+// The row number and the account id are what make a row identifiable, so they
+// are not offered for hiding. Everything else is.
+const HIDEABLE: readonly ColumnKey[] = ["status", "type", "signers", "pending", "assets", "created", "updated"];
 
 // Coalescing window for rows scrolling into view.
 const SNAPSHOT_BATCH_MS = 150;
@@ -71,18 +79,19 @@ function sortAccounts(items: DashboardAccountSummary[], sort: Sort, assets: Reco
 }
 
 function SortableHeader({
-  label, sortKey, sort, onSort, align = "left",
+  label, sortKey, sort, onSort, align = "left", padding = "px-4 py-3",
 }: {
   label: string;
   sortKey: SortKey;
   sort: Sort | null;
   onSort: (key: SortKey) => void;
   align?: "left" | "right";
+  padding?: string;
 }) {
   const active = sort?.key === sortKey;
   return (
     <th
-      className={`px-4 py-3 font-medium ${align === "right" ? "text-right" : "text-left"}`}
+      className={`${padding} font-medium ${align === "right" ? "text-right" : "text-left"}`}
       aria-sort={active ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"}
     >
       <button
@@ -98,8 +107,10 @@ function SortableHeader({
   );
 }
 
+type Column = TableColumn<DashboardAccountSummary, ColumnKey> & { sortKey?: SortKey };
+
 export function AccountsPanel() {
-  const { data, error } = useSWR<AccountsPage>(ACCOUNTS_KEY, fetcher, { refreshInterval: 30_000 });
+  const { data, error, mutate: revalidate } = useSWR<AccountsPage>(ACCOUNTS_KEY, fetcher, { refreshInterval: 30_000 });
   // Same key StatStrip already polls, so SWR serves both from one request.
   const { data: stats } = useSWR<AccountStats>(STATS_KEY, fetcher);
   const router = useRouter();
@@ -121,6 +132,7 @@ export function AccountsPanel() {
   // null, so there is a way back to the order the rows arrived in.
   const [sort, setSort] = useState<Sort | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const { density, hidden, setDensity, toggleColumn } = useTablePrefs<ColumnKey>("accounts", HIDEABLE);
 
   const toggleSort = useCallback((key: SortKey) => {
     setSort((s) => (s?.key !== key ? { key, dir: "desc" } : s.dir === "desc" ? { key, dir: "asc" } : null));
@@ -131,6 +143,19 @@ export function AccountsPanel() {
   // null      → exhausted all pages
   // string    → more pages available
   const hasMore = nextCursor === undefined ? initialCursor !== null : nextCursor !== null;
+
+  const loaded = [...(data?.items ?? []), ...extraItems];
+  const walletCount = loaded.filter(isWalletAccount).length;
+  const filtered = loaded.filter(
+    (a) =>
+      (kind === "all" || isWalletAccount(a) === (kind === "wallet")) &&
+      matchesAccountId(query, a.accountId, a.accountIdBech32),
+  );
+  // The ids the table will actually mount. The row observer keys off this, so
+  // it tracks the rendered set rather than a hand-kept list of the state that
+  // affects it. Sort is deliberately not folded in: it reorders keyed rows
+  // without unmounting any, so the observer keeps watching the same elements.
+  const renderedKey = filtered.map((a) => a.accountId).join(",");
 
   // The node has no batch read, so one row's asset total is one request to it.
   // Rows carry `updatedAt` so the server can skip accounts that provably have
@@ -255,9 +280,12 @@ export function AccountsPanel() {
   // A row entering view queues its asset total. Rows stay observed rather than
   // being unobserved after first sight: the queue key includes `updatedAt`, so
   // an account that changes re-queues on its own the next time it is on screen.
-  // Rebuild the observer when the rendered row set changes: a new page, or a
-  // filter that swaps which rows are mounted.
-  const rowCount = (data?.items?.length ?? 0) + extraItems.length;
+  //
+  // Rebuilt whenever the rendered row set changes, keyed off the rows
+  // themselves. The dependency list used to name the state that affects them,
+  // which meant the chip filter was covered and the search box was not: typing
+  // in it swapped the mounted rows while the observer went on watching detached
+  // ones, and totals never loaded for what was actually on screen.
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return; // jsdom, older browsers
@@ -278,7 +306,7 @@ export function AccountsPanel() {
     );
     root.querySelectorAll("tr[data-account-id]").forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [rowCount, kind, queueSnapshot]);
+  }, [renderedKey, queueSnapshot]);
 
   if (!data && !error) {
     return (
@@ -291,19 +319,12 @@ export function AccountsPanel() {
   // Keep showing cached rows on a failed revalidation — SWR retries in the background
   if (error && !data) {
     return (
-      <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-        {error.message || "Guardian node unavailable"}
+      <div className="rounded-lg border border-dashed">
+        <ErrorPanel error={error} onRetry={() => revalidate()} />
       </div>
     );
   }
 
-  const loaded = [...(data?.items ?? []), ...extraItems];
-  const walletCount = loaded.filter(isWalletAccount).length;
-  const filtered = loaded.filter(
-    (a) =>
-      (kind === "all" || isWalletAccount(a) === (kind === "wallet")) &&
-      matchesAccountId(query, a.accountId, a.accountIdBech32),
-  );
   const items = sort ? sortAccounts(filtered, sort, perAccount) : filtered;
 
   // The chips count what the node holds, from the same paged walk that feeds
@@ -344,6 +365,76 @@ export function AccountsPanel() {
       has_pending_candidate: a.hasPendingCandidate,
     });
   }
+
+  // One definition per column drives the colgroup, the header and the cells, so
+  // hiding a column cannot leave the three lists out of step. Built here rather
+  // than at module scope because the cells read the asset totals and the
+  // in-flight set, which change as rows scroll into view.
+  const columns: Column[] = [
+    {
+      key: "index", label: "#", width: "w-12", align: "right",
+      cellClass: "text-xs text-muted-foreground tabular-nums",
+      cell: (_a, i) => i + 1,
+    },
+    {
+      key: "id", label: "Account ID", width: "w-52",
+      cell: (a) => (
+        <CopyableId
+          id={a.accountIdBech32 ?? a.accountId}
+          href={`/accounts/${a.accountId}`}
+          onNavigate={() => openAccount(a)}
+        />
+      ),
+    },
+    {
+      key: "status", label: "Status", width: "w-28", sortKey: "status",
+      cell: (a) => statusBadge(a.stateStatus, a.pausedAt, a.releasedAt),
+    },
+    {
+      key: "type", label: "Type", width: "w-24",
+      cell: (a) => isWalletAccount(a) ? (
+        <Badge variant="outline" className="border-sky-500 text-sky-500 text-xs" title="Inferred from auth shape (ECDSA, 2 signers)">
+          wallet
+        </Badge>
+      ) : (
+        <span className="text-muted-foreground text-xs">—</span>
+      ),
+    },
+    {
+      key: "signers", label: "Signers", width: "w-20", align: "right", sortKey: "signers",
+      cellClass: "tabular-nums",
+      cell: (a) => a.authorizedSignerCount,
+    },
+    {
+      key: "pending", label: "Pending", width: "w-24",
+      cell: (a) => a.hasPendingCandidate ? (
+        <Badge variant="outline" className="border-amber-500 text-amber-500 text-xs">pending</Badge>
+      ) : (
+        <span className="text-muted-foreground text-xs">—</span>
+      ),
+    },
+    {
+      key: "assets", label: "Total Assets", width: "w-32", align: "right", sortKey: "assets",
+      cellClass: "text-xs",
+      cell: (a) => perAccount[a.accountId] !== undefined
+        ? <span className="font-mono tabular-nums">${perAccount[a.accountId].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        : inFlight.has(a.accountId)
+        ? <Skeleton className="ml-auto h-3 w-16" data-testid={`assets-loading-${a.accountId}`} />
+        : <span className="text-muted-foreground" title="Not fetched yet. Totals load for rows as they scroll into view.">—</span>,
+    },
+    {
+      key: "created", label: "Created", width: "w-40", sortKey: "created",
+      cellClass: "text-muted-foreground text-xs",
+      cell: (a) => <Timestamp iso={a.createdAt} />,
+    },
+    {
+      key: "updated", label: "Updated", width: "w-40", sortKey: "updated",
+      cellClass: "text-muted-foreground text-xs",
+      cell: (a) => <Timestamp iso={a.updatedAt} />,
+    },
+  ];
+  const shownColumns = columns.filter((c) => !hidden.has(c.key));
+  const pad = CELL_PADDING[density];
 
   if (!loaded.length) {
     return (
@@ -396,6 +487,13 @@ export function AccountsPanel() {
             <Download className="h-3 w-3" />
             Export CSV
           </button>
+          <TableControls
+            density={density}
+            onDensityChange={setDensity}
+            columns={columns.filter((c) => HIDEABLE.includes(c.key))}
+            hidden={hidden}
+            onToggleColumn={toggleColumn}
+          />
           <RefreshButton onClick={refresh} busy={refreshing} />
         </div>
       </div>
@@ -407,27 +505,25 @@ export function AccountsPanel() {
               as the Activity table. */}
           <table className="w-full text-sm table-fixed">
             <colgroup>
-              <col className="w-12" />
-              <col className="w-52" />
-              <col className="w-28" />
-              <col className="w-24" />
-              <col className="w-20" />
-              <col className="w-24" />
-              <col className="w-32" />
-              <col className="w-40" />
-              <col className="w-40" />
+              {shownColumns.map((c) => <col key={c.key} className={c.width} />)}
             </colgroup>
             <thead>
               <tr className="border-b text-xs text-muted-foreground">
-                <th className="px-4 py-3 text-right font-medium">#</th>
-                <th className="px-4 py-3 text-left font-medium">Account ID</th>
-                <SortableHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} />
-                <th className="px-4 py-3 text-left font-medium">Type</th>
-                <SortableHeader label="Signers" sortKey="signers" sort={sort} onSort={toggleSort} align="right" />
-                <th className="px-4 py-3 text-left font-medium">Pending</th>
-                <SortableHeader label="Total Assets" sortKey="assets" sort={sort} onSort={toggleSort} align="right" />
-                <SortableHeader label="Created" sortKey="created" sort={sort} onSort={toggleSort} />
-                <SortableHeader label="Updated" sortKey="updated" sort={sort} onSort={toggleSort} />
+                {shownColumns.map((c) => c.sortKey ? (
+                  <SortableHeader
+                    key={c.key}
+                    label={c.label}
+                    sortKey={c.sortKey}
+                    sort={sort}
+                    onSort={toggleSort}
+                    align={c.align}
+                    padding={pad}
+                  />
+                ) : (
+                  <th key={c.key} className={`${pad} font-medium ${c.align === "right" ? "text-right" : "text-left"}`}>
+                    {c.label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody ref={tbodyRef}>
@@ -439,47 +535,11 @@ export function AccountsPanel() {
                   className="border-b last:border-0 cursor-pointer hover:bg-muted/40 transition-colors"
                   onClick={() => { openAccount(a); router.push(`/accounts/${a.accountId}`); }}
                 >
-                  <td className="px-4 py-3 text-right text-xs text-muted-foreground tabular-nums">{i + 1}</td>
-                  <td className="px-4 py-3">
-                    <CopyableId
-                      id={a.accountIdBech32 ?? a.accountId}
-                      href={`/accounts/${a.accountId}`}
-                      onNavigate={() => openAccount(a)}
-                    />
-                  </td>
-                  <td className="px-4 py-3">{statusBadge(a.stateStatus, a.pausedAt, a.releasedAt)}</td>
-                  <td className="px-4 py-3">
-                    {isWalletAccount(a) ? (
-                      <Badge variant="outline" className="border-sky-500 text-sky-500 text-xs" title="Inferred from auth shape (ECDSA, 2 signers)">
-                        wallet
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums">{a.authorizedSignerCount}</td>
-                  <td className="px-4 py-3">
-                    {a.hasPendingCandidate ? (
-                      <Badge variant="outline" className="border-amber-500 text-amber-500 text-xs">
-                        pending
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right text-xs">
-                    {perAccount[a.accountId] !== undefined
-                      ? <span className="font-mono tabular-nums">${perAccount[a.accountId].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      : inFlight.has(a.accountId)
-                      ? <Skeleton className="ml-auto h-3 w-16" data-testid={`assets-loading-${a.accountId}`} />
-                      : <span className="text-muted-foreground" title="Not fetched yet. Totals load for rows as they scroll into view.">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">
-                    {new Date(a.createdAt).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">
-                    {new Date(a.updatedAt).toLocaleString()}
-                  </td>
+                  {shownColumns.map((c) => (
+                    <td key={c.key} className={`${pad} ${c.align === "right" ? "text-right" : ""} ${c.cellClass ?? ""}`}>
+                      {c.cell(a, i)}
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>

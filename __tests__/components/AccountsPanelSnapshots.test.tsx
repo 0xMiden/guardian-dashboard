@@ -178,6 +178,31 @@ describe("AccountsPanel asset totals", () => {
     );
   });
 
+  // The observer used to be rebuilt from a hand-kept list of the state that
+  // changes the rendered rows. The chip filter was on that list and the search
+  // box was not, so a search left `visibleRef` holding rows that were no longer
+  // mounted, and refresh went on spending node requests re-reading them.
+  it("refresh does not re-read a row a search took off screen", async () => {
+    mockRows([A, B]);
+    render(<AccountsPanel />);
+    trigger([...observed]);
+    await settle();
+
+    // Narrow to 0xb, then let the surviving row register itself.
+    fireEvent.change(screen.getByPlaceholderText(/filter by account id/i), { target: { value: "0xb" } });
+    await settle();
+    trigger([...observed]);
+    await settle();
+    fetchSpy.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    await settle();
+
+    const asked = decodeURIComponent(snapshotCalls().join("|"));
+    expect(asked).not.toContain("0xa@");
+  });
+
   it("leaves the column empty rather than showing a wrong number when the fetch fails", async () => {
     mockRows([A]);
     fetchSpy.mockResolvedValue(new Response("nope", { status: 503 }));

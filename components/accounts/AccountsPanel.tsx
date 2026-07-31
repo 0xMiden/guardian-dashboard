@@ -13,7 +13,7 @@ import { RefreshButton } from "@/components/ui/RefreshButton";
 import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
-import { TableControls, useTablePrefs, CELL_PADDING } from "@/components/accounts/TableControls";
+import { TableControls, useTablePrefs, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
 import { StatStrip, refreshStatStrip, STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
 import { fetcher } from "@/lib/utils";
 import { isWalletAccount, matchesAccountId, looksLikeAccountId, accountState, accountsToCsv } from "@/lib/format";
@@ -107,15 +107,7 @@ function SortableHeader({
   );
 }
 
-type Column = {
-  key: ColumnKey;
-  label: string;
-  width: string;
-  align?: "left" | "right";
-  cellClass?: string;
-  sortKey?: SortKey;
-  cell: (a: DashboardAccountSummary, i: number) => React.ReactNode;
-};
+type Column = TableColumn<DashboardAccountSummary, ColumnKey> & { sortKey?: SortKey };
 
 export function AccountsPanel() {
   const { data, error, mutate: revalidate } = useSWR<AccountsPage>(ACCOUNTS_KEY, fetcher, { refreshInterval: 30_000 });
@@ -151,6 +143,19 @@ export function AccountsPanel() {
   // null      → exhausted all pages
   // string    → more pages available
   const hasMore = nextCursor === undefined ? initialCursor !== null : nextCursor !== null;
+
+  const loaded = [...(data?.items ?? []), ...extraItems];
+  const walletCount = loaded.filter(isWalletAccount).length;
+  const filtered = loaded.filter(
+    (a) =>
+      (kind === "all" || isWalletAccount(a) === (kind === "wallet")) &&
+      matchesAccountId(query, a.accountId, a.accountIdBech32),
+  );
+  // The ids the table will actually mount. The row observer keys off this, so
+  // it tracks the rendered set rather than a hand-kept list of the state that
+  // affects it. Sort is deliberately not folded in: it reorders keyed rows
+  // without unmounting any, so the observer keeps watching the same elements.
+  const renderedKey = filtered.map((a) => a.accountId).join(",");
 
   // The node has no batch read, so one row's asset total is one request to it.
   // Rows carry `updatedAt` so the server can skip accounts that provably have
@@ -275,9 +280,12 @@ export function AccountsPanel() {
   // A row entering view queues its asset total. Rows stay observed rather than
   // being unobserved after first sight: the queue key includes `updatedAt`, so
   // an account that changes re-queues on its own the next time it is on screen.
-  // Rebuild the observer when the rendered row set changes: a new page, or a
-  // filter that swaps which rows are mounted.
-  const rowCount = (data?.items?.length ?? 0) + extraItems.length;
+  //
+  // Rebuilt whenever the rendered row set changes, keyed off the rows
+  // themselves. The dependency list used to name the state that affects them,
+  // which meant the chip filter was covered and the search box was not: typing
+  // in it swapped the mounted rows while the observer went on watching detached
+  // ones, and totals never loaded for what was actually on screen.
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return; // jsdom, older browsers
@@ -298,7 +306,7 @@ export function AccountsPanel() {
     );
     root.querySelectorAll("tr[data-account-id]").forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [rowCount, kind, queueSnapshot]);
+  }, [renderedKey, queueSnapshot]);
 
   if (!data && !error) {
     return (
@@ -317,13 +325,6 @@ export function AccountsPanel() {
     );
   }
 
-  const loaded = [...(data?.items ?? []), ...extraItems];
-  const walletCount = loaded.filter(isWalletAccount).length;
-  const filtered = loaded.filter(
-    (a) =>
-      (kind === "all" || isWalletAccount(a) === (kind === "wallet")) &&
-      matchesAccountId(query, a.accountId, a.accountIdBech32),
-  );
   const items = sort ? sortAccounts(filtered, sort, perAccount) : filtered;
 
   // The chips count what the node holds, from the same paged walk that feeds

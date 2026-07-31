@@ -51,6 +51,42 @@ export function accountState(
   return status;
 }
 
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+// Past a week, "5 weeks ago" tells an operator less than the date does.
+const RELATIVE_LIMIT = 7 * DAY;
+
+// Absolute form, carrying the timezone it is expressed in. Every timestamp in
+// the dashboard used to be a bare `toLocaleString()`, which renders identically
+// whether the reader sits in UTC or JST and so cannot be compared against a log
+// line or a counterparty's record.
+export function formatTimestamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    year: "numeric", month: "short", day: "numeric",
+    hour: "2-digit", minute: "2-digit", timeZoneName: "short",
+  });
+}
+
+// `null` when the gap is too wide to phrase usefully, or the input is not a
+// date, which lets the caller fall back to `formatTimestamp` without repeating
+// the range check.
+export function relativeTime(iso: string, now: number = Date.now()): string | null {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return null;
+  const diff = t - now;
+  const abs = Math.abs(diff);
+  if (abs >= RELATIVE_LIMIT) return null;
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  if (abs < MINUTE) return rtf.format(Math.round(diff / 1000), "second");
+  if (abs < HOUR) return rtf.format(Math.round(diff / MINUTE), "minute");
+  if (abs < DAY) return rtf.format(Math.round(diff / HOUR), "hour");
+  return rtf.format(Math.round(diff / DAY), "day");
+}
+
 // RFC 4180: a field containing a quote, comma or newline is quoted, and quotes
 // inside it are doubled. Excel reads the result without an import dialog.
 function csvCell(value: unknown): string {

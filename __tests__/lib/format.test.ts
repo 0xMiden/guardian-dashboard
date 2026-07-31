@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { truncateId, formatAmount, storageSlotLabel, accountState, toCsv, accountsToCsv } from "@/lib/format";
+import { truncateId, formatAmount, storageSlotLabel, accountState, toCsv, accountsToCsv, formatTimestamp, relativeTime } from "@/lib/format";
 
 describe("truncateId", () => {
   it("returns short strings unchanged", () => {
@@ -117,5 +117,49 @@ describe("accountsToCsv", () => {
   it("falls back to the hex id when the node returns no bech32 form", () => {
     const row = accountsToCsv([{ ...account, accountIdBech32: null }], {}).split("\r\n")[1];
     expect(row.startsWith("0xabc,0xabc,")).toBe(true);
+  });
+});
+
+// Phrasing comes from Intl and so varies with locale; these build their
+// expectations the same way, which leaves the unit choice, rounding and sign
+// (the logic that is actually ours) as the thing under test.
+const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+const NOW = Date.parse("2026-07-31T12:00:00.000Z");
+const ago = (ms: number) => new Date(NOW - ms).toISOString();
+const MINUTE = 60_000, HOUR = 60 * MINUTE, DAY = 24 * HOUR;
+
+describe("formatTimestamp", () => {
+  it("names the timezone it is expressed in", () => {
+    const iso = "2026-01-02T03:04:00.000Z";
+    const tz = new Intl.DateTimeFormat(undefined, { timeZoneName: "short" })
+      .formatToParts(new Date(iso))
+      .find((p) => p.type === "timeZoneName")!.value;
+    expect(formatTimestamp(iso)).toContain(tz);
+  });
+
+  it("passes a value it cannot parse straight through", () => {
+    expect(formatTimestamp("not a date")).toBe("not a date");
+  });
+});
+
+describe("relativeTime", () => {
+  it("picks the largest unit that still describes the gap", () => {
+    expect(relativeTime(ago(30_000), NOW)).toBe(rtf.format(-30, "second"));
+    expect(relativeTime(ago(5 * MINUTE), NOW)).toBe(rtf.format(-5, "minute"));
+    expect(relativeTime(ago(2 * HOUR), NOW)).toBe(rtf.format(-2, "hour"));
+    expect(relativeTime(ago(3 * DAY), NOW)).toBe(rtf.format(-3, "day"));
+  });
+
+  it("phrases a future timestamp forwards", () => {
+    expect(relativeTime(ago(-2 * HOUR), NOW)).toBe(rtf.format(2, "hour"));
+  });
+
+  it("gives up past a week, where the date says more than the gap does", () => {
+    expect(relativeTime(ago(6 * DAY), NOW)).not.toBeNull();
+    expect(relativeTime(ago(8 * DAY), NOW)).toBeNull();
+  });
+
+  it("returns null rather than a bogus gap for an unparseable value", () => {
+    expect(relativeTime("not a date", NOW)).toBeNull();
   });
 });

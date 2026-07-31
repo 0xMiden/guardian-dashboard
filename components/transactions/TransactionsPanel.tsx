@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
+import { Timestamp } from "@/components/ui/Timestamp";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
 import { StatStrip, refreshStatStrip } from "@/components/accounts/StatStrip";
@@ -249,7 +250,7 @@ export function TransactionsPanel() {
                       <td className="px-4 py-3"><AmountCell assets={row.assets} /></td>
                       <td className="px-4 py-3">{row.statusNode}</td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
-                        {new Date(row.timestamp).toLocaleString()}
+                        <Timestamp iso={row.timestamp} />
                       </td>
                     </tr>
                   ))}

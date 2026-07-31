@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Timestamp } from "@/components/ui/Timestamp";
 import { fetcher } from "@/lib/utils";
 import { activityLabel, deltaStatusBadge, proposalStatusBadge, AmountCell, CounterpartyCell } from "@/components/transactions/activity-cells";
 import type { DashboardDeltaEntry, DashboardProposalEntry, PagedResult } from "@openzeppelin/guardian-operator-client";
@@ -154,7 +155,7 @@ export function AccountTransactions({ accountId }: Props) {
                       <td className="px-4 py-3"><AmountCell assets={row.assets} /></td>
                       <td className="px-4 py-3">{row.statusNode}</td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
-                        {new Date(row.timestamp).toLocaleString()}
+                        <Timestamp iso={row.timestamp} />
                       </td>
                     </tr>
                   ))}

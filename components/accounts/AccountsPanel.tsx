@@ -16,7 +16,7 @@ import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { TableControls, useTablePrefs, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
 import { StatStrip, refreshStatStrip, STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
 import { fetcher } from "@/lib/utils";
-import { isWalletAccount, matchesAccountId, looksLikeAccountId, accountState, accountsToCsv } from "@/lib/format";
+import { isWalletAccount, matchesAccountId, looksLikeAccountId, accountState, accountsToCsv, formatCount } from "@/lib/format";
 
 type AccountsPage = PagedResult<DashboardAccountSummary>;
 type AccountKind = "all" | "wallet" | "other";
@@ -472,16 +472,6 @@ export function AccountsPanel() {
             {label}
           </button>
         ))}
-        {/* Without this the chips look like they disagree with the table: the
-            counts describe the node, the rows are one page of it. */}
-        {counts.all > loaded.length && (
-          <span
-            className="text-muted-foreground"
-            title="Filters, sort and export cover the rows loaded so far. Scroll to load more."
-          >
-            {loaded.length.toLocaleString()} loaded
-          </span>
-        )}
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={exportCsv}
@@ -571,6 +561,14 @@ export function AccountsPanel() {
           )}
         </CardContent>
       </Card>
+      {counts.all > loaded.length && (
+        <p
+          className="text-center text-label text-muted-foreground"
+          title="Filters, sort and export cover the rows loaded so far."
+        >
+          Showing {formatCount(loaded.length)} of {formatCount(counts.all)}
+        </p>
+      )}
       {hasMore && (
         <>
           <div ref={sentinelRef} className="h-1" />

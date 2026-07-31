@@ -7,6 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { RefreshButton } from "@/components/ui/RefreshButton";
+import { ErrorPanel } from "@/components/ui/ErrorPanel";
+import { TableControls, useTablePrefs, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
 import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
 import { StatStrip, refreshStatStrip } from "@/components/accounts/StatStrip";
 import { fetcher } from "@/lib/utils";
@@ -24,6 +26,9 @@ type GlobalDeltasPage = PagedResult<DashboardGlobalDeltaEntry>;
 type GlobalProposalsPage = PagedResult<DashboardGlobalProposalEntry>;
 
 type FilterValue = "" | "awaiting" | "ready" | DashboardDeltaStatus;
+
+type ColumnKey = "account" | "counterparty" | "activity" | "amount" | "status" | "date";
+const HIDEABLE: readonly ColumnKey[] = ["counterparty", "activity", "amount", "status", "date"];
 
 const FILTERS: Array<{ label: string; value: FilterValue }> = [
   { label: "All", value: "" },
@@ -102,6 +107,7 @@ export function TransactionsPanel() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const { density, hidden, setDensity, toggleColumn } = useTablePrefs<ColumnKey>("transactions", HIDEABLE);
 
   const proposalsOnly = PROPOSALS_ONLY.includes(filter);
   const deltaStatus = (filter === "" || proposalsOnly) ? undefined : filter as DashboardDeltaStatus;
@@ -165,6 +171,22 @@ export function TransactionsPanel() {
   // Keep showing cached rows on a failed revalidation — SWR retries in the background
   const unavailable = deltasError && !deltasData;
 
+  // The account is what makes a row identifiable, so it is not offered for
+  // hiding. Same arrangement as the accounts table.
+  const columns: TableColumn<ActivityRow, ColumnKey>[] = [
+    { key: "account", label: "Account", width: "w-36", cell: (r) => <CopyableId id={r.accountId} /> },
+    { key: "counterparty", label: "To / From", width: "w-36", cell: (r) => <CounterpartyCell counterparty={r.counterparty} /> },
+    { key: "activity", label: "Activity", width: "w-40", cellClass: "text-sm", cell: (r) => r.label },
+    { key: "amount", label: "Amount", width: "w-32", cell: (r) => <AmountCell assets={r.assets} /> },
+    { key: "status", label: "Status", width: "w-36", cell: (r) => r.statusNode },
+    {
+      key: "date", label: "Date", width: "w-40", cellClass: "text-muted-foreground text-xs",
+      cell: (r) => <Timestamp iso={r.timestamp} />,
+    },
+  ];
+  const shownColumns = columns.filter((c) => !hidden.has(c.key));
+  const pad = CELL_PADDING[density];
+
   return (
     <div className="flex flex-col gap-4">
       <StatStrip />
@@ -185,7 +207,14 @@ export function TransactionsPanel() {
             {f.label}
           </button>
         ))}
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <TableControls
+            density={density}
+            onDensityChange={setDensity}
+            columns={columns.filter((c) => HIDEABLE.includes(c.key))}
+            hidden={hidden}
+            onToggleColumn={toggleColumn}
+          />
           <RefreshButton onClick={refresh} busy={refreshing} />
         </div>
       </div>
@@ -195,8 +224,8 @@ export function TransactionsPanel() {
           {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
         </div>
       ) : unavailable ? (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-          {deltasError?.message || "Guardian node unavailable"}
+        <div className="rounded-lg border border-dashed">
+          <ErrorPanel error={deltasError} onRetry={refresh} />
         </div>
       ) : rows.length === 0 ? (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed px-4 text-center text-sm text-muted-foreground">
@@ -212,25 +241,19 @@ export function TransactionsPanel() {
             <CardContent className="p-0 overflow-x-auto">
               <table className="w-full text-sm table-fixed">
                 <colgroup>
-                  <col className="w-36" />
-                  <col className="w-36" />
-                  <col className="w-40" />
-                  <col className="w-32" />
-                  <col className="w-36" />
-                  <col className="w-40" />
+                  {shownColumns.map((c) => <col key={c.key} className={c.width} />)}
                 </colgroup>
                 <thead>
                   <tr className="border-b text-xs text-muted-foreground">
-                    <th className="px-4 py-3 text-left font-medium">Account</th>
-                    <th className="px-4 py-3 text-left font-medium">To / From</th>
-                    <th className="px-4 py-3 text-left font-medium">Activity</th>
-                    <th className="px-4 py-3 text-left font-medium">Amount</th>
-                    <th className="px-4 py-3 text-left font-medium">Status</th>
-                    <th className="px-4 py-3 text-left font-medium">Date</th>
+                    {shownColumns.map((c) => (
+                      <th key={c.key} className={`${pad} font-medium ${c.align === "right" ? "text-right" : "text-left"}`}>
+                        {c.label}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
+                  {rows.map((row, i) => (
                     <tr
                       key={row.key}
                       className="border-b last:border-0 cursor-pointer hover:bg-muted/40 transition-colors"
@@ -242,16 +265,11 @@ export function TransactionsPanel() {
                         }
                       }}
                     >
-                      <td className="px-4 py-3">
-                        <CopyableId id={row.accountId} />
-                      </td>
-                      <td className="px-4 py-3"><CounterpartyCell counterparty={row.counterparty} /></td>
-                      <td className="px-4 py-3 text-sm">{row.label}</td>
-                      <td className="px-4 py-3"><AmountCell assets={row.assets} /></td>
-                      <td className="px-4 py-3">{row.statusNode}</td>
-                      <td className="px-4 py-3 text-muted-foreground text-xs">
-                        <Timestamp iso={row.timestamp} />
-                      </td>
+                      {shownColumns.map((c) => (
+                        <td key={c.key} className={`${pad} ${c.align === "right" ? "text-right" : ""} ${c.cellClass ?? ""}`}>
+                          {c.cell(row, i)}
+                        </td>
+                      ))}
                     </tr>
                   ))}
                 </tbody>

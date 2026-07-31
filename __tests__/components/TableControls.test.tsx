@@ -91,3 +91,69 @@ describe("accounts table controls", () => {
     expect(container.querySelectorAll("thead th")).toHaveLength(9);
   });
 });
+
+vi.mock("posthog-js", () => ({ default: { capture: vi.fn() } }));
+
+const { TransactionsPanel } = await import("@/components/transactions/TransactionsPanel");
+
+const delta = (accountId: string, nonce: number) => ({
+  accountId, nonce, status: "canonical", category: "transfer",
+  statusTimestamp: "2026-07-29T10:00:00.000Z", assets: undefined, counterparty: undefined,
+});
+
+function mockActivity() {
+  useSWR.mockImplementation((key: string) => {
+    if (typeof key === "string" && key.startsWith("/api/global-deltas")) {
+      return { data: { items: [delta("0xabc123", 1)], nextCursor: null }, error: undefined };
+    }
+    if (key === "/api/global-proposals") return { data: { items: [], nextCursor: null }, error: undefined };
+    return { data: undefined, error: undefined };
+  });
+}
+
+describe("activity table controls", () => {
+  it("drops a column from the header, the colgroup and the body together", () => {
+    mockActivity();
+    const { container } = render(<TransactionsPanel />);
+    expect(container.querySelectorAll("thead th")).toHaveLength(6);
+
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Amount" }));
+
+    expect(container.querySelectorAll("thead th")).toHaveLength(5);
+    expect(container.querySelectorAll("colgroup col")).toHaveLength(5);
+    expect(container.querySelectorAll("tbody tr td")).toHaveLength(5);
+  });
+
+  it("keeps the account column, which is what identifies a row", () => {
+    mockActivity();
+    render(<TransactionsPanel />);
+    openMenu();
+    expect(screen.queryByRole("menuitemcheckbox", { name: "Account" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("menuitemcheckbox")).toHaveLength(5);
+  });
+
+  it("tightens the rows on the density toggle", () => {
+    mockActivity();
+    const { container } = render(<TransactionsPanel />);
+    expect(container.querySelector("tbody td")!.className).toContain("py-3");
+    fireEvent.click(screen.getByRole("button", { name: /switch to compact rows/i }));
+    expect(container.querySelector("tbody td")!.className).toContain("py-1.5");
+  });
+
+  // Two tables with different columns cannot share one stored preference, or
+  // hiding Amount on Activity would hide whatever sits in that slot on Accounts.
+  it("keeps its preferences separate from the accounts table", () => {
+    mockActivity();
+    const activity = render(<TransactionsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /switch to compact rows/i }));
+    activity.unmount();
+
+    useSWR.mockImplementation((key: string) =>
+      key === ACCOUNTS_KEY ? { data: { items: [row], nextCursor: null }, error: undefined } : { data: undefined, error: undefined }
+    );
+    const { container } = render(<AccountsPanel />);
+    expect(container.querySelector("tbody td")!.className).toContain("py-3");
+    expect(localStorage.getItem("guardian:table:transactions")).toContain("compact");
+  });
+});

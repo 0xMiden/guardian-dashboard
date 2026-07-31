@@ -5,6 +5,20 @@ import { Rows2, Rows3, Columns3, Check } from "lucide-react";
 export type Density = "compact" | "comfortable";
 
 /**
+ * One definition per column, driving the colgroup, the header and the cells.
+ * Those were three positional lists that had to agree, which is workable until
+ * a column can be hidden and all three have to stay in step.
+ */
+export type TableColumn<T, K extends string> = {
+  key: K;
+  label: string;
+  width: string;
+  align?: "left" | "right";
+  cellClass?: string;
+  cell: (item: T, index: number) => React.ReactNode;
+};
+
+/**
  * Row padding for the chosen density. One place, so the header and the body
  * cells cannot drift apart.
  */

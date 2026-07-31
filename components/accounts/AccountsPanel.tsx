@@ -422,7 +422,7 @@ export function AccountsPanel() {
       key: "assets", label: "Total Assets", width: "w-32", align: "right", sortKey: "assets",
       cellClass: "text-figure",
       cell: (a) => perAccount[a.accountId] !== undefined
-        ? <span className="font-mono tabular-nums text-foreground">${perAccount[a.accountId].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        ? <span className="tabular-nums text-foreground">${perAccount[a.accountId].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         : inFlight.has(a.accountId)
         ? <Skeleton className="ml-auto h-3 w-16" data-testid={`assets-loading-${a.accountId}`} />
         : <span className="text-muted-foreground" title="Not fetched yet. Totals load for rows as they scroll into view.">—</span>,

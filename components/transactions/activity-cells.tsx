@@ -54,7 +54,7 @@ export function AmountCell({ assets }: { assets?: DashboardDeltaEntry["assets"] 
   const display = positive && !formatted.startsWith("+") ? "+" + formatted : formatted;
   const more = assets.length > 1 ? <span className="text-muted-foreground"> +{assets.length - 1}</span> : null;
   return (
-    <span className={`text-xs font-mono ${positive ? "text-state-active" : "text-state-error"}`}>
+    <span className={`tabular-nums ${positive ? "text-state-active" : "text-state-error"}`}>
       {display}{more}
     </span>
   );

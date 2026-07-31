@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { AccountsPanel, ACCOUNTS_KEY } from "@/components/accounts/AccountsPanel";
 import posthog from "posthog-js";
+import { FetchError } from "@/lib/utils";
 
 vi.mock("swr", () => ({ default: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -20,16 +21,34 @@ describe("AccountsPanel", () => {
     expect(container.querySelectorAll(".animate-pulse, [data-slot='skeleton']").length).toBeGreaterThan(0);
   });
 
-  it("shows the server error message when guardian is unavailable", () => {
-    useSWR.mockReturnValue({ data: undefined, error: new Error("Node offline") });
+  // A failure that reached the node arrives from `fetcher` as a FetchError
+  // carrying its status, which is what lets the panel name the problem instead
+  // of echoing HTTP at the reader.
+  it("names the node as unavailable when it did not answer", () => {
+    useSWR.mockReturnValue({ data: undefined, error: new FetchError("Node offline", 503) });
     render(<AccountsPanel />);
+    expect(screen.getByText("Guardian node unavailable")).toBeInTheDocument();
     expect(screen.getByText("Node offline")).toBeInTheDocument();
   });
 
-  it("shows generic error when the error has no message", () => {
+  it("names the missing permission rather than the status code", () => {
+    useSWR.mockReturnValue({
+      data: undefined,
+      error: new FetchError("You don't have permission to do that", 403, {
+        code: "insufficient_operator_permission",
+        missingPermissions: ["accounts:pause"],
+      }),
+    });
+    render(<AccountsPanel />);
+    expect(screen.getByText(/accounts:pause/)).toBeInTheDocument();
+  });
+
+  // Anything that did not come from a fetch has no status to reason about, so
+  // it gets the generic wording rather than a guess at the cause.
+  it("falls back to generic wording for an error with no status", () => {
     useSWR.mockReturnValue({ data: undefined, error: new Error("") });
     render(<AccountsPanel />);
-    expect(screen.getByText(/guardian node unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
   });
 
   it("keeps showing cached accounts when a revalidation fails", () => {

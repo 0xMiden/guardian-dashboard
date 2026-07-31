@@ -11,6 +11,7 @@ import posthog from "posthog-js";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
+import { FilterChip } from "@/components/ui/FilterChip";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { TableControls, useTablePrefs, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
@@ -461,16 +462,9 @@ export function AccountsPanel() {
           ["wallet", `Wallet (${counts.wallet.toLocaleString()})`],
           ["other", `Other (${counts.other.toLocaleString()})`],
         ] as const).map(([value, label]) => (
-          <button
-            key={value}
-            onClick={() => setKind(value)}
-            aria-pressed={kind === value}
-            className={`rounded-full border px-3 py-1 transition-colors ${
-              kind === value ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
+          <FilterChip key={value} active={kind === value} onClick={() => setKind(value)}>
             {label}
-          </button>
+          </FilterChip>
         ))}
         <div className="ml-auto flex items-center gap-2">
           <button

@@ -28,9 +28,9 @@ export function activityLabel(category?: string, proposalType?: string): string 
 }
 
 export function deltaStatusBadge(status: string) {
-  if (status === "canonical") return <Badge className="bg-state-active text-white">Confirmed</Badge>;
-  if (status === "candidate") return <Badge className="bg-state-pending text-white">Submitted</Badge>;
-  return <Badge className="bg-state-neutral text-white capitalize">{status}</Badge>;
+  if (status === "canonical") return <Badge className="bg-state-active text-white">confirmed</Badge>;
+  if (status === "candidate") return <Badge className="bg-state-pending text-white">submitted</Badge>;
+  return <Badge className="bg-state-neutral text-white">{status}</Badge>;
 }
 
 export function proposalStatusBadge(collected: number, required: number) {

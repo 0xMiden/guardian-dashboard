@@ -6,7 +6,7 @@ import { ActivityCard } from "@/components/overview/ActivityCard";
 export default function OverviewPage() {
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold">Overview</h1>
+      <h1 className="text-title">Overview</h1>
       <GuardianStatusCard />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <AccountsCard />

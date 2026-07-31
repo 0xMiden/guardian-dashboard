@@ -46,7 +46,7 @@ function VaultChangeRow({ change }: { change: DashboardDeltaVaultChange }) {
     return (
       <div className="flex items-center justify-between gap-4 py-2 text-sm">
         <CopyableId id={change.assetId} prefixLen={10} suffixLen={6} className="text-muted-foreground" />
-        <span className={`font-medium shrink-0 ${positive ? "text-emerald-400" : "text-red-400"}`}>
+        <span className={`font-medium shrink-0 ${positive ? "text-state-active" : "text-state-error"}`}>
           {display}
         </span>
       </div>
@@ -56,8 +56,8 @@ function VaultChangeRow({ change }: { change: DashboardDeltaVaultChange }) {
     <div className="flex items-start justify-between gap-4 py-2 text-sm">
       <CopyableId id={change.assetId} prefixLen={10} suffixLen={6} className="text-muted-foreground" />
       <div className="text-right text-xs">
-        {change.added.length > 0 && <div className="text-emerald-400">+{change.added.length} received</div>}
-        {change.removed.length > 0 && <div className="text-red-400">−{change.removed.length} sent</div>}
+        {change.added.length > 0 && <div className="text-state-active">+{change.added.length} received</div>}
+        {change.removed.length > 0 && <div className="text-state-error">−{change.removed.length} sent</div>}
       </div>
     </div>
   );
@@ -87,7 +87,7 @@ function NoteCard({ note, direction }: { note: DashboardDeltaDecodedNote; direct
         <div key={i} className="flex items-center justify-between gap-2">
           <CopyableId id={a.assetId} prefixLen={8} suffixLen={4} className="text-muted-foreground" />
           {a.amount && (
-            <span className={direction === "in" ? "text-emerald-400" : "text-red-400"}>
+            <span className={direction === "in" ? "text-state-active" : "text-state-error"}>
               {direction === "in" ? "+" : "−"}{formatAmount(a.amount)}
             </span>
           )}
@@ -132,7 +132,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
       ) : (
         <>
           {data!.decodeWarnings && data!.decodeWarnings.length > 0 && (
-            <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-400">
+            <div className="flex items-start gap-2 rounded-lg border border-state-pending/30 bg-state-pending/10 p-3 text-xs text-state-pending">
               <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
               <div>
                 Some data could not be decoded: {data!.decodeWarnings.map((w) => w.section).join(", ")}
@@ -142,7 +142,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Transaction #{nonce}</CardTitle>
+              <CardTitle className="text-section text-muted-foreground">Transaction #{nonce}</CardTitle>
             </CardHeader>
             <CardContent className="divide-y">
               <Row label="Status" value={deltaStatusBadge(data!.status)} />
@@ -162,7 +162,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
           {data!.vaultChanges.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Balance Changes</CardTitle>
+                <CardTitle className="text-section text-muted-foreground">Balance Changes</CardTitle>
               </CardHeader>
               <CardContent className="divide-y">
                 {data!.vaultChanges.map((c, i) => <VaultChangeRow key={i} change={c} />)}
@@ -173,7 +173,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
           {(data!.inputNotes.length > 0 || data!.outputNotes.length > 0) && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Notes</CardTitle>
+                <CardTitle className="text-section text-muted-foreground">Notes</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {data!.inputNotes.length > 0 && (
@@ -199,14 +199,14 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
           {data!.storageChanges.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Account State Changes</CardTitle>
+                <CardTitle className="text-section text-muted-foreground">Account State Changes</CardTitle>
               </CardHeader>
               <CardContent className="divide-y">
                 {data!.storageChanges.map((s, i) => (
                   <div key={i} className="py-2 text-xs space-y-1">
                     <div className="font-medium">{storageSlotLabel(s.slotName)}</div>
                     {s.after === null
-                      ? <div className="text-red-400">Cleared</div>
+                      ? <div className="text-state-error">Cleared</div>
                       : <div className="text-muted-foreground font-mono truncate">{s.after}</div>}
                   </div>
                 ))}
@@ -217,7 +217,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
           {data!.proposal && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Details</CardTitle>
+                <CardTitle className="text-section text-muted-foreground">Details</CardTitle>
               </CardHeader>
               <CardContent className="divide-y">
                 {data!.proposal.recipientId && (

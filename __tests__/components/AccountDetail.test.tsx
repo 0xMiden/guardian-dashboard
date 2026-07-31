@@ -42,13 +42,13 @@ describe("AccountDetail", () => {
     mockAccount();
     const { container } = render(<AccountDetail accountId="0xabc123" />);
     expect(screen.getByText("Active")).toBeInTheDocument();
-    expect(badge(container, "bg-purple-500")).toBeNull();
+    expect(badge(container, "bg-state-released")).toBeNull();
   });
 
   it("shows the released badge and the switch date", () => {
     mockAccount({ releasedAt: new Date("2026-03-04T05:06:07Z").toISOString() });
     const { container } = render(<AccountDetail accountId="0xabc123" />);
-    expect(badge(container, "bg-purple-500")).toHaveTextContent("Released");
+    expect(badge(container, "bg-state-released")).toHaveTextContent("Released");
     expect(screen.getByText(/switched to another guardian/i)).toBeInTheDocument();
   });
 
@@ -61,8 +61,8 @@ describe("AccountDetail", () => {
       pausedReason: "incident",
     });
     const { container } = render(<AccountDetail accountId="0xabc123" />);
-    expect(badge(container, "bg-purple-500")).toHaveTextContent("Released");
-    expect(badge(container, "bg-orange-500")).toBeNull();
+    expect(badge(container, "bg-state-released")).toHaveTextContent("Released");
+    expect(badge(container, "bg-state-frozen")).toBeNull();
     // the pause row still renders, so neither the reason nor the time is lost
     expect(screen.getByText(/incident/)).toBeInTheDocument();
   });
@@ -111,7 +111,7 @@ describe("AccountDetail", () => {
     expect(screen.getByText("Freeze Account", { selector: "h2" })).toBeInTheDocument();
 
     // the modal's submit carries the same label as the trigger; pick it by its style
-    const submit = container.querySelector("button.bg-red-500") as HTMLButtonElement;
+    const submit = container.querySelector("button.bg-state-error") as HTMLButtonElement;
     expect(submit).toBeDisabled(); // no reason typed yet
 
     const fetchSpy = vi.spyOn(globalThis, "fetch");

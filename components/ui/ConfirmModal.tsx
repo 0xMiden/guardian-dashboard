@@ -13,7 +13,7 @@ export function ConfirmModal({
   title,
   message,
   confirmLabel,
-  confirmClass = "bg-amber-500 hover:bg-amber-600 text-white",
+  confirmClass = "bg-state-frozen hover:brightness-110 text-white",
   onConfirm,
   onCancel,
 }: Props) {

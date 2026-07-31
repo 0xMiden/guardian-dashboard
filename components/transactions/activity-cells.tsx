@@ -28,9 +28,9 @@ export function activityLabel(category?: string, proposalType?: string): string 
 }
 
 export function deltaStatusBadge(status: string) {
-  if (status === "canonical") return <Badge className="bg-emerald-500 text-white text-xs">Confirmed</Badge>;
-  if (status === "candidate") return <Badge className="bg-amber-500 text-white text-xs">Submitted</Badge>;
-  return <Badge className="bg-zinc-500 text-white text-xs capitalize">{status}</Badge>;
+  if (status === "canonical") return <Badge className="bg-state-active text-white">Confirmed</Badge>;
+  if (status === "candidate") return <Badge className="bg-state-pending text-white">Submitted</Badge>;
+  return <Badge className="bg-state-neutral text-white capitalize">{status}</Badge>;
 }
 
 export function proposalStatusBadge(collected: number, required: number) {
@@ -38,7 +38,7 @@ export function proposalStatusBadge(collected: number, required: number) {
   return (
     <Badge
       variant="outline"
-      className={`text-xs ${full ? "border-emerald-500 text-emerald-500" : "border-amber-500 text-amber-500"}`}
+      className={full ? "border-state-active text-state-active" : "border-state-pending text-state-pending"}
     >
       {collected}/{required} signed
     </Badge>
@@ -54,7 +54,7 @@ export function AmountCell({ assets }: { assets?: DashboardDeltaEntry["assets"] 
   const display = positive && !formatted.startsWith("+") ? "+" + formatted : formatted;
   const more = assets.length > 1 ? <span className="text-muted-foreground"> +{assets.length - 1}</span> : null;
   return (
-    <span className={`text-xs font-mono ${positive ? "text-emerald-400" : "text-red-400"}`}>
+    <span className={`tabular-nums ${positive ? "text-state-active" : "text-state-error"}`}>
       {display}{more}
     </span>
   );

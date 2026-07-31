@@ -174,13 +174,14 @@ export function TransactionsPanel() {
   // The account is what makes a row identifiable, so it is not offered for
   // hiding. Same arrangement as the accounts table.
   const columns: TableColumn<ActivityRow, ColumnKey>[] = [
-    { key: "account", label: "Account", width: "w-36", cell: (r) => <CopyableId id={r.accountId} /> },
-    { key: "counterparty", label: "To / From", width: "w-36", cell: (r) => <CounterpartyCell counterparty={r.counterparty} /> },
-    { key: "activity", label: "Activity", width: "w-40", cellClass: "text-sm", cell: (r) => r.label },
-    { key: "amount", label: "Amount", width: "w-32", cell: (r) => <AmountCell assets={r.assets} /> },
-    { key: "status", label: "Status", width: "w-36", cell: (r) => r.statusNode },
+    { key: "account", label: "Account", width: "w-36", cellClass: "text-data", cell: (r) => <CopyableId id={r.accountId} /> },
+    { key: "counterparty", label: "To / From", width: "w-36", cellClass: "text-data", cell: (r) => <CounterpartyCell counterparty={r.counterparty} /> },
+    { key: "activity", label: "Activity", width: "w-40", cellClass: "text-data", cell: (r) => r.label },
+    // The figure the row exists to show, same rank as Total Assets on accounts.
+    { key: "amount", label: "Amount", width: "w-32", cellClass: "text-figure", cell: (r) => <AmountCell assets={r.assets} /> },
+    { key: "status", label: "Status", width: "w-36", cellClass: "text-data", cell: (r) => r.statusNode },
     {
-      key: "date", label: "Date", width: "w-40", cellClass: "text-muted-foreground text-xs",
+      key: "date", label: "Date", width: "w-40", cellClass: "text-data text-muted-foreground",
       cell: (r) => <Timestamp iso={r.timestamp} />,
     },
   ];
@@ -239,14 +240,14 @@ export function TransactionsPanel() {
         <>
           <Card>
             <CardContent className="p-0 overflow-x-auto">
-              <table className="w-full text-sm table-fixed">
+              <table className="w-full table-fixed">
                 <colgroup>
                   {shownColumns.map((c) => <col key={c.key} className={c.width} />)}
                 </colgroup>
                 <thead>
-                  <tr className="border-b text-xs text-muted-foreground">
+                  <tr className="border-b text-muted-foreground">
                     {shownColumns.map((c) => (
-                      <th key={c.key} className={`${pad} font-medium ${c.align === "right" ? "text-right" : "text-left"}`}>
+                      <th key={c.key} className={`${pad} text-label ${c.align === "right" ? "text-right" : "text-left"}`}>
                         {c.label}
                       </th>
                     ))}
@@ -266,7 +267,7 @@ export function TransactionsPanel() {
                       }}
                     >
                       {shownColumns.map((c) => (
-                        <td key={c.key} className={`${pad} ${c.align === "right" ? "text-right" : ""} ${c.cellClass ?? ""}`}>
+                        <td key={c.key} className={`${pad} ${c.align === "right" ? "text-right" : ""} ${c.cellClass}`}>
                           {c.cell(row, i)}
                         </td>
                       ))}

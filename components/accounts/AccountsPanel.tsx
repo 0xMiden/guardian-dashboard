@@ -41,15 +41,17 @@ const SNAPSHOT_BATCH_MS = 150;
 const PAGE_SIZE = 500;
 export const ACCOUNTS_KEY = `/api/accounts?limit=${PAGE_SIZE}`;
 
+// Frozen moved off orange: orange is the brand accent now, and a badge in it
+// would read as something to click rather than a state the account is in.
 const STATE_TONE: Record<string, string> = {
-  released: "bg-purple-500",
-  frozen: "bg-orange-500",
-  active: "bg-emerald-500",
+  released: "bg-state-released",
+  frozen: "bg-state-frozen",
+  active: "bg-state-active",
 };
 
 function statusBadge(status: string, pausedAt: string | null, releasedAt?: string | null) {
   const state = accountState(status, pausedAt, releasedAt);
-  return <Badge className={`${STATE_TONE[state] ?? "bg-zinc-500"} text-white`}>{state}</Badge>;
+  return <Badge className={`${STATE_TONE[state] ?? "bg-state-neutral"} text-white`}>{state}</Badge>;
 }
 
 // null sorts last in both directions: a row whose asset total was never fetched
@@ -393,7 +395,7 @@ export function AccountsPanel() {
     {
       key: "type", label: "Type", width: "w-24", cellClass: "text-data",
       cell: (a) => isWalletAccount(a) ? (
-        <Badge variant="outline" className="border-sky-500 text-sky-500 text-xs" title="Inferred from auth shape (ECDSA, 2 signers)">
+        <Badge variant="outline" className="text-muted-foreground" title="Inferred from auth shape (ECDSA, 2 signers)">
           wallet
         </Badge>
       ) : (
@@ -408,7 +410,7 @@ export function AccountsPanel() {
     {
       key: "pending", label: "Pending", width: "w-24", cellClass: "text-data",
       cell: (a) => a.hasPendingCandidate ? (
-        <Badge variant="outline" className="border-amber-500 text-amber-500 text-xs">pending</Badge>
+        <Badge variant="outline" className="border-state-pending text-state-pending">pending</Badge>
       ) : (
         <span className="text-muted-foreground text-xs">—</span>
       ),

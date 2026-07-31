@@ -26,11 +26,15 @@ interface OperatorInfo {
   publicKey: string | null;
 }
 
+// The network is a label, not a state, so it no longer borrows status hues.
+// MidenTestnet was amber, which also meant "submitted" and "pending" elsewhere.
+// Mainnet keeps a tint, because which chain you are pointed at is worth a
+// glance before an irreversible action.
 const networkColor: Record<string, string> = {
-  MidenLocal: "bg-zinc-500",
-  MidenDevnet: "bg-blue-500",
-  MidenTestnet: "bg-amber-500",
-  MidenMainnet: "bg-emerald-500",
+  MidenLocal: "bg-state-neutral",
+  MidenDevnet: "bg-state-neutral",
+  MidenTestnet: "bg-state-neutral",
+  MidenMainnet: "bg-state-active",
 };
 
 type LatencySample = { t: number; ms: number };
@@ -205,7 +209,7 @@ export function GuardianStatusCard() {
                 <div className="flex items-center gap-3">
                   <Badge
                     variant={isUp ? "default" : "destructive"}
-                    className={isUp ? "bg-emerald-500" : ""}
+                    className={isUp ? "bg-state-active" : ""}
                   >
                     {isUp ? "Online" : "Offline"}
                   </Badge>
@@ -220,7 +224,7 @@ export function GuardianStatusCard() {
               {history.length > 1 && (
                 <ResponsiveContainer width="100%" height={128} minWidth={0}>
                   <LineChart data={history}>
-                    <Line type="monotone" dataKey="ms" stroke="#8b5cf6" dot={false} strokeWidth={2} />
+                    <Line type="monotone" dataKey="ms" stroke="var(--color-brand)" dot={false} strokeWidth={2} />
                     <Tooltip
                       content={({ active, payload }) =>
                         active && payload?.length ? (

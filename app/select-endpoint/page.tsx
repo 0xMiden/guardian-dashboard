@@ -77,18 +77,18 @@ export default function SelectEndpointPage() {
               value={selected}
               onChange={(e) => setSelected(e.target.value)}
               required
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               {endpoints.length > 1 && <option value="">Select endpoint…</option>}
               {endpoints.map((ep) => (
                 <option key={ep.id} value={ep.id}>{ep.label}</option>
               ))}
             </select>
-            {error && <p className="text-sm text-red-400">{error}</p>}
+            {error && <p className="text-sm text-state-error">{error}</p>}
             <button
               type="submit"
               disabled={loading || !selected}
-              className="w-full rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+              className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:brightness-110 disabled:opacity-50"
             >
               {loading ? "Connecting…" : "Connect"}
             </button>

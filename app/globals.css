@@ -77,6 +77,25 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  /* The accent needs two values, because one cannot do both jobs: a button
+     wants white to pass ON the orange, and accent text wants the orange to pass
+     ON the page. Darkening helps the first and hurts the second. `--primary` is
+     the solid at 4.78:1 for white on it; this is the text tint at 7.64:1 on the
+     page. Neither is the raw #ff5500, which stays in the mark. */
+  --color-brand: #ff7a3d;
+
+  /* Six states, one hue each, so a colour means exactly one thing. Amber used
+     to carry three unrelated ideas (a submitted transaction, a pending
+     candidate, and the network name), and orange carried "frozen" — which
+     stopped being available the moment orange became the brand. Anything that
+     labels rather than reports a state now goes neutral. */
+  --color-state-active: oklch(0.696 0.17 162.48);    /* healthy, confirmed */
+  --color-state-frozen: oklch(0.769 0.188 70.08);    /* operator hold */
+  --color-state-released: oklch(0.627 0.265 303.9);  /* terminal, gone elsewhere */
+  --color-state-pending: oklch(0.685 0.169 237.32);  /* in flight */
+  --color-state-error: oklch(0.637 0.237 25.33);     /* failed */
+  --color-state-neutral: oklch(0.552 0.016 285.94);  /* none of the above */
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -128,8 +147,11 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  /* Miden orange, darkened from the #ff5500 of the mark. The brand value is
+     bright enough that a filled button in it reads as an alert, and white on it
+     only reaches 3.21:1. This is 4.78:1, so a button label passes AA. */
+  --primary: #cc4400;
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -139,7 +161,9 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  /* Focus rings inherit the brand. `ring-ring` is already on five components
+     and `outline-ring/50` is in the base layer, so this is the whole change. */
+  --ring: #cc4400;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

@@ -15,7 +15,7 @@ interface ClerkUser {
 
 function EndpointTag({ id }: { id: string }) {
   return (
-    <span className="inline-block rounded bg-violet-900/40 border border-violet-700/50 px-2 py-0.5 text-xs font-mono text-violet-300">
+    <span className="inline-block rounded bg-primary/15 border border-brand/40 px-2 py-0.5 text-xs font-mono text-brand">
       {id}
     </span>
   );
@@ -31,7 +31,7 @@ function UserRow({ user, onEdit }: { user: ClerkUser; onEdit: (u: ClerkUser) => 
       <td className="px-4 py-3 text-sm">{name}</td>
       <td className="px-4 py-3 text-xs text-muted-foreground">{user.email}</td>
       <td className="px-4 py-3">
-        <Badge className={role === "admin" ? "bg-violet-600 text-white text-xs" : "bg-zinc-600 text-white text-xs"}>
+        <Badge className={role === "admin" ? "bg-primary text-primary-foreground" : "bg-state-neutral text-white"}>
           {role}
         </Badge>
       </td>
@@ -102,7 +102,7 @@ function EditModal({ user, onClose }: { user: ClerkUser; onClose: () => void }) 
           <select
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+            className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="viewer">Viewer</option>
             <option value="admin">Admin</option>
@@ -121,7 +121,7 @@ function EditModal({ user, onClose }: { user: ClerkUser; onClose: () => void }) 
                     type="checkbox"
                     checked={endpointIds.includes(ep.id)}
                     onChange={() => toggle(ep.id)}
-                    className="accent-violet-600"
+                    className="accent-[--color-primary]"
                   />
                   <span className="text-sm">{ep.label}</span>
                   <span className="text-xs text-muted-foreground font-mono">({ep.id})</span>
@@ -131,7 +131,7 @@ function EditModal({ user, onClose }: { user: ClerkUser; onClose: () => void }) 
           )}
         </div>
 
-        {saveError && <p className="text-xs text-red-400">{saveError}</p>}
+        {saveError && <p className="text-xs text-state-error">{saveError}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
           <button
@@ -143,7 +143,7 @@ function EditModal({ user, onClose }: { user: ClerkUser; onClose: () => void }) 
           <button
             onClick={save}
             disabled={saving}
-            className="px-4 py-1.5 text-sm rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white transition-colors"
+            className="px-4 py-1.5 text-sm rounded-lg bg-primary hover:brightness-110 disabled:opacity-50 text-white transition-colors"
           >
             {saving ? "Saving…" : "Save"}
           </button>

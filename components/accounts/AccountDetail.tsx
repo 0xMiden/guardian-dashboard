@@ -48,7 +48,7 @@ const PAUSE_MODAL_COPY = {
     event: "account_frozen",
     failure: "Failed to freeze account",
     busy: "Freezing…",
-    buttonClass: "bg-red-500 hover:bg-red-600",
+    buttonClass: "bg-state-error hover:brightness-110",
   },
   unfreeze: {
     endpoint: "unpause",
@@ -57,7 +57,7 @@ const PAUSE_MODAL_COPY = {
     event: "account_unfrozen",
     failure: "Failed to unfreeze account",
     busy: "Unfreezing…",
-    buttonClass: "bg-emerald-500 hover:bg-emerald-600",
+    buttonClass: "bg-state-active hover:brightness-110",
   },
 } as const;
 
@@ -115,7 +115,7 @@ function PauseModal({
         {needsReason && (
           <div className="flex flex-col gap-1.5">
             <label className="text-xs text-muted-foreground">
-              Reason <span className="text-red-400">*</span>
+              Reason <span className="text-state-error">*</span>
             </label>
             <textarea
               className="w-full rounded-md border bg-muted px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
@@ -129,8 +129,8 @@ function PauseModal({
           </div>
         )}
         {failure && (
-          <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2">
-            <p className="text-xs font-medium text-red-400">{failure.title}</p>
+          <div role="alert" className="rounded-md border border-state-error/30 bg-state-error/10 px-3 py-2">
+            <p className="text-xs font-medium text-state-error">{failure.title}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">{failure.detail}</p>
           </div>
         )}
@@ -211,7 +211,7 @@ export function AccountDetail({ accountId }: Props) {
                   posthog.capture("account_unfreeze_clicked", { account_id: accountId });
                   setModal("unfreeze");
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-emerald-600 text-emerald-500 hover:bg-emerald-500/10 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-state-active text-state-active hover:bg-state-active/10 transition-colors"
               >
                 <Sun className="h-3.5 w-3.5" />
                 Unfreeze Account
@@ -253,10 +253,10 @@ export function AccountDetail({ accountId }: Props) {
                 label="Status"
                 value={
                   data!.releasedAt
-                    ? <Badge className="bg-purple-500 text-white">Released</Badge>
+                    ? <Badge className="bg-state-released text-white">Released</Badge>
                     : data!.pausedAt
-                    ? <Badge className="bg-orange-500 text-white">Frozen</Badge>
-                    : <Badge className={data!.stateStatus === "available" ? "bg-emerald-500 text-white" : "bg-zinc-500 text-white"}>
+                    ? <Badge className="bg-state-frozen text-white">Frozen</Badge>
+                    : <Badge className={data!.stateStatus === "available" ? "bg-state-active text-white" : "bg-state-neutral text-white"}>
                         {data!.stateStatus === "available" ? "Active" : data!.stateStatus}
                       </Badge>
                 }
@@ -265,7 +265,7 @@ export function AccountDetail({ accountId }: Props) {
                 <Row
                   label="Released"
                   value={
-                    <span className="text-purple-400 text-xs">
+                    <span className="text-state-released text-xs">
                       Switched to another guardian <Timestamp iso={data!.releasedAt} />
                     </span>
                   }
@@ -277,7 +277,7 @@ export function AccountDetail({ accountId }: Props) {
                   // Both, rather than the reason standing in for the time: an
                   // operator reviewing a freeze needs to know when as well as why.
                   value={
-                    <span className="text-orange-400 text-xs">
+                    <span className="text-state-frozen text-xs">
                       <Timestamp iso={data!.pausedAt} />
                       {data!.pausedReason && <> · {data!.pausedReason}</>}
                     </span>
@@ -288,7 +288,7 @@ export function AccountDetail({ accountId }: Props) {
               <Row
                 label="Pending update"
                 value={data!.hasPendingCandidate
-                  ? <Badge variant="outline" className="border-amber-500 text-amber-500">Yes</Badge>
+                  ? <Badge variant="outline" className="border-state-pending text-state-pending">Yes</Badge>
                   : "No"}
               />
               <Row label="Signers" value={data!.authorizedSignerIds.length} />
@@ -347,7 +347,7 @@ export function AccountDetail({ accountId }: Props) {
               </CardHeader>
               <CardContent className="divide-y">
                 {snapshot.hasPendingCandidate && (
-                  <p className="pb-2 text-xs text-amber-400">A state update is in progress — balances may be slightly out of date.</p>
+                  <p className="pb-2 text-xs text-state-pending">A state update is in progress — balances may be slightly out of date.</p>
                 )}
                 {snapshot.vault.fungible.length === 0 && snapshot.vault.nonFungible.length === 0 ? (
                   <p className="py-2 text-xs text-muted-foreground">No assets in vault.</p>

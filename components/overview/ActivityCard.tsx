@@ -58,17 +58,17 @@ export function ActivityCard() {
             <Row
               label="Confirmed"
               value={data.deltaStatusCounts.canonical}
-              accent="text-emerald-400"
+              accent="text-state-active"
             />
             <Row
               label="In progress"
               value={data.deltaStatusCounts.candidate}
-              accent={data.deltaStatusCounts.candidate > 0 ? "text-amber-400" : undefined}
+              accent={data.deltaStatusCounts.candidate > 0 ? "text-state-pending" : undefined}
             />
             <Row
               label="Awaiting signatures"
               value={data.inFlightProposalCount}
-              accent={data.inFlightProposalCount > 0 ? "text-amber-400" : undefined}
+              accent={data.inFlightProposalCount > 0 ? "text-state-pending" : undefined}
             />
           </div>
         )}

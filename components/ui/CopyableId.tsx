@@ -58,7 +58,7 @@ export function CopyableId({ id, href, onNavigate, prefixLen = 10, suffixLen = 6
         title={id}
       >
         {copied
-          ? <Check className="h-3 w-3 text-emerald-400" />
+          ? <Check className="h-3 w-3 text-state-active" />
           : <Copy className="h-3 w-3" />}
       </button>
     </span>

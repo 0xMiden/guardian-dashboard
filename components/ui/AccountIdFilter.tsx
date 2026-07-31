@@ -19,7 +19,7 @@ export function AccountIdFilter({ value, onChange }: { value: string; onChange: 
         onChange={(e) => onChange(e.target.value)}
         placeholder="Filter by account ID"
         aria-label="Filter by account ID"
-        className="w-52 rounded-full border border-zinc-700 bg-transparent py-1 pl-7 pr-6 text-xs placeholder:text-muted-foreground focus:border-zinc-500 focus:outline-none"
+        className="w-52 rounded-full border bg-transparent py-1 pl-7 pr-6 text-xs placeholder:text-muted-foreground focus:border-ring focus:outline-none"
       />
       {value && (
         <button

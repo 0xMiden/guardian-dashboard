@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/Button";
 import useSWR, { mutate } from "swr";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,12 +45,9 @@ function UserRow({ user, onEdit }: { user: ClerkUser; onEdit: (u: ClerkUser) => 
         </div>
       </td>
       <td className="px-4 py-3">
-        <button
-          onClick={() => onEdit(user)}
-          className="text-xs px-3 py-1 rounded border border-zinc-700 text-muted-foreground hover:text-foreground transition-colors"
-        >
+        <Button onClick={() => onEdit(user)} size="sm">
           Edit
-        </button>
+        </Button>
       </td>
     </tr>
   );
@@ -94,7 +92,7 @@ function EditModal({ user, onClose }: { user: ClerkUser; onClose: () => void }) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-6 max-w-sm w-full mx-4 shadow-2xl space-y-4">
+      <div className="rounded-xl bg-popover border p-6 max-w-sm w-full mx-4 shadow-2xl space-y-4">
         <h2 className="text-sm font-semibold">Edit access — {name}</h2>
 
         <div>
@@ -102,7 +100,7 @@ function EditModal({ user, onClose }: { user: ClerkUser; onClose: () => void }) 
           <select
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full rounded border bg-input px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="viewer">Viewer</option>
             <option value="admin">Admin</option>
@@ -121,7 +119,7 @@ function EditModal({ user, onClose }: { user: ClerkUser; onClose: () => void }) 
                     type="checkbox"
                     checked={endpointIds.includes(ep.id)}
                     onChange={() => toggle(ep.id)}
-                    className="accent-[--color-primary]"
+                    className="accent-primary"
                   />
                   <span className="text-sm">{ep.label}</span>
                   <span className="text-xs text-muted-foreground font-mono">({ep.id})</span>
@@ -134,19 +132,12 @@ function EditModal({ user, onClose }: { user: ClerkUser; onClose: () => void }) 
         {saveError && <p className="text-xs text-state-error">{saveError}</p>}
 
         <div className="flex justify-end gap-3 pt-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 text-sm rounded-lg border border-zinc-700 text-muted-foreground hover:text-foreground transition-colors"
-          >
+          <Button onClick={onClose} size="lg">
             Cancel
-          </button>
-          <button
-            onClick={save}
-            disabled={saving}
-            className="px-4 py-1.5 text-sm rounded-lg bg-primary hover:brightness-110 disabled:opacity-50 text-white transition-colors"
-          >
+          </Button>
+          <Button onClick={save} disabled={saving} variant="primary" size="lg">
             {saving ? "Saving…" : "Save"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -171,7 +162,7 @@ export default function AdminPage() {
         <CardHeader className="pb-2">
           <CardTitle className="text-section text-muted-foreground">
             Registered Users
-            <span className="ml-2 text-xs font-normal text-zinc-600">Manage endpoint access and roles</span>
+            <span className="ml-2 text-xs font-normal text-muted-foreground">Manage endpoint access and roles</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">

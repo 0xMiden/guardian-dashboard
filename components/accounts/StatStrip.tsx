@@ -2,10 +2,19 @@
 import useSWR, { mutate } from "swr";
 import { fetcher } from "@/lib/utils";
 
-type AccountStats = { total: number | null; count7d: number; count30d: number };
+export type AccountStats = {
+  total: number | null;
+  count7d: number;
+  count30d: number;
+  // From the same paged walk the counts above use, so the Accounts table can
+  // label its filters with what the node holds instead of what it has paged in.
+  counted?: number;
+  wallet?: number;
+  other?: number;
+};
 type AssetTotals = { usd7d?: number; computedAt?: string };
 
-const STATS_KEY = "/api/accounts/stats";
+export const STATS_KEY = "/api/accounts/stats";
 const ASSETS_KEY = "/api/accounts/asset-totals";
 
 /**

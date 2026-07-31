@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { AccountsPanel } from "@/components/accounts/AccountsPanel";
+import { AccountsPanel, ACCOUNTS_KEY } from "@/components/accounts/AccountsPanel";
 import posthog from "posthog-js";
 
 vi.mock("swr", () => ({ default: vi.fn() }));
@@ -34,7 +34,7 @@ describe("AccountsPanel", () => {
 
   it("keeps showing cached accounts when a revalidation fails", () => {
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [{
+      if (key === ACCOUNTS_KEY) return { data: { items: [{
         accountId: "0xabc123",
         stateStatus: "available",
         authScheme: "falcon",
@@ -60,7 +60,7 @@ describe("AccountsPanel", () => {
 
   it("renders account rows", () => {
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [{
+      if (key === ACCOUNTS_KEY) return { data: { items: [{
         accountId: "0xabc123",
         stateStatus: "available",
         authScheme: "falcon",
@@ -74,12 +74,12 @@ describe("AccountsPanel", () => {
     });
     render(<AccountsPanel />);
     expect(screen.getByText("0xabc123")).toBeInTheDocument();
-    expect(screen.getByText("available")).toBeInTheDocument();
+    expect(screen.getByText("active")).toBeInTheDocument();
   });
 
-  it("badges a released account, and released wins over paused", () => {
+  it("badges a released account, and released wins over frozen", () => {
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [{
+      if (key === ACCOUNTS_KEY) return { data: { items: [{
         accountId: "0xreleased",
         stateStatus: "available",
         authScheme: "falcon",
@@ -94,12 +94,12 @@ describe("AccountsPanel", () => {
     });
     render(<AccountsPanel />);
     expect(screen.getByText("released")).toBeInTheDocument();
-    expect(screen.queryByText("paused")).not.toBeInTheDocument();
+    expect(screen.queryByText("frozen")).not.toBeInTheDocument();
   });
 
   it("badges ecdsa 2-signer accounts as wallet and filters on it", () => {
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [
+      if (key === ACCOUNTS_KEY) return { data: { items: [
         { accountId: "0xwallet", stateStatus: "available", authScheme: "ecdsa", authorizedSignerCount: 2,
           hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: new Date().toISOString() },
         { accountId: "0xsdk", stateStatus: "available", authScheme: "falcon", authorizedSignerCount: 3,
@@ -123,7 +123,7 @@ describe("AccountsPanel", () => {
 
   it("says so when a filter matches nothing in the loaded rows", () => {
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [
+      if (key === ACCOUNTS_KEY) return { data: { items: [
         { accountId: "0xsdk", stateStatus: "available", authScheme: "falcon", authorizedSignerCount: 3,
           hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: new Date().toISOString() },
       ], nextCursor: null }, error: undefined };
@@ -136,7 +136,7 @@ describe("AccountsPanel", () => {
 
   it("narrows the rows to an account ID substring, in either encoding", () => {
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [
+      if (key === ACCOUNTS_KEY) return { data: { items: [
         { accountId: "0xaaa111", accountIdBech32: "mtst1aaa111", stateStatus: "available", authScheme: "falcon",
           authorizedSignerCount: 3, hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: new Date().toISOString() },
         { accountId: "0xbbb222", accountIdBech32: "mtst1bbb222", stateStatus: "available", authScheme: "falcon",
@@ -162,7 +162,7 @@ describe("AccountsPanel", () => {
     const mockPush = vi.fn();
     vi.mocked(useRouter).mockReturnValue({ push: mockPush } as any);
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [
+      if (key === ACCOUNTS_KEY) return { data: { items: [
         { accountId: "0xaaa111", stateStatus: "available", authScheme: "falcon", authorizedSignerCount: 3,
           hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: new Date().toISOString() },
       ], nextCursor: null }, error: undefined };
@@ -184,7 +184,7 @@ describe("AccountsPanel", () => {
   // rows, so the whole table jumped sideways on each chip click.
   it("pins the column widths so switching filters cannot shift the table", () => {
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [
+      if (key === ACCOUNTS_KEY) return { data: { items: [
         { accountId: "0xaaa111", stateStatus: "available", authScheme: "falcon", authorizedSignerCount: 3,
           hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: new Date().toISOString() },
       ], nextCursor: null }, error: undefined };
@@ -212,7 +212,7 @@ describe("AccountsPanel", () => {
       updatedAt: new Date().toISOString(),
     };
     useSWR.mockImplementation((key: string) => {
-      if (key === "/api/accounts") return { data: { items: [account], nextCursor: null }, error: undefined };
+      if (key === ACCOUNTS_KEY) return { data: { items: [account], nextCursor: null }, error: undefined };
       return { data: undefined, error: undefined };
     });
     render(<AccountsPanel />);
@@ -223,5 +223,126 @@ describe("AccountsPanel", () => {
       has_pending_candidate: false,
     });
     expect(mockPush).toHaveBeenCalledWith("/accounts/0xabc123");
+  });
+});
+
+describe("AccountsPanel sorting and export", () => {
+  const row = (id: string, over: Record<string, unknown> = {}) => ({
+    accountId: id, stateStatus: "available", authScheme: "falcon", authorizedSignerCount: 2,
+    hasPendingCandidate: false, pausedAt: null, pausedReason: null,
+    createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", ...over,
+  });
+
+  function mockRows(items: ReturnType<typeof row>[]) {
+    useSWR.mockImplementation((key: string) =>
+      key === ACCOUNTS_KEY
+        ? { data: { items, nextCursor: null }, error: undefined }
+        : { data: undefined, error: undefined });
+  }
+
+  const idsInOrder = (container: HTMLElement) =>
+    [...container.querySelectorAll("tr[data-account-id]")].map((r) => r.getAttribute("data-account-id"));
+
+  it("leaves rows in the node's order until a header is clicked", () => {
+    mockRows([row("0xb", { authorizedSignerCount: 9 }), row("0xa", { authorizedSignerCount: 1 })]);
+    const { container } = render(<AccountsPanel />);
+    expect(idsInOrder(container)).toEqual(["0xb", "0xa"]);
+  });
+
+  it("cycles a column through descending, ascending, then back to node order", () => {
+    mockRows([row("0xb", { authorizedSignerCount: 9 }), row("0xa", { authorizedSignerCount: 1 })]);
+    const { container } = render(<AccountsPanel />);
+    const header = screen.getByRole("button", { name: /signers/i });
+
+    fireEvent.click(header);
+    expect(idsInOrder(container)).toEqual(["0xb", "0xa"]);
+    expect(header.closest("th")).toHaveAttribute("aria-sort", "descending");
+
+    fireEvent.click(header);
+    expect(idsInOrder(container)).toEqual(["0xa", "0xb"]);
+    expect(header.closest("th")).toHaveAttribute("aria-sort", "ascending");
+
+    fireEvent.click(header);
+    expect(header.closest("th")).toHaveAttribute("aria-sort", "none");
+  });
+
+  it("sorts by the date a row carries, not by the string", () => {
+    mockRows([
+      row("0xold", { createdAt: "2025-02-01T00:00:00.000Z" }),
+      row("0xnew", { createdAt: "2026-11-30T00:00:00.000Z" }),
+    ]);
+    const { container } = render(<AccountsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /created/i }));
+    expect(idsInOrder(container)).toEqual(["0xnew", "0xold"]);
+  });
+
+  it("renders the account id as a link so it can be opened in a new tab", () => {
+    mockRows([row("0xabc")]);
+    const { container } = render(<AccountsPanel />);
+    expect(container.querySelector('a[href="/accounts/0xabc"]')).toBeTruthy();
+  });
+
+  it("disables export when the filter leaves no rows", () => {
+    mockRows([row("0xabc")]);
+    render(<AccountsPanel />);
+    const button = screen.getByRole("button", { name: /export csv/i });
+    expect(button).not.toBeDisabled();
+    fireEvent.click(screen.getByText("Wallet (0)"));
+    expect(button).toBeDisabled();
+  });
+});
+
+// The chips used to count the rows paged in, so they read "All (50)" on a node
+// holding 1,418 and only moved when scrolling happened to load more.
+describe("AccountsPanel kind counts", () => {
+  const row = (id: string, over: Record<string, unknown> = {}) => ({
+    accountId: id, stateStatus: "available", authScheme: "ecdsa", authorizedSignerCount: 2,
+    hasPendingCandidate: false, pausedAt: null, pausedReason: null,
+    createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", ...over,
+  });
+
+  function mock({ items, stats }: { items: unknown[]; stats?: unknown }) {
+    useSWR.mockImplementation((key: string) => {
+      if (key === ACCOUNTS_KEY) return { data: { items, nextCursor: null }, error: undefined };
+      if (key === "/api/accounts/stats") return { data: stats, error: undefined };
+      return { data: undefined, error: undefined };
+    });
+  }
+
+  it("counts what the node holds, not the page that has been loaded", () => {
+    mock({
+      items: [row("0xa"), row("0xb")],
+      stats: { total: 1418, count7d: 0, count30d: 0, counted: 1418, wallet: 1410, other: 8 },
+    });
+    render(<AccountsPanel />);
+    expect(screen.getByText("All (1,418)")).toBeInTheDocument();
+    expect(screen.getByText("Wallet (1,410)")).toBeInTheDocument();
+    expect(screen.getByText("Other (8)")).toBeInTheDocument();
+  });
+
+  it("says how many rows are loaded, so the chips do not look wrong next to the table", () => {
+    mock({
+      items: [row("0xa"), row("0xb")],
+      stats: { total: 1418, count7d: 0, count30d: 0, counted: 1418, wallet: 1410, other: 8 },
+    });
+    render(<AccountsPanel />);
+    expect(screen.getByText("2 loaded")).toBeInTheDocument();
+  });
+
+  it("omits the loaded note once every account is on screen", () => {
+    mock({
+      items: [row("0xa"), row("0xb")],
+      stats: { total: 2, count7d: 0, count30d: 0, counted: 2, wallet: 2, other: 0 },
+    });
+    render(<AccountsPanel />);
+    expect(screen.queryByText(/loaded$/)).not.toBeInTheDocument();
+  });
+
+  it("falls back to the loaded rows before the walk has answered", () => {
+    mock({ items: [row("0xa"), row("0xb", { authScheme: "falcon" })], stats: undefined });
+    render(<AccountsPanel />);
+    expect(screen.getByText("All (2)")).toBeInTheDocument();
+    expect(screen.getByText("Wallet (1)")).toBeInTheDocument();
+    expect(screen.getByText("Other (1)")).toBeInTheDocument();
   });
 });

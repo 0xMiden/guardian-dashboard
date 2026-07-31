@@ -14,11 +14,17 @@ vi.mock("recharts", () => ({
 
 const useSWR = (await import("swr")).default as ReturnType<typeof vi.fn>;
 
-const healthUp = { status: "up", latencyMs: 42, checkedAt: new Date().toISOString() };
-const healthDown = { status: "down", latencyMs: 999, checkedAt: new Date().toISOString() };
+// One clock reading for the whole module. `checkedAt` and `startedAt` used to
+// call the clock separately, and the card derives uptime as the gap between
+// them. A millisecond ticking over between the two lines made that gap
+// 3,599,999ms, which floors to 3,599s and renders "59m" rather than "1h 0m",
+// failing the uptime test about one run in five.
+const NOW = Date.now();
+const healthUp = { status: "up", latencyMs: 42, checkedAt: new Date(NOW).toISOString() };
+const healthDown = { status: "down", latencyMs: 999, checkedAt: new Date(NOW).toISOString() };
 const overview = {
   environment: "testnet",
-  build: { version: "0.15.0", gitCommit: "abc1234", startedAt: new Date(Date.now() - 3600_000).toISOString(), profile: "release" },
+  build: { version: "0.15.0", gitCommit: "abc1234", startedAt: new Date(NOW - 3600_000).toISOString(), profile: "release" },
 };
 const opInfo = { url: "https://guardian.example.com", network: "MidenTestnet", publicKey: "0xdeadbeef00112233" };
 

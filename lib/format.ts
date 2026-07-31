@@ -36,6 +36,67 @@ export function isWalletAccount(a: { authScheme: string; authorizedSignerCount: 
   return a.authScheme === "ecdsa" && a.authorizedSignerCount === 2;
 }
 
+// One word per account state, shared by the table badge, the detail page and
+// the CSV export so the three cannot drift apart. `released` wins over `frozen`:
+// an account that moved to another guardian is terminal for this node, so an
+// operator unfreeze can never bring it back.
+export function accountState(
+  status: string,
+  pausedAt: string | null,
+  releasedAt?: string | null,
+): string {
+  if (releasedAt) return "released";
+  if (pausedAt) return "frozen";
+  if (status === "available") return "active";
+  return status;
+}
+
+// RFC 4180: a field containing a quote, comma or newline is quoted, and quotes
+// inside it are doubled. Excel reads the result without an import dialog.
+function csvCell(value: unknown): string {
+  const s = value == null ? "" : String(value);
+  return /["\n\r,]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+export function toCsv(rows: unknown[][]): string {
+  return rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+}
+
+// Timestamps go out as ISO rather than localized: a spreadsheet can sort and
+// filter those, and they carry the timezone the rendered table leaves implicit.
+export function accountsToCsv(
+  accounts: {
+    accountId: string;
+    accountIdBech32?: string | null;
+    stateStatus: string;
+    pausedAt: string | null;
+    releasedAt?: string | null;
+    authScheme: string;
+    authorizedSignerCount: number;
+    hasPendingCandidate: boolean;
+    createdAt: string;
+    updatedAt: string;
+  }[],
+  assetTotals: Record<string, number>,
+): string {
+  return toCsv([
+    ["Account ID", "Account ID (hex)", "Status", "Type", "Signers", "Pending", "Total assets (USD)", "Created", "Updated"],
+    ...accounts.map((a) => [
+      a.accountIdBech32 ?? a.accountId,
+      a.accountId,
+      accountState(a.stateStatus, a.pausedAt, a.releasedAt),
+      isWalletAccount(a) ? "wallet" : "",
+      a.authorizedSignerCount,
+      a.hasPendingCandidate ? "pending" : "",
+      // Blank rather than 0 when the row's total was never fetched: the export
+      // must not claim an account holds nothing when nobody looked.
+      assetTotals[a.accountId] ?? "",
+      a.createdAt,
+      a.updatedAt,
+    ]),
+  ]);
+}
+
 // Substring match against every form of an account's id, so a hex query finds a
 // row displayed in bech32 and the other way round. An empty query matches
 // everything, which keeps the call sites free of `query ? ... : ...`.

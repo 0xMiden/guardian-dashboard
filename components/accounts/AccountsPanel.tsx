@@ -2,6 +2,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import useSWR, { mutate } from "swr";
 import { useRouter } from "next/navigation";
+import { ChevronUp, ChevronDown, ChevronsUpDown, Download } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,28 +11,97 @@ import posthog from "posthog-js";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
-import { StatStrip, refreshStatStrip } from "@/components/accounts/StatStrip";
+import { StatStrip, refreshStatStrip, STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
 import { fetcher } from "@/lib/utils";
-import { isWalletAccount, matchesAccountId, looksLikeAccountId } from "@/lib/format";
+import { isWalletAccount, matchesAccountId, looksLikeAccountId, accountState, accountsToCsv } from "@/lib/format";
 
 type AccountsPage = PagedResult<DashboardAccountSummary>;
 type AccountKind = "all" | "wallet" | "other";
 type SnapshotTarget = { accountId: string; updatedAt: string };
+type SortKey = "status" | "signers" | "assets" | "created" | "updated";
+type Sort = { key: SortKey; dir: "asc" | "desc" };
 
 // Coalescing window for rows scrolling into view.
 const SNAPSHOT_BATCH_MS = 150;
 
-// Released wins over paused: an account that moved to another guardian is
-// terminal for this node, so an operator unpause can never bring it back.
+// The node's documented maximum page size, the same figure the server-side
+// inventory walk uses and verified there against every reachable node. A page
+// costs one request whatever size it is, so leaving this to the node's 50-row
+// default meant 29 round trips to scroll the 1,418-account node instead of 3.
+// Asset totals are still fetched per visible row, so a larger page pulls no
+// extra snapshots.
+const PAGE_SIZE = 500;
+export const ACCOUNTS_KEY = `/api/accounts?limit=${PAGE_SIZE}`;
+
+const STATE_TONE: Record<string, string> = {
+  released: "bg-purple-500",
+  frozen: "bg-orange-500",
+  active: "bg-emerald-500",
+};
+
 function statusBadge(status: string, pausedAt: string | null, releasedAt?: string | null) {
-  if (releasedAt) return <Badge className="bg-purple-500 text-white">released</Badge>;
-  if (pausedAt) return <Badge className="bg-orange-500 text-white">paused</Badge>;
-  if (status === "available") return <Badge className="bg-emerald-500 text-white">available</Badge>;
-  return <Badge className="bg-zinc-500 text-white">{status}</Badge>;
+  const state = accountState(status, pausedAt, releasedAt);
+  return <Badge className={`${STATE_TONE[state] ?? "bg-zinc-500"} text-white`}>{state}</Badge>;
+}
+
+// null sorts last in both directions: a row whose asset total was never fetched
+// is unknown, and ordering it as zero would read as an empty account.
+function sortValue(a: DashboardAccountSummary, key: SortKey, assets: Record<string, number>): string | number | null {
+  switch (key) {
+    case "status": return accountState(a.stateStatus, a.pausedAt, a.releasedAt);
+    case "signers": return a.authorizedSignerCount;
+    case "assets": return assets[a.accountId] ?? null;
+    case "created": return new Date(a.createdAt).getTime();
+    case "updated": return new Date(a.updatedAt).getTime();
+  }
+}
+
+// ponytail: sorts the rows already paged in, the same ceiling the filters above
+// carry. `ListAccountsOptions` is limit/cursor/paused with no ordering, so a
+// full-inventory sort would mean paging the whole node first. Upgrade path is an
+// order parameter on the node's list endpoints.
+function sortAccounts(items: DashboardAccountSummary[], sort: Sort, assets: Record<string, number>) {
+  return [...items].sort((a, b) => {
+    const av = sortValue(a, sort.key, assets);
+    const bv = sortValue(b, sort.key, assets);
+    if (av === null || bv === null) return av === bv ? 0 : av === null ? 1 : -1;
+    const cmp = typeof av === "string" ? av.localeCompare(bv as string) : av - (bv as number);
+    return sort.dir === "asc" ? cmp : -cmp;
+  });
+}
+
+function SortableHeader({
+  label, sortKey, sort, onSort, align = "left",
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: Sort | null;
+  onSort: (key: SortKey) => void;
+  align?: "left" | "right";
+}) {
+  const active = sort?.key === sortKey;
+  return (
+    <th
+      className={`px-4 py-3 font-medium ${align === "right" ? "text-right" : "text-left"}`}
+      aria-sort={active ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <button
+        onClick={() => onSort(sortKey)}
+        className={`inline-flex items-center gap-1 rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "text-foreground" : ""}`}
+      >
+        {label}
+        {active
+          ? (sort!.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)
+          : <ChevronsUpDown className="h-3 w-3 opacity-40" />}
+      </button>
+    </th>
+  );
 }
 
 export function AccountsPanel() {
-  const { data, error } = useSWR<AccountsPage>("/api/accounts", fetcher, { refreshInterval: 30_000 });
+  const { data, error } = useSWR<AccountsPage>(ACCOUNTS_KEY, fetcher, { refreshInterval: 30_000 });
+  // Same key StatStrip already polls, so SWR serves both from one request.
+  const { data: stats } = useSWR<AccountStats>(STATS_KEY, fetcher);
   const router = useRouter();
   const [perAccount, setPerAccount] = useState<Record<string, number>>({});
   // Which rows have a request out right now. One global "loading" flag put a
@@ -47,7 +117,14 @@ export function AccountsPanel() {
   const [kind, setKind] = useState<AccountKind>("all");
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  // null is the node's own order. Clicking a header cycles desc, asc, back to
+  // null, so there is a way back to the order the rows arrived in.
+  const [sort, setSort] = useState<Sort | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const toggleSort = useCallback((key: SortKey) => {
+    setSort((s) => (s?.key !== key ? { key, dir: "desc" } : s.dir === "desc" ? { key, dir: "asc" } : null));
+  }, []);
 
   const initialCursor = data?.nextCursor ?? null;
   // undefined → haven't paginated yet, check initialCursor from SWR
@@ -85,7 +162,7 @@ export function AccountsPanel() {
     if (!cursor) return;
     setLoadingMore(true);
     try {
-      const res = await fetch(`/api/accounts?cursor=${encodeURIComponent(cursor)}`);
+      const res = await fetch(`${ACCOUNTS_KEY}&cursor=${encodeURIComponent(cursor)}`);
       if (!res.ok) return; // keep cursor untouched so the next attempt can retry
       const page: AccountsPage = await res.json();
       const newItems = page.items ?? [];
@@ -141,7 +218,7 @@ export function AccountsPanel() {
       // versions land would just re-read what is already on screen. A failed
       // revalidation falls back to the rendered rows, which still works because
       // `refresh=1` re-reads them whatever their version says.
-      const page = await mutate<AccountsPage>("/api/accounts");
+      const page = await mutate<AccountsPage>(ACCOUNTS_KEY);
       const rows = [...(page?.items ?? data?.items ?? []), ...extraItems]
         .filter((a) => visibleRef.current.has(a.accountId))
         .map((a) => ({ accountId: a.accountId, updatedAt: a.updatedAt }));
@@ -222,11 +299,51 @@ export function AccountsPanel() {
 
   const loaded = [...(data?.items ?? []), ...extraItems];
   const walletCount = loaded.filter(isWalletAccount).length;
-  const items = loaded.filter(
+  const filtered = loaded.filter(
     (a) =>
       (kind === "all" || isWalletAccount(a) === (kind === "wallet")) &&
       matchesAccountId(query, a.accountId, a.accountIdBech32),
   );
+  const items = sort ? sortAccounts(filtered, sort, perAccount) : filtered;
+
+  // The chips count what the node holds, from the same paged walk that feeds
+  // the stat strip above, so they no longer read as a total while showing one
+  // page. Until that answers, they fall back to the loaded rows, which is what
+  // they always were. The filters themselves still act on loaded rows, hence
+  // the "of" line beside them.
+  const counts = stats?.counted != null
+    ? { all: stats.counted, wallet: stats.wallet ?? 0, other: stats.other ?? 0 }
+    : { all: loaded.length, wallet: walletCount, other: loaded.length - walletCount };
+
+  // Exports exactly what the table shows: same filter, same sort, same rows.
+  // ponytail: loaded rows only, so an export after scrolling three pages holds
+  // three pages. The empty state and the column ceilings say the same thing;
+  // a whole-inventory export needs the node-side paging this panel avoids.
+  function exportCsv() {
+    posthog.capture("accounts_exported", { row_count: items.length, filter: kind, sorted: !!sort });
+    const url = URL.createObjectURL(
+      new Blob([accountsToCsv(items, perAccount)], { type: "text/csv;charset=utf-8" }),
+    );
+    const link = Object.assign(document.createElement("a"), {
+      href: url,
+      download: `guardian-accounts-${new Date().toISOString().slice(0, 10)}.csv`,
+    });
+    // In the document and revoked on the next tick: Safari ignores a click on a
+    // detached anchor, and revoking in the same tick can cancel the download
+    // before the browser has read the blob.
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
+  function openAccount(a: DashboardAccountSummary) {
+    posthog.capture("account_clicked", {
+      account_id: a.accountId,
+      account_status: a.stateStatus,
+      has_pending_candidate: a.hasPendingCandidate,
+    });
+  }
 
   if (!loaded.length) {
     return (
@@ -239,18 +356,14 @@ export function AccountsPanel() {
   return (
     <div className="flex flex-col gap-4">
       <StatStrip />
-      {/* ponytail: filters the rows already loaded, so the counts track
-          infinite scroll rather than the node's full inventory. The node has no
-          filter parameter for this; upgrade path is a server-side one, which
-          needs the client-attribution field proposed upstream. */}
       {/* Search sits at the left edge, over the Account ID column it filters.
           Row-scoped controls stay on the left, table-scoped ones on the right. */}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <AccountIdFilter value={query} onChange={setQuery} />
         {([
-          ["all", `All (${loaded.length})`],
-          ["wallet", `Wallet (${walletCount})`],
-          ["other", `Other (${loaded.length - walletCount})`],
+          ["all", `All (${counts.all.toLocaleString()})`],
+          ["wallet", `Wallet (${counts.wallet.toLocaleString()})`],
+          ["other", `Other (${counts.other.toLocaleString()})`],
         ] as const).map(([value, label]) => (
           <button
             key={value}
@@ -263,7 +376,26 @@ export function AccountsPanel() {
             {label}
           </button>
         ))}
-        <div className="ml-auto">
+        {/* Without this the chips look like they disagree with the table: the
+            counts describe the node, the rows are one page of it. */}
+        {counts.all > loaded.length && (
+          <span
+            className="text-muted-foreground"
+            title="Filters, sort and export cover the rows loaded so far. Scroll to load more."
+          >
+            {loaded.length.toLocaleString()} loaded
+          </span>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={exportCsv}
+            disabled={!items.length}
+            title="Download the rows currently shown as CSV"
+            className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1 text-muted-foreground transition-colors hover:text-foreground hover:border-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          >
+            <Download className="h-3 w-3" />
+            Export CSV
+          </button>
           <RefreshButton onClick={refresh} busy={refreshing} />
         </div>
       </div>
@@ -287,15 +419,15 @@ export function AccountsPanel() {
             </colgroup>
             <thead>
               <tr className="border-b text-xs text-muted-foreground">
-                <th className="px-4 py-3 text-left font-medium">#</th>
+                <th className="px-4 py-3 text-right font-medium">#</th>
                 <th className="px-4 py-3 text-left font-medium">Account ID</th>
-                <th className="px-4 py-3 text-left font-medium">Status</th>
+                <SortableHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} />
                 <th className="px-4 py-3 text-left font-medium">Type</th>
-                <th className="px-4 py-3 text-left font-medium">Signers</th>
+                <SortableHeader label="Signers" sortKey="signers" sort={sort} onSort={toggleSort} align="right" />
                 <th className="px-4 py-3 text-left font-medium">Pending</th>
-                <th className="px-4 py-3 text-left font-medium">Total Assets</th>
-                <th className="px-4 py-3 text-left font-medium">Created</th>
-                <th className="px-4 py-3 text-left font-medium">Updated</th>
+                <SortableHeader label="Total Assets" sortKey="assets" sort={sort} onSort={toggleSort} align="right" />
+                <SortableHeader label="Created" sortKey="created" sort={sort} onSort={toggleSort} />
+                <SortableHeader label="Updated" sortKey="updated" sort={sort} onSort={toggleSort} />
               </tr>
             </thead>
             <tbody ref={tbodyRef}>
@@ -305,18 +437,15 @@ export function AccountsPanel() {
                   data-account-id={a.accountId}
                   data-updated-at={a.updatedAt}
                   className="border-b last:border-0 cursor-pointer hover:bg-muted/40 transition-colors"
-                  onClick={() => {
-                    posthog.capture("account_clicked", {
-                      account_id: a.accountId,
-                      account_status: a.stateStatus,
-                      has_pending_candidate: a.hasPendingCandidate,
-                    });
-                    router.push(`/accounts/${a.accountId}`);
-                  }}
+                  onClick={() => { openAccount(a); router.push(`/accounts/${a.accountId}`); }}
                 >
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{i + 1}</td>
+                  <td className="px-4 py-3 text-right text-xs text-muted-foreground tabular-nums">{i + 1}</td>
                   <td className="px-4 py-3">
-                    <CopyableId id={a.accountIdBech32 ?? a.accountId} />
+                    <CopyableId
+                      id={a.accountIdBech32 ?? a.accountId}
+                      href={`/accounts/${a.accountId}`}
+                      onNavigate={() => openAccount(a)}
+                    />
                   </td>
                   <td className="px-4 py-3">{statusBadge(a.stateStatus, a.pausedAt, a.releasedAt)}</td>
                   <td className="px-4 py-3">
@@ -328,7 +457,7 @@ export function AccountsPanel() {
                       <span className="text-muted-foreground text-xs">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3">{a.authorizedSignerCount}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{a.authorizedSignerCount}</td>
                   <td className="px-4 py-3">
                     {a.hasPendingCandidate ? (
                       <Badge variant="outline" className="border-amber-500 text-amber-500 text-xs">
@@ -338,12 +467,12 @@ export function AccountsPanel() {
                       <span className="text-muted-foreground text-xs">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-xs">
+                  <td className="px-4 py-3 text-right text-xs">
                     {perAccount[a.accountId] !== undefined
-                      ? <span className="font-mono">${perAccount[a.accountId].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      ? <span className="font-mono tabular-nums">${perAccount[a.accountId].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       : inFlight.has(a.accountId)
-                      ? <Skeleton className="h-3 w-16" data-testid={`assets-loading-${a.accountId}`} />
-                      : <span className="text-muted-foreground">—</span>}
+                      ? <Skeleton className="ml-auto h-3 w-16" data-testid={`assets-loading-${a.accountId}`} />
+                      : <span className="text-muted-foreground" title="Not fetched yet. Totals load for rows as they scroll into view.">—</span>}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">
                     {new Date(a.createdAt).toLocaleString()}

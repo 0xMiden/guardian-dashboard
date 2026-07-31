@@ -19,8 +19,8 @@ export function NavItem({ href, label, icon }: NavItemProps) {
       className={cn(
         "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
         active
-          ? "bg-white/10 text-white"
-          : "text-white/60 hover:bg-white/5 hover:text-white"
+          ? "bg-muted text-foreground"
+          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
       )}
     >
       {icon}

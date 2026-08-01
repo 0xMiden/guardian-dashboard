@@ -11,6 +11,10 @@ export type AccountStats = {
   counted?: number;
   wallet?: number;
   other?: number;
+  // Counted in the same pass, so Overview can answer "is anything frozen"
+  // without a query of its own.
+  frozen?: number;
+  released?: number;
 };
 type AssetTotals = { usd7d?: number; computedAt?: string };
 

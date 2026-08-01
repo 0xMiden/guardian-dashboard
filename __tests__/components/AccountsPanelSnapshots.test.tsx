@@ -39,7 +39,10 @@ vi.mock("swr", async () => {
   const actual = await vi.importActual<typeof import("swr")>("swr");
   return { ...actual, default: vi.fn(), mutate: vi.fn(async () => undefined) };
 });
-vi.mock("next/navigation", () => ({ useRouter: vi.fn(() => ({ push: vi.fn() })) }));
+vi.mock("next/navigation", () => ({
+  useRouter: vi.fn(() => ({ push: vi.fn() })),
+  useSearchParams: vi.fn(() => new URLSearchParams()),
+}));
 
 const { AccountsPanel, ACCOUNTS_KEY } = await import("@/components/accounts/AccountsPanel");
 const useSWR = (await import("swr")).default as ReturnType<typeof vi.fn>;

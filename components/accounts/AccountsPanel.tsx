@@ -1,8 +1,9 @@
 "use client";
 import { useState, useCallback, useEffect, useRef } from "react";
 import useSWR, { mutate } from "swr";
-import { useRouter } from "next/navigation";
-import { ChevronUp, ChevronDown, ChevronsUpDown, Download } from "lucide-react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ChevronUp, ChevronDown, ChevronsUpDown, Download, Snowflake } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -42,6 +43,13 @@ const SNAPSHOT_BATCH_MS = 150;
 // extra snapshots.
 const PAGE_SIZE = 500;
 export const ACCOUNTS_KEY = `/api/accounts?limit=${PAGE_SIZE}`;
+
+// Frozen-only is a server-side filter, unlike the chips and the search box
+// which act on rows already paged in. That is the whole point: an operator
+// arriving from the Overview count needs the frozen accounts wherever they sit
+// in the inventory, not the ones that happen to be on screen.
+const accountsKey = (pausedOnly: boolean) =>
+  pausedOnly ? `${ACCOUNTS_KEY}&paused=true` : ACCOUNTS_KEY;
 
 // Frozen moved off orange: orange is the brand accent now, and a badge in it
 // would read as something to click rather than a state the account is in.
@@ -114,7 +122,9 @@ function SortableHeader({
 type Column = TableColumn<DashboardAccountSummary, ColumnKey> & { sortKey?: SortKey };
 
 export function AccountsPanel() {
-  const { data, error, mutate: revalidate } = useSWR<AccountsPage>(ACCOUNTS_KEY, fetcher, { refreshInterval: 30_000 });
+  const pausedOnly = useSearchParams().get("paused") === "true";
+  const listKey = accountsKey(pausedOnly);
+  const { data, error, mutate: revalidate } = useSWR<AccountsPage>(listKey, fetcher, { refreshInterval: 30_000 });
   // Same key StatStrip already polls, so SWR serves both from one request.
   const { data: stats } = useSWR<AccountStats>(STATS_KEY, fetcher);
   const router = useRouter();
@@ -191,7 +201,7 @@ export function AccountsPanel() {
     if (!cursor) return;
     setLoadingMore(true);
     try {
-      const res = await fetch(`${ACCOUNTS_KEY}&cursor=${encodeURIComponent(cursor)}`);
+      const res = await fetch(`${listKey}&cursor=${encodeURIComponent(cursor)}`);
       if (!res.ok) return; // keep cursor untouched so the next attempt can retry
       const page: AccountsPage = await res.json();
       const newItems = page.items ?? [];
@@ -202,7 +212,7 @@ export function AccountsPanel() {
     } finally {
       setLoadingMore(false);
     }
-  }, [nextCursor, initialCursor]);
+  }, [nextCursor, initialCursor, listKey]);
 
   const fetchSnapshotsRef = useRef(fetchSnapshots);
   useEffect(() => { fetchSnapshotsRef.current = fetchSnapshots; }, [fetchSnapshots]);
@@ -247,7 +257,7 @@ export function AccountsPanel() {
       // versions land would just re-read what is already on screen. A failed
       // revalidation falls back to the rendered rows, which still works because
       // `refresh=1` re-reads them whatever their version says.
-      const page = await mutate<AccountsPage>(ACCOUNTS_KEY);
+      const page = await mutate<AccountsPage>(listKey);
       const rows = [...(page?.items ?? data?.items ?? []), ...extraItems]
         .filter((a) => visibleRef.current.has(a.accountId))
         .map((a) => ({ accountId: a.accountId, updatedAt: a.updatedAt }));
@@ -257,7 +267,7 @@ export function AccountsPanel() {
     } finally {
       setRefreshing(false);
     }
-  }, [data, extraItems]);
+  }, [data, extraItems, listKey]);
 
   // Keep a stable ref to loadMore so the observer never needs to be rebuilt on cursor changes
   const loadMoreRef = useRef(loadMore);
@@ -444,9 +454,19 @@ export function AccountsPanel() {
   const pad = CELL_PADDING[density];
 
   if (!loaded.length) {
-    return (
-      <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-        No accounts registered on this Guardian node yet.
+    // An empty *filtered* list is not an empty node. Saying "no accounts
+    // registered" to someone who arrived from the frozen count would be flatly
+    // untrue, and would strand them with no way back.
+    return pausedOnly ? (
+      <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-lg border border-dashed text-data text-muted-foreground">
+        <p>No accounts are frozen.</p>
+        <Link href="/accounts" className="underline-offset-4 hover:text-foreground hover:underline">
+          Show all accounts
+        </Link>
+      </div>
+    ) : (
+      <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-data text-muted-foreground">
+        No accounts registered on this Guardian server yet.
       </div>
     );
   }
@@ -456,6 +476,18 @@ export function AccountsPanel() {
       <StatStrip />
       {/* Search sits at the left edge, over the Account ID column it filters.
           Row-scoped controls stay on the left, table-scoped ones on the right. */}
+      {/* A filtered table that does not say so is a table that lies. This is a
+          server-side filter, so the chips and counts below describe the frozen
+          subset rather than the node. */}
+      {pausedOnly && (
+        <div className="flex items-center gap-2 rounded-lg border border-state-frozen/40 bg-state-frozen/10 px-3 py-2 text-data">
+          <Snowflake className="h-3.5 w-3.5 shrink-0 text-state-frozen" />
+          <span className="text-state-frozen">Showing frozen accounts only</span>
+          <Link href="/accounts" className="ml-auto text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+            Show all accounts
+          </Link>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <AccountIdFilter value={query} onChange={setQuery} />
         {([

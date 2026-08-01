@@ -3,7 +3,10 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { AccountsPanel, ACCOUNTS_KEY } from "@/components/accounts/AccountsPanel";
 
 vi.mock("swr", () => ({ default: vi.fn(), mutate: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: vi.fn(() => ({ push: vi.fn() })) }));
+vi.mock("next/navigation", () => ({
+  useRouter: vi.fn(() => ({ push: vi.fn() })),
+  useSearchParams: vi.fn(() => new URLSearchParams()),
+}));
 
 const useSWR = (await import("swr")).default as ReturnType<typeof vi.fn>;
 

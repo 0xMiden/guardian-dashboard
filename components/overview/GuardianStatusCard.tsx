@@ -255,7 +255,7 @@ export function GuardianStatusCard() {
                 <Row
                   label="Network"
                   value={
-                    <Badge className={`${networkColor[opInfo.network] ?? "bg-zinc-500"} text-white`}>
+                    <Badge className={`${networkColor[opInfo.network] ?? "bg-state-neutral"} text-white`}>
                       {opInfo.network}
                     </Badge>
                   }

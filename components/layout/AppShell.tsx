@@ -73,25 +73,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           title="Sign out?"
           message="You'll be redirected to the login page."
           confirmLabel="Sign out"
-          confirmClass="bg-zinc-600 hover:bg-zinc-500 text-white"
+          confirmClass="bg-secondary text-secondary-foreground hover:brightness-110"
           onConfirm={handleSignOut}
           onCancel={() => setConfirmSignOut(false)}
         />
       )}
 
       {/* Mobile top bar */}
-      <div className="fixed top-0 inset-x-0 flex md:hidden items-center justify-between bg-zinc-900 px-4 py-3 border-b border-zinc-800 z-50">
+      <div className="fixed top-0 inset-x-0 flex md:hidden items-center justify-between bg-sidebar px-4 py-3 border-b z-50">
         <div className="flex items-center gap-2">
           <Image src="/orangerobot.png" alt="Guardian" width={16} height={16} className="shrink-0" />
           <span className="font-heading text-subtitle leading-tight text-foreground">Guardian Dashboard</span>
         </div>
-        <button onClick={() => setConfirmSignOut(true)} className="text-zinc-400 hover:text-foreground transition-colors">
+        <button onClick={() => setConfirmSignOut(true)} className="text-muted-foreground hover:text-foreground transition-colors">
           <LogOut className="h-4 w-4" />
         </button>
       </div>
 
       {/* Sidebar (desktop only) */}
-      <aside className="hidden md:flex w-56 flex-col bg-zinc-900 px-3 py-6">
+      <aside className="hidden md:flex w-56 flex-col bg-sidebar px-3 py-6">
         <div className="mb-8 px-3 flex flex-col items-center">
           <div className="flex items-center gap-2">
             <Image src="/orangerobot.png" alt="Guardian" width={20} height={20} className="shrink-0" />
@@ -103,10 +103,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <NavItem key={href} href={href} label={label} icon={icon} />
           ))}
         </nav>
-        <div className="pt-4 border-t border-zinc-800">
+        <div className="pt-4 border-t">
           <button
             onClick={() => setConfirmSignOut(true)}
-            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-zinc-800 hover:text-foreground transition-colors"
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             <LogOut className="h-4 w-4" />
             Sign out
@@ -118,7 +118,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className="flex-1 overflow-y-auto p-6 pt-16 md:pt-6 pb-24 md:pb-6">{children}</main>
 
       {/* Mobile bottom tab bar */}
-      <nav className="fixed bottom-0 inset-x-0 flex md:hidden bg-zinc-900 border-t border-zinc-800 px-2 py-2 z-50 justify-around">
+      <nav className="fixed bottom-0 inset-x-0 flex md:hidden bg-sidebar border-t px-2 py-2 z-50 justify-around">
         {navItems.map(({ href, label, icon }) => {
           const active = pathname.startsWith(href);
           return (

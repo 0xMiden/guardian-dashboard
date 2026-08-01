@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Rows2, Rows3, Columns3, Check } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 export type Density = "compact" | "comfortable";
 
@@ -77,9 +78,6 @@ export function useTablePrefs<K extends string>(tableId: string, hideable: reado
   };
 }
 
-const BUTTON =
-  "flex items-center gap-1.5 rounded-lg border border-zinc-700 px-2 py-1 text-muted-foreground transition-colors hover:border-zinc-500 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
 export function TableControls<K extends string>({
   density,
   onDensityChange,
@@ -116,36 +114,37 @@ export function TableControls<K extends string>({
 
   return (
     <>
-      <button
+      <Button
         onClick={() => onDensityChange(next)}
         title={`Switch to ${next} rows`}
         aria-label={`Switch to ${next} rows`}
-        className={BUTTON}
+        size="sm"
       >
         {density === "compact" ? <Rows3 className="h-3 w-3" /> : <Rows2 className="h-3 w-3" />}
-      </button>
+      </Button>
 
       <div className="relative" ref={ref}>
-        <button
+        <Button
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-haspopup="true"
           title="Choose columns"
-          className={BUTTON}
+          size="sm"
         >
           <Columns3 className="h-3 w-3" />
           Columns
           {hidden.size > 0 && <span className="tabular-nums">({columns.length - hidden.size})</span>}
-        </button>
+        </Button>
         {open && (
           <div className="absolute right-0 z-20 mt-1 flex w-48 flex-col rounded-lg border bg-background p-1 shadow-xl">
+            {/* Rows inside the popover, not bordered controls. */}
             {columns.map((c) => (
               <button
                 key={c.key}
                 role="menuitemcheckbox"
                 aria-checked={!hidden.has(c.key)}
                 onClick={() => onToggleColumn(c.key)}
-                className="flex items-center gap-2 rounded px-2 py-1.5 text-left transition-colors hover:bg-muted"
+                className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-data transition-colors hover:bg-muted"
               >
                 <Check className={`h-3 w-3 shrink-0 ${hidden.has(c.key) ? "opacity-0" : ""}`} />
                 {c.label}

@@ -12,6 +12,7 @@ import { CopyableId } from "@/components/ui/CopyableId";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
 import { FilterChip } from "@/components/ui/FilterChip";
+import { Button } from "@/components/ui/Button";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { TableControls, useTablePrefs, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
@@ -467,15 +468,10 @@ export function AccountsPanel() {
           </FilterChip>
         ))}
         <div className="ml-auto flex items-center gap-2">
-          <button
-            onClick={exportCsv}
-            disabled={!items.length}
-            title="Download the rows currently shown as CSV"
-            className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1 text-muted-foreground transition-colors hover:text-foreground hover:border-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-          >
+          <Button onClick={exportCsv} disabled={!items.length} title="Download the rows currently shown as CSV" size="sm">
             <Download className="h-3 w-3" />
             Export CSV
-          </button>
+          </Button>
           <TableControls
             density={density}
             onDensityChange={setDensity}
@@ -544,12 +540,9 @@ export function AccountsPanel() {
               {/* The filter can only see rows that have been paged in. A full ID
                   needs no search endpoint to open, so offer that directly. */}
               {looksLikeAccountId(query) && (
-                <button
-                  onClick={() => router.push(`/accounts/${encodeURIComponent(query.trim())}`)}
-                  className="mt-2 rounded-lg border border-zinc-700 px-3 py-1 transition-colors hover:text-foreground hover:border-zinc-500"
-                >
+                <Button onClick={() => router.push(`/accounts/${encodeURIComponent(query.trim())}`)} size="sm" className="mt-2">
                   Open this account directly
-                </button>
+                </Button>
               )}
             </div>
           )}

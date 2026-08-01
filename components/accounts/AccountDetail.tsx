@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { Timestamp } from "@/components/ui/Timestamp";
+import { Button } from "@/components/ui/Button";
 import { ErrorPanel, describeError } from "@/components/ui/ErrorPanel";
 import Link from "next/link";
 import { ArrowLeft, Snowflake, Sun, ArrowLeftRight, ChevronDown, ChevronRight } from "lucide-react";
@@ -135,13 +136,9 @@ function PauseModal({
           </div>
         )}
         <div className="flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="px-3 py-1.5 text-sm rounded-lg border border-zinc-700 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
+          <Button onClick={onClose} disabled={loading}>
             Cancel
-          </button>
+          </Button>
           <button
             onClick={handleSubmit}
             disabled={loading || (needsReason && !reason.trim())}
@@ -194,16 +191,16 @@ export function AccountDetail({ accountId }: Props) {
           <ArrowLeft className="h-4 w-4" /> Back to accounts
         </Link>
         <div className="flex items-center gap-2">
-          <button
+          <Button
             onClick={() => {
               posthog.capture("account_transactions_clicked", { account_id: accountId });
               router.push(`/accounts/${encoded}/transactions`);
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-zinc-700 text-muted-foreground hover:text-foreground hover:border-zinc-500 transition-colors"
+            className="text-label"
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
             Activity
-          </button>
+          </Button>
           {data && (
             isPaused ? (
               <button
@@ -217,16 +214,16 @@ export function AccountDetail({ accountId }: Props) {
                 Unfreeze Account
               </button>
             ) : (
-              <button
+              <Button
                 onClick={() => {
                   posthog.capture("account_freeze_clicked", { account_id: accountId });
                   setModal("freeze");
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-zinc-700 text-muted-foreground hover:text-foreground hover:border-zinc-500 transition-colors"
+                className="text-label"
               >
                 <Snowflake className="h-3.5 w-3.5" />
                 Freeze Account
-              </button>
+              </Button>
             )
           )}
         </div>

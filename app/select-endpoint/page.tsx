@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/Button";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
@@ -64,12 +65,9 @@ export default function SelectEndpointPage() {
               You don&apos;t have access to any Miden Guardian dashboard yet.
               Contact your administrator.
             </p>
-            <button
-              onClick={() => signOut(() => router.push("/sign-in"))}
-              className="w-full rounded-md border border-zinc-700 px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
+            <Button onClick={() => signOut(() => router.push("/sign-in"))} size="lg" className="w-full">
               Sign out
-            </button>
+            </Button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -92,13 +90,9 @@ export default function SelectEndpointPage() {
             >
               {loading ? "Connecting…" : "Connect"}
             </button>
-            <button
-              type="button"
-              onClick={() => signOut(() => router.push("/sign-in"))}
-              className="w-full rounded-md border border-zinc-700 px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
+            <Button type="button" onClick={() => signOut(() => router.push("/sign-in"))} size="lg" className="w-full">
               Sign out
-            </button>
+            </Button>
           </form>
         )}
       </div>

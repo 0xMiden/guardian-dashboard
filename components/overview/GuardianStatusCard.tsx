@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, AlertTriangle, Check } from "lucide-react";
 import { fetcher } from "@/lib/utils";
 import { formatCount } from "@/lib/format";
 import { truncateId } from "@/lib/format";
@@ -19,7 +19,17 @@ interface HealthData {
 interface OverviewData {
   environment?: string;
   build?: { version: string; gitCommit: string; startedAt: string; profile: string };
+  serviceStatus?: "healthy" | "degraded";
+  degradedAggregates?: string[];
 }
+
+// The node names what it cannot compute in its own vocabulary. An operator
+// should not have to know that `accounts_by_auth_method` is the auth split.
+const DEGRADED_LABELS: Record<string, string> = {
+  accounts_by_auth_method: "the account breakdown by auth method",
+};
+const describeDegraded = (keys: string[]) =>
+  keys.map((k) => DEGRADED_LABELS[k] ?? k.replace(/_/g, " ")).join(", ");
 
 interface OperatorInfo {
   url: string;
@@ -37,6 +47,10 @@ const networkColor: Record<string, string> = {
   MidenTestnet: "bg-state-neutral",
   MidenMainnet: "bg-state-active",
 };
+
+// Named because the card states the cadence to the reader, and a figure in
+// the copy that can drift from the actual interval is a lie waiting to happen.
+const HEALTH_POLL_MS = 5000;
 
 type LatencySample = { t: number; ms: number };
 
@@ -166,7 +180,7 @@ export function GuardianStatusCard() {
   }
 
   const { data: health } = useSWR<HealthData>("/api/health", fetcher, {
-    refreshInterval: 5000,
+    refreshInterval: HEALTH_POLL_MS,
     // A sample that cannot be attributed to an endpoint is dropped rather than
     // guessed at. `opInfo` resolves alongside the first health poll, so at worst
     // this skips one 5s sample on a cold load.
@@ -216,10 +230,41 @@ export function GuardianStatusCard() {
                   </Badge>
                   <span className="text-title">{formatCount(health.latencyMs)}ms</span>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Last checked {new Date(health.checkedAt).toLocaleTimeString()}
+                {/* The wall clock, not a relative time. At a 5s poll "2
+                    seconds ago" is always true and therefore says nothing;
+                    the actual time is what tells you the chart is live and
+                    what its x-axis means. */}
+                <p className="mt-1 text-label text-muted-foreground">
+                  Last checked {new Date(health.checkedAt).toLocaleTimeString()} · polling every {HEALTH_POLL_MS / 1000}s
                 </p>
               </>
+            )}
+
+            {/* Two different questions. Reachability is our ping; this is the
+                server's own verdict, which it reports and we used to discard.
+                A green badge over a node calling itself degraded is worse than
+                no badge at all. */}
+            {overview?.serviceStatus && (
+              <div className="mt-3 flex items-start gap-2">
+                {overview.serviceStatus === "healthy" ? (
+                  <>
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-state-active" />
+                    <p className="text-label text-muted-foreground">
+                      Server reports itself healthy
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-state-frozen" />
+                    <p className="text-label text-state-frozen">
+                      Server reports itself degraded
+                      {overview.degradedAggregates?.length
+                        ? `: it cannot compute ${describeDegraded(overview.degradedAggregates)}.`
+                        : "."}
+                    </p>
+                  </>
+                )}
+              </div>
             )}
             <div className="mt-3 h-32 w-full">
               {history.length > 1 && (

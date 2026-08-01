@@ -1,6 +1,7 @@
 import {
   GuardianOperatorHttpClient,
   GuardianOperatorHttpError,
+  type ListAccountsOptions,
   type PaginationOptions,
   type GlobalDeltasOptions,
   type DeltaDetailOptions,
@@ -112,7 +113,7 @@ export function getGuardianClient(endpointId: string) {
         return { status: "down" as const, latencyMs: Date.now() - start, checkedAt: new Date().toISOString() };
       }
     },
-    async listAccounts(options?: PaginationOptions) {
+    async listAccounts(options?: ListAccountsOptions) {
       return withRetry(state, endpointId, () => state.client.listAccounts(options));
     },
     async getDashboardInfo() {

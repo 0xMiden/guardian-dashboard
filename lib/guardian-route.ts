@@ -42,11 +42,16 @@ export async function guardianRoute(
 
 // Shared cursor/limit query parsing (drops invalid limits instead of
 // forwarding NaN to the guardian node).
-export function pageOptions(req: Request): { cursor?: string; limit?: number } {
+export function pageOptions(req: Request): { cursor?: string; limit?: number; paused?: boolean } {
   const { searchParams } = new URL(req.url);
   const limit = parseInt(searchParams.get("limit") ?? "", 10);
+  // Tri-state on the node: true for paused only, false for active only, absent
+  // for both. An absent param has to stay absent rather than becoming `false`,
+  // or every unfiltered listing would silently hide frozen accounts.
+  const paused = searchParams.get("paused");
   return {
     cursor: searchParams.get("cursor") ?? undefined,
     limit: Number.isNaN(limit) ? undefined : limit,
+    paused: paused === null ? undefined : paused === "true",
   };
 }

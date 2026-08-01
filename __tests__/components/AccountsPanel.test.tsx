@@ -7,12 +7,72 @@ import { FetchError } from "@/lib/utils";
 vi.mock("swr", () => ({ default: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({ push: vi.fn() })),
+  useSearchParams: vi.fn(() => new URLSearchParams()),
 }));
 
 const useSWR = (await import("swr")).default as ReturnType<typeof vi.fn>;
-const { useRouter } = await import("next/navigation");
+const { useRouter, useSearchParams } = await import("next/navigation");
 
 beforeEach(() => vi.clearAllMocks());
+
+// Arriving from the Overview frozen count. The filter is server-side, unlike
+// the chips and the search box, so the panel has to ask the node for it rather
+// than filter what it already holds.
+describe("AccountsPanel frozen-only", () => {
+  it("asks the node for paused accounts and says the table is filtered", () => {
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams("paused=true") as never);
+    // Keyed by URL: a blanket mockReturnValue hands the accounts payload to
+    // StatStrip as well, which then reads stats fields off it.
+    useSWR.mockImplementation((key: string) =>
+      key === "/api/accounts?limit=500&paused=true"
+        ? { data: { items: [{
+            accountId: "0xfrozen", stateStatus: "available", authScheme: "falcon",
+            authorizedSignerCount: 2, hasPendingCandidate: false,
+            pausedAt: "2026-07-01T00:00:00Z", pausedReason: "review",
+            createdAt: "2026-07-01T00:00:00Z", updatedAt: "2026-07-01T00:00:00Z",
+          }], nextCursor: null }, error: undefined }
+        : { data: undefined, error: undefined },
+    );
+    render(<AccountsPanel />);
+
+    expect(useSWR).toHaveBeenCalledWith(
+      "/api/accounts?limit=500&paused=true",
+      expect.anything(),
+      expect.anything(),
+    );
+    expect(screen.getByText(/showing frozen accounts only/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /show all accounts/i })).toHaveAttribute("href", "/accounts");
+  });
+
+  // "No accounts registered" would be a lie to someone who arrived from the
+  // frozen count, and would leave them with no way back.
+  it("says nothing is frozen rather than that the server is empty", () => {
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams("paused=true") as never);
+    useSWR.mockImplementation((key: string) =>
+      key === "/api/accounts?limit=500&paused=true"
+        ? { data: { items: [], nextCursor: null }, error: undefined }
+        : { data: undefined, error: undefined },
+    );
+    render(<AccountsPanel />);
+
+    expect(screen.getByText(/no accounts are frozen/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no accounts registered/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /show all accounts/i })).toBeInTheDocument();
+  });
+
+  it("asks for everything when the param is absent", () => {
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams() as never);
+    useSWR.mockImplementation((key: string) =>
+      key === "/api/accounts?limit=500"
+        ? { data: { items: [], nextCursor: null }, error: undefined }
+        : { data: undefined, error: undefined },
+    );
+    render(<AccountsPanel />);
+
+    expect(useSWR).toHaveBeenCalledWith("/api/accounts?limit=500", expect.anything(), expect.anything());
+    expect(screen.queryByText(/showing frozen accounts only/i)).not.toBeInTheDocument();
+  });
+});
 
 describe("AccountsPanel", () => {
   it("shows skeletons while loading", () => {

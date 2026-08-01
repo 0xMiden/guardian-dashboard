@@ -20,6 +20,11 @@ export function GET() {
       deltaStatusCounts: info.deltaStatusCounts,
       inFlightProposalCount: info.inFlightProposalCount,
       serviceStatus: info.serviceStatus,
+      // The node's own verdict on itself, and what it is unhappy about. Both
+      // were being fetched and thrown away, so the page could only ever show
+      // our liveness ping and never the server's assessment.
+      degradedAggregates: info.degradedAggregates ?? [],
+      latestActivity: info.latestActivity,
       environment: info.environment,
       build: info.build,
     };

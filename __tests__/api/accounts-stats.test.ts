@@ -37,6 +37,39 @@ beforeEach(() => {
 });
 
 describe("GET /api/accounts/stats", () => {
+  // Counted from the inventory the route already walks, so they cost no extra
+  // node request. Uses `accountState`, so a released-and-paused account counts
+  // once, as released, exactly as the table badges it.
+  it("counts frozen and released accounts", async () => {
+    mockGetDashboardInfo.mockResolvedValue({ totalAccountCount: 5 });
+    mockListAccounts.mockResolvedValue({
+      items: [
+        account("a", 1),
+        account("b", 1, { pausedAt: "2026-07-01T00:00:00Z" }),
+        account("c", 1, { pausedAt: "2026-07-01T00:00:00Z" }),
+        account("d", 1, { releasedAt: "2026-07-02T00:00:00Z" }),
+        account("e", 1, { pausedAt: "2026-07-01T00:00:00Z", releasedAt: "2026-07-02T00:00:00Z" }),
+      ],
+      nextCursor: null,
+    });
+    const res = await GET(new Request("http://localhost/api/accounts/stats"));
+    const body = await res.json();
+    expect(body.frozen).toBe(2);
+    expect(body.released).toBe(2);
+  });
+
+  it("counts frozen without spending a request of its own", async () => {
+    mockGetDashboardInfo.mockResolvedValue({ totalAccountCount: 2 });
+    mockListAccounts.mockResolvedValue({
+      items: [account("a", 1), account("b", 1, { pausedAt: "2026-07-01T00:00:00Z" })],
+      nextCursor: null,
+    });
+    await GET(new Request("http://localhost/api/accounts/stats"));
+    // One walk, one page. A `paused: true` query would have made it two.
+    expect(mockListAccounts).toHaveBeenCalledTimes(1);
+    expect(mockListAccounts.mock.calls[0][0]).not.toHaveProperty("paused");
+  });
+
   it("counts 7d/30d activity and takes total from dashboard info", async () => {
     mockGetDashboardInfo.mockResolvedValue({ totalAccountCount: 42 });
     mockListAccounts.mockResolvedValue({
@@ -45,7 +78,7 @@ describe("GET /api/accounts/stats", () => {
     });
     const res = await GET(new Request("http://localhost/api/accounts/stats"));
     expect(await res.json()).toEqual({
-      total: 42, count7d: 1, count30d: 2, counted: 3, wallet: 0, other: 3,
+      total: 42, count7d: 1, count30d: 2, counted: 3, wallet: 0, other: 3, frozen: 0, released: 0,
     });
   });
 
@@ -60,7 +93,7 @@ describe("GET /api/accounts/stats", () => {
       .mockResolvedValueOnce({ items: [account("c", 90)], nextCursor: null });
     const res = await GET(new Request("http://localhost/api/accounts/stats"));
     expect(await res.json()).toEqual({
-      total: 3, count7d: 1, count30d: 1, counted: 3, wallet: 0, other: 3,
+      total: 3, count7d: 1, count30d: 1, counted: 3, wallet: 0, other: 3, frozen: 0, released: 0,
     });
     expect(mockListAccounts).toHaveBeenCalledTimes(3);
   });
@@ -83,7 +116,7 @@ describe("GET /api/accounts/stats", () => {
     mockListAccounts.mockResolvedValue({ items: [account("a", 1)], nextCursor: null });
     const res = await GET(new Request("http://localhost/api/accounts/stats"));
     expect(await res.json()).toEqual({
-      total: null, count7d: 1, count30d: 1, counted: 1, wallet: 0, other: 1,
+      total: null, count7d: 1, count30d: 1, counted: 1, wallet: 0, other: 1, frozen: 0, released: 0,
     });
   });
 

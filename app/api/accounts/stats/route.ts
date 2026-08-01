@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { guardianRoute } from "@/lib/guardian-route";
 import { getInventory } from "@/lib/account-cache";
-import { isWalletAccount } from "@/lib/format";
+import { isWalletAccount, accountState } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -39,16 +39,24 @@ export async function GET(req: Request) {
     let count7d = 0;
     let count30d = 0;
     let wallet = 0;
+    // Free: the walk above already holds every account, so the states cost a
+    // comparison each rather than a `paused: true` query of their own. Reuses
+    // `accountState` so these counts and the table's badges cannot disagree.
+    let frozen = 0;
+    let released = 0;
     for (const item of accounts) {
       const age = now - new Date(item.updatedAt).getTime();
       if (age <= MS_7D)  count7d++;
       if (age <= MS_30D) count30d++;
       if (isWalletAccount(item)) wallet++;
+      const state = accountState(item.stateStatus, item.pausedAt, item.releasedAt);
+      if (state === "frozen") frozen++;
+      else if (state === "released") released++;
     }
 
     // `counted` is what the walk actually saw. The table's chips read it rather
     // than `total`, so the three of them always sum, even on a node whose
     // reported total disagrees with what the list endpoint hands back.
-    return { total, count7d, count30d, counted: accounts.length, wallet, other: accounts.length - wallet };
+    return { total, count7d, count30d, counted: accounts.length, wallet, other: accounts.length - wallet, frozen, released };
   });
 }

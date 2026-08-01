@@ -78,6 +78,25 @@ describe("GET /api/accounts", () => {
     expect((await res.json()).retryAfterSecs).toBe(7);
   });
 
+  // The node takes a tri-state pause filter and our wrapper used to type the
+  // options as PaginationOptions, which dropped it. Without this there is no
+  // way to ask "which accounts are frozen" short of paging the whole node.
+  it("passes the paused filter through", async () => {
+    mockHeaders("testnet");
+    mockListAccounts.mockResolvedValue({ items: [], nextCursor: null });
+    await GET(makeRequest("http://localhost/api/accounts?paused=true"));
+    expect(mockListAccounts).toHaveBeenCalledWith(expect.objectContaining({ paused: true }));
+  });
+
+  // An absent param has to stay absent: coercing it to false would turn every
+  // ordinary listing into an active-only one and hide frozen accounts.
+  it("leaves paused undefined when the param is absent", async () => {
+    mockHeaders("testnet");
+    mockListAccounts.mockResolvedValue({ items: [], nextCursor: null });
+    await GET(makeRequest());
+    expect(mockListAccounts.mock.calls[0][0].paused).toBeUndefined();
+  });
+
   it("passes cursor and limit query params to listAccounts", async () => {
     mockHeaders("testnet");
     mockListAccounts.mockResolvedValue({ items: [], nextCursor: null });

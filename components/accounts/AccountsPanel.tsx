@@ -346,7 +346,12 @@ export function AccountsPanel() {
   // page. Until that answers, they fall back to the loaded rows, which is what
   // they always were. The filters themselves still act on loaded rows, hence
   // the "of" line beside them.
-  const counts = stats?.counted != null
+  //
+  // Under the frozen filter the node counts describe the wrong population:
+  // "All (173)" beside a single frozen row is a contradiction. The loaded rows
+  // *are* the whole frozen set, because that filter is applied server-side, so
+  // counting them is both correct and complete here.
+  const counts = stats?.counted != null && !pausedOnly
     ? { all: stats.counted, wallet: stats.wallet ?? 0, other: stats.other ?? 0 }
     : { all: loaded.length, wallet: walletCount, other: loaded.length - walletCount };
 

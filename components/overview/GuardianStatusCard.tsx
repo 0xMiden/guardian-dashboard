@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
-import { ChevronDown, ChevronUp, AlertTriangle, Check } from "lucide-react";
+import { ChevronDown, ChevronUp, AlertTriangle, Check, Info } from "lucide-react";
 import { fetcher } from "@/lib/utils";
 import { formatCount } from "@/lib/format";
 import { truncateId } from "@/lib/format";
@@ -135,12 +135,18 @@ function CopyableHash({ value, short }: { value: string; short?: boolean }) {
   );
 }
 
+// An icon rather than a 9px letter in a circle. 9px was the smallest type in
+// the product by a wide margin and well under anything legible; drawing the
+// glyph sidesteps the problem instead of shrinking text to fit a 14px circle.
+//
+// `title` carries the same text, so it survives for anyone not using a mouse:
+// the hover-only tooltip was unreachable by keyboard or touch.
 function InfoTip({ text }: { text: string }) {
   return (
     <span className="relative group/tip inline-flex shrink-0">
-      <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-muted text-[9px] leading-none text-muted-foreground cursor-help select-none">
-        i
-      </span>
+      <Info className="h-3.5 w-3.5 cursor-help text-muted-foreground" aria-label={text}>
+        <title>{text}</title>
+      </Info>
       <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 rounded-lg bg-popover border text-popover-foreground text-xs p-2 shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity z-20 pointer-events-none">
         {text}
       </span>

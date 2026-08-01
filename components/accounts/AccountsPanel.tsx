@@ -100,7 +100,7 @@ function SortableHeader({
     >
       <button
         onClick={() => onSort(sortKey)}
-        className={`inline-flex items-center gap-1 rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "text-foreground" : ""}`}
+        className={`inline-flex items-center gap-1 rounded-lg transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "text-foreground" : ""}`}
       >
         {label}
         {active

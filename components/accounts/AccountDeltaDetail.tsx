@@ -248,7 +248,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
                     </p>
                     <div className="flex flex-col gap-1">
                       {data!.proposal.signerCommitments.map((s) => (
-                        <div key={s} className="bg-muted rounded px-2 py-1">
+                        <div key={s} className="bg-muted rounded-lg px-2 py-1">
                           <CopyableId id={s} prefixLen={14} suffixLen={8} />
                         </div>
                       ))}

@@ -102,6 +102,23 @@
   --color-state-error: oklch(0.637 0.237 25.33);     /* failed */
   --color-state-neutral: oklch(0.552 0.016 285.94);  /* none of the above */
 
+  /* Radius and elevation each have a rule, because they had nine and five
+     steps in use and no way to pick between them. The sm/md/lg steps are 6px,
+     8px and 10px, two pixels apart and indistinguishable, which is why nobody
+     could choose correctly.
+
+       rounded-full   pills: badges, filter chips, the search input
+       rounded-lg     controls and inline panels: buttons, inputs, menus,
+                      empty states, tags, tooltips
+       rounded-xl     containers: cards, modals
+       rounded-t/b-xl structural, for a card's own header and footer corners
+
+       (no shadow)    bordered surfaces sitting in the page
+       shadow-lg      floats over content and dismisses: popovers, tooltips
+       shadow-xl      takes the screen: modals
+
+     The unused steps below are kept because they come from shadcn and its
+     components reference them; they are simply not for us to pick from. */
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);

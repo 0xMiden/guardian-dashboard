@@ -44,7 +44,7 @@ export function CopyableId({ id, href, onNavigate, prefixLen = 10, suffixLen = 6
           // The row handler navigates too, so letting this bubble would push the
           // same route twice and leave a duplicate history entry.
           onClick={(e) => { e.stopPropagation(); onNavigate?.(); }}
-          className="font-mono text-xs rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="font-mono text-xs rounded-lg hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           title={id}
         >
           {display}

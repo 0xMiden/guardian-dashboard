@@ -20,7 +20,7 @@ export function ConfirmModal({
 }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="rounded-xl bg-popover border p-6 max-w-sm w-full mx-4 shadow-2xl">
+      <div className="rounded-xl bg-popover border p-6 max-w-sm w-full mx-4 shadow-xl">
         <h2 className="text-sm font-semibold mb-2">{title}</h2>
         <p className="text-sm text-muted-foreground mb-6">{message}</p>
         <div className="flex justify-end gap-3">

@@ -119,7 +119,7 @@ function PauseModal({
               Reason <span className="text-state-error">*</span>
             </label>
             <textarea
-              className="w-full rounded-md border bg-muted px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full rounded-lg border bg-muted px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
               rows={3}
               placeholder="e.g. Suspicious activity detected"
               value={reason}
@@ -130,7 +130,7 @@ function PauseModal({
           </div>
         )}
         {failure && (
-          <div role="alert" className="rounded-md border border-state-error/30 bg-state-error/10 px-3 py-2">
+          <div role="alert" className="rounded-lg border border-state-error/30 bg-state-error/10 px-3 py-2">
             <p className="text-xs font-medium text-state-error">{failure.title}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">{failure.detail}</p>
           </div>
@@ -299,7 +299,7 @@ export function AccountDetail({ accountId }: Props) {
                   </p>
                   <div className="flex flex-col gap-1">
                     {data!.authorizedSignerIds.map((id) => (
-                      <div key={id} className="bg-muted rounded px-2 py-1">
+                      <div key={id} className="bg-muted rounded-lg px-2 py-1">
                         <CopyableId id={id} prefixLen={16} suffixLen={8} />
                       </div>
                     ))}

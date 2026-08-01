@@ -5,7 +5,7 @@ function Card({ description }: { description?: string }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-xl border bg-popover/90 px-8 py-6 text-center shadow-xl backdrop-blur-sm">
       <Construction className="h-6 w-6 text-muted-foreground" />
-      <span className="rounded border border-brand/50 bg-brand/10 px-3 py-0.5 text-xs font-semibold uppercase tracking-widest text-brand">
+      <span className="rounded-lg border border-brand/50 bg-brand/10 px-3 py-0.5 text-xs font-semibold uppercase tracking-widest text-brand">
         Coming Soon
       </span>
       {description && (

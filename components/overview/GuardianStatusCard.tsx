@@ -127,7 +127,7 @@ function InfoTip({ text }: { text: string }) {
       <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-muted text-[9px] leading-none text-muted-foreground cursor-help select-none">
         i
       </span>
-      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 rounded bg-popover border text-popover-foreground text-xs p-2 shadow-md opacity-0 group-hover/tip:opacity-100 transition-opacity z-20 pointer-events-none">
+      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 rounded-lg bg-popover border text-popover-foreground text-xs p-2 shadow-lg opacity-0 group-hover/tip:opacity-100 transition-opacity z-20 pointer-events-none">
         {text}
       </span>
     </span>
@@ -229,7 +229,7 @@ export function GuardianStatusCard() {
                     <Tooltip
                       content={({ active, payload }) =>
                         active && payload?.length ? (
-                          <div className="rounded bg-background px-2 py-1 text-xs shadow border">
+                          <div className="rounded-lg bg-background px-2 py-1 text-xs shadow-lg border">
                             {payload[0].value}ms
                           </div>
                         ) : null

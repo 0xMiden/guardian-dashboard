@@ -16,7 +16,7 @@ interface ClerkUser {
 
 function EndpointTag({ id }: { id: string }) {
   return (
-    <span className="inline-block rounded bg-primary/15 border border-brand/40 px-2 py-0.5 text-xs font-mono text-brand">
+    <span className="inline-block rounded-lg bg-primary/15 border border-brand/40 px-2 py-0.5 text-xs font-mono text-brand">
       {id}
     </span>
   );
@@ -92,7 +92,7 @@ function EditModal({ user, onClose }: { user: ClerkUser; onClose: () => void }) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="rounded-xl bg-popover border p-6 max-w-sm w-full mx-4 shadow-2xl space-y-4">
+      <div className="rounded-xl bg-popover border p-6 max-w-sm w-full mx-4 shadow-xl space-y-4">
         <h2 className="text-sm font-semibold">Edit access — {name}</h2>
 
         <div>
@@ -100,7 +100,7 @@ function EditModal({ user, onClose }: { user: ClerkUser; onClose: () => void }) 
           <select
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="w-full rounded border bg-input px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full rounded-lg border bg-input px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="viewer">Viewer</option>
             <option value="admin">Admin</option>

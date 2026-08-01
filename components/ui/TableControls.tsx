@@ -136,7 +136,7 @@ export function TableControls<K extends string>({
           {hidden.size > 0 && <span className="tabular-nums">({columns.length - hidden.size})</span>}
         </Button>
         {open && (
-          <div className="absolute right-0 z-20 mt-1 flex w-48 flex-col rounded-lg border bg-background p-1 shadow-xl">
+          <div className="absolute right-0 z-20 mt-1 flex w-48 flex-col rounded-lg border bg-background p-1 shadow-lg">
             {/* Rows inside the popover, not bordered controls. */}
             {columns.map((c) => (
               <button
@@ -144,7 +144,7 @@ export function TableControls<K extends string>({
                 role="menuitemcheckbox"
                 aria-checked={!hidden.has(c.key)}
                 onClick={() => onToggleColumn(c.key)}
-                className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-data transition-colors hover:bg-muted"
+                className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-data transition-colors hover:bg-muted"
               >
                 <Check className={`h-3 w-3 shrink-0 ${hidden.has(c.key) ? "opacity-0" : ""}`} />
                 {c.label}

@@ -51,7 +51,7 @@ export default function SelectEndpointPage() {
 
   return (
     <div className="flex h-screen items-center justify-center bg-background">
-      <div className="w-full max-w-sm space-y-6 rounded-xl border bg-card p-8 shadow-sm">
+      <div className="w-full max-w-sm space-y-6 rounded-xl border bg-card p-8">
         <div className="flex flex-col items-center gap-2">
           <Image src="/orangerobot.png" alt="Guardian" width={32} height={32} />
           <h1 className="text-title">Select Guardian</h1>
@@ -75,7 +75,7 @@ export default function SelectEndpointPage() {
               value={selected}
               onChange={(e) => setSelected(e.target.value)}
               required
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               {endpoints.length > 1 && <option value="">Select endpoint…</option>}
               {endpoints.map((ep) => (
@@ -86,7 +86,7 @@ export default function SelectEndpointPage() {
             <button
               type="submit"
               disabled={loading || !selected}
-              className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:brightness-110 disabled:opacity-50"
+              className="w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:brightness-110 disabled:opacity-50"
             >
               {loading ? "Connecting…" : "Connect"}
             </button>

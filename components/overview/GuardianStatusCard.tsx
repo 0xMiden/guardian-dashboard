@@ -9,7 +9,6 @@ import { ChevronDown, ChevronUp, AlertTriangle, Check } from "lucide-react";
 import { fetcher } from "@/lib/utils";
 import { formatCount } from "@/lib/format";
 import { truncateId } from "@/lib/format";
-import { Timestamp } from "@/components/ui/Timestamp";
 
 interface HealthData {
   status: "up" | "down";
@@ -48,6 +47,10 @@ const networkColor: Record<string, string> = {
   MidenTestnet: "bg-state-neutral",
   MidenMainnet: "bg-state-active",
 };
+
+// Named because the card states the cadence to the reader, and a figure in
+// the copy that can drift from the actual interval is a lie waiting to happen.
+const HEALTH_POLL_MS = 5000;
 
 type LatencySample = { t: number; ms: number };
 
@@ -177,7 +180,7 @@ export function GuardianStatusCard() {
   }
 
   const { data: health } = useSWR<HealthData>("/api/health", fetcher, {
-    refreshInterval: 5000,
+    refreshInterval: HEALTH_POLL_MS,
     // A sample that cannot be attributed to an endpoint is dropped rather than
     // guessed at. `opInfo` resolves alongside the first health poll, so at worst
     // this skips one 5s sample on a cold load.
@@ -227,8 +230,12 @@ export function GuardianStatusCard() {
                   </Badge>
                   <span className="text-title">{formatCount(health.latencyMs)}ms</span>
                 </div>
+                {/* The wall clock, not a relative time. At a 5s poll "2
+                    seconds ago" is always true and therefore says nothing;
+                    the actual time is what tells you the chart is live and
+                    what its x-axis means. */}
                 <p className="mt-1 text-label text-muted-foreground">
-                  Last checked <Timestamp iso={health.checkedAt} />
+                  Last checked {new Date(health.checkedAt).toLocaleTimeString()} · polling every {HEALTH_POLL_MS / 1000}s
                 </p>
               </>
             )}

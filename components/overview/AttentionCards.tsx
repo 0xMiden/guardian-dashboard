@@ -1,7 +1,7 @@
 "use client";
 import useSWR from "swr";
 import Link from "next/link";
-import { Snowflake, LogOut, Activity } from "lucide-react";
+import { Snowflake, Activity } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Timestamp } from "@/components/ui/Timestamp";
@@ -19,6 +19,14 @@ import { STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
  * Zero is the good answer here, so it is styled as reassurance rather than as
  * an empty slot. A muted "None" reads as "checked, nothing to do"; a big grey
  * 0 reads as missing data.
+ *
+ * There is deliberately no "released accounts" count. The node documents a
+ * `releasedAt` on every summary, meaning the account moved to a different
+ * guardian, but it is null on all 2,270 accounts across all five configured
+ * endpoints, every one of which reports `stateStatus: "available"`. Since
+ * accounts are known to have moved away, either the server does not record it
+ * on v0.16.0 or a released account leaves the inventory entirely. A count that
+ * can only ever read "None" would assert something false.
  */
 function Stat({
   icon,
@@ -55,10 +63,9 @@ export function AttentionCards() {
   });
 
   const frozen = stats?.frozen;
-  const released = stats?.released;
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <Stat
         icon={<Snowflake className="h-3.5 w-3.5" />}
         label="Frozen accounts"
@@ -75,10 +82,6 @@ export function AttentionCards() {
         ) : (
           "None"
         )}
-      </Stat>
-
-      <Stat icon={<LogOut className="h-3.5 w-3.5" />} label="Released accounts">
-        {stats == null ? <Skeleton className="h-8 w-16" /> : released ? formatCount(released) : "None"}
       </Stat>
 
       <Stat icon={<Activity className="h-3.5 w-3.5" />} label="Last activity">

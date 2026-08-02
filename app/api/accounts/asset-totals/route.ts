@@ -10,11 +10,17 @@ const MS_7D = 7 * 24 * 60 * 60 * 1000;
 
 // Per-invocation ceiling on snapshot fetches, and it holds on a manual refresh
 // too. The node allows 60 requests a minute across every route, so this figure
-// must not starve the rows the user is actually looking at. The cost is warm-up
-// time on a cold instance: ~470 active accounts at 25 a pass is about 19 polls
-// before the first total can be published. Until then the card shows nothing
-// rather than a partial sum.
+// must not starve the rows the user is actually looking at.
 const MAX_SNAPSHOTS_PER_PASS = 25;
+
+// Warm-up is the cold-instance case, where no total has ever been published and
+// the card is showing "Calculating…". There the client polls every 20s instead
+// of every 60s (see AssetsCard), so the per-pass ceiling has to come down or
+// three passes a minute would spend 75 of the node's 60. Twelve a pass is
+// 36/minute: still faster overall than the old 25/minute, and it moves the
+// progress count three times a minute instead of once, which is the difference
+// between "working" and "stuck".
+const WARMING_SNAPSHOTS_PER_PASS = 12;
 
 type AssetTotals = { usd7d: number; computedAt: string };
 // ponytail: per-serverless-instance cache — cold instances recompute; good
@@ -45,13 +51,23 @@ export async function GET(req: Request) {
     // re-walked inventory above, which surfaces the accounts whose version
     // moved, and those miss the cache and are refetched on their own.
     const { totals, complete } = await getSnapshotTotalsChecked(client, endpointId, active7d, {
-      maxFetches: MAX_SNAPSHOTS_PER_PASS,
+      maxFetches: cached ? MAX_SNAPSHOTS_PER_PASS : WARMING_SNAPSHOTS_PER_PASS,
     });
 
     // Publishing a partial sum would show a confidently wrong number. Until the
-    // pass covers every active account, keep serving the last complete answer
-    // (the card renders nothing when there isn't one yet).
-    if (!complete) return cached ?? { usd7d: null, computedAt: null, warming: true };
+    // pass covers every active account, keep serving the last complete answer.
+    // With no such answer yet, say how far along the walk is: the counts are
+    // already in hand, and a number that climbs is the only evidence the user
+    // has that waiting will end.
+    if (!complete) {
+      return cached ?? {
+        usd7d: null,
+        computedAt: null,
+        warming: true,
+        done: Object.keys(totals).length,
+        total: active7d.length,
+      };
+    }
 
     const usd7d = Object.values(totals).reduce((sum, value) => sum + value, 0);
     const result = { usd7d, computedAt: new Date().toISOString() };

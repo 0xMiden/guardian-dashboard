@@ -130,64 +130,77 @@
 
 :root {
   /* Light palette taken from midenxyz.webflow.io where the site has an answer,
-     and derived by contrast where it does not. Every value below is measured
-     against the page, which is the tighter of the two grounds since cards are
-     lighter than it.
+     and derived by contrast where it does not.
+
+     Elevation runs the opposite way to dark mode. The page is the lightest
+     thing on screen and every surface sits INTO it: cards, tables, banners and
+     the sidebar a step darker, hover fills and chips a step darker again. The
+     first attempt put white cards on a #f9f9f9 page, which is a ratio of 1.05
+     and left the card edge invisible, so the whole theme read as flat white.
+     Inverted, the three surfaces separate on their own and the border goes back
+     to being a seam rather than the only thing holding the layout together.
+
+     Because the surfaces moved down, everything drawn on them had to move too.
+     All six status hues were tuned to clear 4.5:1 against the old page and all
+     six fell under the floor here. Each is re-derived the same way: hue and
+     chroma held exactly, lightness lowered until it clears 4.5 against the
+     DARKEST ground it can land on, which is now the hover fill rather than the
+     page. Holding hue and chroma is what keeps "frozen" recognisably the same
+     colour in both themes.
 
      Two deliberate departures from the site:
 
-     - The site's accent is #e65303. It is 3.56:1 as text and 3.75:1 for white
-       on it, both under the 4.5 floor. On a marketing page that is a fair
-       call; here the accent marks the freeze button and the focus ring, so it
-       keeps the deeper #cc4400 that dark mode already uses. Same hue family,
-       one accent value across both themes.
+     - The site's accent is #e65303, which is 3.56:1 as text. Here the accent
+       marks the freeze button and the focus ring, so it takes the same
+       darkening as the status hues. Same hue family as the site, one accent
+       value across both themes.
      - The site has no equivalent of the status hues, so those keep their dark
-       chroma and hue and move only in lightness, which is what makes "frozen"
-       recognisably the same colour in both themes. */
-  --background: #f9f9f9;            /* site page */
-  --foreground: #484848;            /* site body text, 8.69:1 */
-  --card: #ffffff;                  /* lifts off the page without a heavy border */
+       chroma and hue and move only in lightness. */
+  --background: #f7f6f4;            /* page, the lightest ground */
+  --foreground: #484848;            /* site body text, 8.47:1 on the page */
+  --card: #efeeec;                  /* cards, tables, banners: one step into the page */
   --card-foreground: #484848;
-  --popover: #ffffff;
+  --popover: #efeeec;
   --popover-foreground: #484848;
-  --primary: #cc4400;               /* white on it 4.78:1 */
+  --primary: #bc3400;               /* 4.99:1 on a card, white on it 5.79:1 */
   --primary-foreground: #ffffff;
-  --secondary: #efeeec;
+  --secondary: #e6e4e0;
   --secondary-foreground: #484848;
-  --muted: #efeeec;
-  --muted-foreground: #6b6b6b;      /* 5.06:1 */
-  --accent: #efeeec;
+  --muted: #e6e4e0;                 /* hover rows and chips: one step deeper again */
+  --muted-foreground: #656565;      /* 4.59:1 on that fill, the tightest pairing here */
+  --accent: #e6e4e0;
   --accent-foreground: #484848;
-  --destructive: #e60024;
-  --border: #dededd;                /* separation, not contrast */
-  --input: #ffffff;
-  --ring: #cc4400;                  /* focus follows the accent, as in dark */
-  --chart-1: #cc4400;
-  --chart-2: #71717b;
+  --destructive: #ce0007;
+  --border: #dcd9d4;                /* separation, not contrast */
+  --input: #f7f6f4;                 /* a field reads as a field by being lighter than its card */
+  --ring: #bc3400;                  /* focus follows the accent, as in dark */
+  --chart-1: #bc3400;
+  --chart-2: #64646e;
   --chart-3: #9a9a9a;
   --chart-4: #b7b7b7;
   --chart-5: #d4d4d4;
   --radius: 0.625rem;
-  --sidebar: #ffffff;
+  --sidebar: #efeeec;
   --sidebar-foreground: #484848;
-  --sidebar-primary: #cc4400;
+  --sidebar-primary: #bc3400;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #efeeec;
+  --sidebar-accent: #e6e4e0;
   --sidebar-accent-foreground: #484848;
-  --sidebar-border: #dededd;
-  --sidebar-ring: #cc4400;
+  --sidebar-border: #dcd9d4;
+  --sidebar-ring: #bc3400;
 
-  /* Same hue and chroma as dark, lower lightness. >= 4.5 against the page. */
-  --state-active: #008449;
-  --state-frozen: #b75800;
-  --state-released: #a136f8;
-  --state-pending: #0076c1;
-  --state-error: #e60024;
-  --state-neutral: #71717b;
-  /* On light the page and a button label are both near-white, so contrast is
-     symmetric and one value serves accent text and filled buttons alike.
-     Dark mode needs two because its two grounds differ. */
-  --brand: #cc4400;
+  /* Same hue and chroma as dark, lower lightness. >= 4.5 against the hover
+     fill, which is the darkest ground any of them lands on. */
+  --state-active: #00753b;
+  --state-frozen: #a74900;
+  --state-released: #9420e8;
+  --state-pending: #0068b2;
+  --state-error: #ce0007;
+  --state-neutral: #64646e;
+  /* Every ground here is near-white and every filled label is white, so
+     contrast is close enough to symmetric that one value serves accent text
+     and filled buttons alike. Dark mode needs two because its grounds differ. */
+  --brand: #bc3400;
 }
 
 .dark {

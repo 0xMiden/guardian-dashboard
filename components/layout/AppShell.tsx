@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { SWRConfig } from "swr";
 import { NavItem } from "./NavItem";
+import { ThemeToggle } from "./ThemeToggle";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useClerk, useAuth, useUser } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
@@ -104,6 +105,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <div className="pt-4 border-t">
+          <ThemeToggle />
           <button
             onClick={() => setConfirmSignOut(true)}
             className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"

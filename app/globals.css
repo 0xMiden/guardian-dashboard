@@ -88,19 +88,19 @@
      ON the page. Darkening helps the first and hurts the second. `--primary` is
      the solid at 4.78:1 for white on it; this is the text tint at 7.64:1 on the
      page. Neither is the raw #ff5500, which stays in the mark. */
-  --color-brand: #ff7a3d;
+  --color-brand: var(--brand);
 
   /* Six states, one hue each, so a colour means exactly one thing. Amber used
      to carry three unrelated ideas (a submitted transaction, a pending
      candidate, and the network name), and orange carried "frozen" — which
      stopped being available the moment orange became the brand. Anything that
      labels rather than reports a state now goes neutral. */
-  --color-state-active: oklch(0.696 0.17 162.48);    /* healthy, confirmed */
-  --color-state-frozen: oklch(0.769 0.188 70.08);    /* operator hold */
-  --color-state-released: oklch(0.627 0.265 303.9);  /* terminal, gone elsewhere */
-  --color-state-pending: oklch(0.685 0.169 237.32);  /* in flight */
-  --color-state-error: oklch(0.637 0.237 25.33);     /* failed */
-  --color-state-neutral: oklch(0.552 0.016 285.94);  /* none of the above */
+  --color-state-active: var(--state-active);      /* healthy, confirmed */
+  --color-state-frozen: var(--state-frozen);      /* operator hold */
+  --color-state-released: var(--state-released);  /* terminal, gone elsewhere */
+  --color-state-pending: var(--state-pending);    /* in flight */
+  --color-state-error: var(--state-error);        /* failed */
+  --color-state-neutral: var(--state-neutral);    /* none of the above */
 
   /* Radius and elevation each have a rule, because they had nine and five
      steps in use and no way to pick between them. The sm/md/lg steps are 6px,
@@ -129,38 +129,65 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  /* Light palette taken from midenxyz.webflow.io where the site has an answer,
+     and derived by contrast where it does not. Every value below is measured
+     against the page, which is the tighter of the two grounds since cards are
+     lighter than it.
+
+     Two deliberate departures from the site:
+
+     - The site's accent is #e65303. It is 3.56:1 as text and 3.75:1 for white
+       on it, both under the 4.5 floor. On a marketing page that is a fair
+       call; here the accent marks the freeze button and the focus ring, so it
+       keeps the deeper #cc4400 that dark mode already uses. Same hue family,
+       one accent value across both themes.
+     - The site has no equivalent of the status hues, so those keep their dark
+       chroma and hue and move only in lightness, which is what makes "frozen"
+       recognisably the same colour in both themes. */
+  --background: #f9f9f9;            /* site page */
+  --foreground: #484848;            /* site body text, 8.69:1 */
+  --card: #ffffff;                  /* lifts off the page without a heavy border */
+  --card-foreground: #484848;
+  --popover: #ffffff;
+  --popover-foreground: #484848;
+  --primary: #cc4400;               /* white on it 4.78:1 */
+  --primary-foreground: #ffffff;
+  --secondary: #efeeec;
+  --secondary-foreground: #484848;
+  --muted: #efeeec;
+  --muted-foreground: #6b6b6b;      /* 5.06:1 */
+  --accent: #efeeec;
+  --accent-foreground: #484848;
+  --destructive: #e60024;
+  --border: #dededd;                /* separation, not contrast */
+  --input: #ffffff;
+  --ring: #cc4400;                  /* focus follows the accent, as in dark */
+  --chart-1: #cc4400;
+  --chart-2: #71717b;
+  --chart-3: #9a9a9a;
+  --chart-4: #b7b7b7;
+  --chart-5: #d4d4d4;
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #ffffff;
+  --sidebar-foreground: #484848;
+  --sidebar-primary: #cc4400;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #efeeec;
+  --sidebar-accent-foreground: #484848;
+  --sidebar-border: #dededd;
+  --sidebar-ring: #cc4400;
+
+  /* Same hue and chroma as dark, lower lightness. >= 4.5 against the page. */
+  --state-active: #008449;
+  --state-frozen: #b75800;
+  --state-released: #a136f8;
+  --state-pending: #0076c1;
+  --state-error: #e60024;
+  --state-neutral: #71717b;
+  /* On light the page and a button label are both near-white, so contrast is
+     symmetric and one value serves accent text and filled buttons alike.
+     Dark mode needs two because its two grounds differ. */
+  --brand: #cc4400;
 }
 
 .dark {
@@ -203,6 +230,14 @@
   --sidebar-accent-foreground: oklch(0.91 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  --state-active: oklch(0.696 0.17 162.48);
+  --state-frozen: oklch(0.769 0.188 70.08);
+  --state-released: oklch(0.627 0.265 303.9);
+  --state-pending: oklch(0.685 0.169 237.32);
+  --state-error: oklch(0.637 0.237 25.33);
+  --state-neutral: oklch(0.552 0.016 285.94);
+  --brand: #ff7a3d;
 }
 
 @layer base {

@@ -4,6 +4,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { AppShell } from "@/components/layout/AppShell";
 import { PostHogPageView } from "@/components/analytics/PostHogPageView";
 import { Suspense } from "react";
+import { THEME_INIT_SCRIPT } from "@/components/layout/ThemeToggle";
 import "./globals.css";
 
 // Body, tables and every piece of UI chrome. Geist rather than the slab serif
@@ -54,7 +55,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geist.variable} ${geistMono.variable} ${bitter.variable} h-full antialiased dark`}>
+    <html lang="en" className={`${geist.variable} ${geistMono.variable} ${bitter.variable} h-full antialiased dark`} suppressHydrationWarning>
+      <head>
+        {/* Runs before first paint so a light-theme user never sees the dark
+            default flash. Blocking and inline is the point. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="h-full">
         <ClerkProvider>
           <Suspense fallback={null}>

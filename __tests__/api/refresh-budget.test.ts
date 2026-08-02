@@ -92,10 +92,10 @@ describe("one Refresh click against a 1,500-account node", () => {
 
     await refreshClick(accounts.slice(0, 20));
 
-    // 1 accounts page + 1 dashboard info + 3 inventory pages + 25 warming
+    // 1 accounts page + 1 dashboard info + 3 inventory pages + 12 warming
     // snapshots + 20 on-screen rows. Asserted exactly so a regression shows up
     // as a number rather than as a still-passing inequality.
-    expect(calls).toBe(50);
+    expect(calls).toBe(37);
     expect(calls).toBeLessThan(PER_MINUTE_BUDGET);
   });
 
@@ -113,8 +113,29 @@ describe("one Refresh click against a 1,500-account node", () => {
     // No inventory walk: the polls paid for it and a refresh reuses a walk this
     // recent. What remains is the dashboard total, one more warming pass, and
     // the on-screen rows.
-    expect(calls).toBe(47);
+    expect(calls).toBe(34);
     expect(calls).toBeLessThan(PER_MINUTE_BUDGET);
+  });
+
+  // The click is the spike; warm-up is the sustained load underneath it, and it
+  // is the one the card's 20s poll paces. Three passes a minute at 12 snapshots
+  // is 36, which has to leave room for the 5s health poll (12/min) and the
+  // once-a-minute inventory walk the other cards share.
+  it("leaves room for the rest of the page while warming up", async () => {
+    mockHeaders("ep-sustained");
+    seedLargeNode();
+
+    // A minute of warm-up polling at the card's cadence.
+    for (let i = 0; i < 3; i++) {
+      await assetTotalsGET(new Request("http://localhost/api/accounts/asset-totals"));
+    }
+
+    // One inventory page, paid once and cached: the 7-day walk stops at the
+    // first page because its oldest entry is already outside the window. Then
+    // 12 snapshots a pass.
+    expect(calls).toBe(1 + 3 * 12);
+    // Health polls every 5s, and that has to still fit.
+    expect(calls + 12).toBeLessThan(PER_MINUTE_BUDGET);
   });
 
   it("does not re-walk the account list twice for one click", async () => {

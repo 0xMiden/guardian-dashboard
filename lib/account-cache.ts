@@ -117,7 +117,16 @@ export type AccountLister = {
 
 export type SnapshotReader = {
   getAccountSnapshot(accountId: string): Promise<{ vault: { fungible: { faucetId: string; amount: string }[] } }>;
+  /** Present on the real client; 0 or absent when the node is not being paced. */
+  pacingIntervalMs?(): number;
 };
+
+/**
+ * How long one pass may spend waiting on a paced node. `maxDuration` on the
+ * asset-totals route is 120s and the card polls every 20s while warming, so a
+ * pass has to end well short of both. Only bites on a node that limits us.
+ */
+const PASS_TIME_BUDGET_MS = 30_000;
 
 /**
  * Page the account list once and share it. `maxAgeMs` bounds how far back the
@@ -202,7 +211,13 @@ async function collectSnapshotTotals(
   // inside whatever this node tolerates; the caller checks `complete` on the
   // result and declines to publish a partial aggregate.
   const ceiling = ceilings.get(endpointId) ?? INITIAL_CEILING;
-  const budgeted = misses.slice(0, maxFetches ?? ceiling);
+
+  // On a paced node each read costs real wall-clock time, so the pass is bound
+  // by the invocation as well as by the node's budget. Once the pacer exists,
+  // the ceiling stops being what prevents 429s and is only a length bound.
+  const interval = client.pacingIntervalMs?.() ?? 0;
+  const fitsInPass = interval ? Math.max(MIN_CEILING, Math.floor(PASS_TIME_BUDGET_MS / interval)) : Infinity;
+  const budgeted = misses.slice(0, Math.min(maxFetches ?? ceiling, fitsInPass));
 
   // Accounts a 429 cost us. They were not refused, so they must not count as
   // attempted, or the caller publishes a sum that is quietly missing them.

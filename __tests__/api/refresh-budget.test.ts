@@ -12,11 +12,13 @@ import { GET as snapshotsGET } from "@/app/api/accounts/snapshots/route";
  * snapshot, which on the OZ Guardian is ~470 requests in one go.
  *
  * This is the guard for that click. It counts every call the four routes make
- * to the Guardian. What it can no longer do is assert one universal cap: measured
- * 2026-08-03, the OpenZeppelin Guardian served 500 snapshot reads in 12.6s without
- * a 429 while lambdaclass 429'd after 55, so a single number is either far too
- * slow for one Guardian or too fast for the other. The per-pass ceiling is learned
- * per endpoint instead (see lib/account-cache.ts).
+ * to the Guardian. What it can no longer do is assert one universal cap, because
+ * the allowance follows the operator's profile: prod is 5000/min, dev is 60/min,
+ * and either can be overridden per deployment. Measured 2026-08-03, a
+ * prod-profile Guardian served 500 snapshot reads in 8.8s without a 429 while a
+ * dev-profile one cut off around 57, so a single number is either far too slow
+ * for one Guardian or far too fast for the other. The per-pass ceiling is
+ * learned per endpoint instead (see lib/account-cache.ts).
  *
  * So what is guarded here is the shape rather than a magic number: a click costs
  * a bounded amount that does NOT scale with how many accounts the Guardian holds,
@@ -24,8 +26,12 @@ import { GET as snapshotsGET } from "@/app/api/accounts/snapshots/route";
  * it straight back down.
  */
 
-/** The tightest limit measured across the reachable Guardians (lambda: 55, then 60s). */
-const TIGHTEST_NODE_BURST = 55;
+/**
+ * The dev profile's per-minute allowance, which is the tightest a Guardian can
+ * be run at: 60/min, measured as a cut-off around request 57 followed by
+ * `retry-after: 60`. Prod allows 5000/min.
+ */
+const DEV_PROFILE_PER_MIN = 55;
 
 let calls = 0;
 let inventory: Account[] = [];
@@ -167,7 +173,7 @@ describe("one Refresh click against a 1,500-account Guardian", () => {
     let served = 0;
     mockGetAccountSnapshot.mockImplementation(async () => {
       calls++;
-      if (served++ >= TIGHTEST_NODE_BURST) {
+      if (served++ >= DEV_PROFILE_PER_MIN) {
         throw new GuardianOperatorHttpError(429, "Too Many Requests", "", {
           message: "Rate limit exceeded",
           retryAfterSecs: 60,
@@ -187,7 +193,7 @@ describe("one Refresh click against a 1,500-account Guardian", () => {
     await assetTotalsGET(new Request("http://localhost/api/accounts/asset-totals"));
 
     expect(mockGetAccountSnapshot).toHaveBeenCalledTimes(50);
-    expect(mockGetAccountSnapshot.mock.calls.length).toBeLessThan(TIGHTEST_NODE_BURST);
+    expect(mockGetAccountSnapshot.mock.calls.length).toBeLessThan(DEV_PROFILE_PER_MIN);
   });
 
   it("does not re-walk the account list twice for one click", async () => {
@@ -211,6 +217,6 @@ describe("one Refresh click against a 1,500-account Guardian", () => {
 
     await snapshotsGET(new Request(`http://localhost/api/accounts/snapshots?ids=${ids}`));
 
-    expect(mockGetAccountSnapshot.mock.calls.length).toBeLessThan(TIGHTEST_NODE_BURST);
+    expect(mockGetAccountSnapshot.mock.calls.length).toBeLessThan(DEV_PROFILE_PER_MIN);
   });
 });

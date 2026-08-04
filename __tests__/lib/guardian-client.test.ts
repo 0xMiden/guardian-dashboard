@@ -109,11 +109,12 @@ describe("guardian-client withRetry", () => {
 });
 
 /**
- * Measured 2026-08-03: lambda and gateway serve ~57 requests per 60s, then 429
- * with `retry-after: 60`, which locks out every route for a minute. Paced at
- * 50/min the same Guardian served 100 of 100 with no 429 at all. OpenZeppelin has
- * no limit and must not be slowed down, so pacing has to stay off until a Guardian
- * proves it needs it.
+ * A Guardian's limit follows the operator's profile: prod is 200/sec and
+ * 5000/min, dev is 10/sec and 60/min. Measured 2026-08-03, two dev-profile
+ * Guardians cut off at ~57 requests and returned `retry-after: 60`, locking out
+ * every route for a minute, while paced at 50/min one served 100 of 100 with no
+ * 429 at all. A prod-profile Guardian must not be slowed to dev speed, so pacing
+ * stays off until a Guardian proves it needs it.
  */
 describe("per-endpoint pacing", () => {
   it("does not pace a Guardian that has never limited us", async () => {

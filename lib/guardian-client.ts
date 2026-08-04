@@ -26,19 +26,27 @@ const clients = new Map<string, ClientState>();
 /**
  * Per-endpoint request pacing.
  *
- * Measured 2026-08-03: lambda and gateway each serve ~57 requests per 60s and
- * then answer 429 with `retry-after: 60`, which locks out EVERY route for a
- * full minute. That lockout is what operators experience as the dashboard
- * timing out when they click around. Paced at 50/min the same Guardian served 100
- * of 100 requests with no 429 at all, so the limit is entirely avoidable by
- * spacing requests rather than bursting into them.
+ * A Guardian's rate limit depends on which profile the operator runs
+ * (confirmed by OpenZeppelin 2026-08-03):
  *
- * OpenZeppelin has no limit and must not be slowed down, so pacing stays off
- * until a Guardian proves it needs it: the first 429 from an endpoint turns it on
- * for that endpoint and it stays on for the life of the instance.
+ *   prod profile   200/sec, 5000/min
+ *   dev profile     10/sec,   60/min
  *
- * 45/min rather than the 50 measured safe, because Vercel runs several
- * instances and each paces independently.
+ * Either can be overridden with GUARDIAN_RATE_BURST_PER_SEC and
+ * GUARDIAN_RATE_PER_MIN, so the deployed value is knowable only by asking or
+ * by measuring, and it can change under us. Hence discovery rather than config.
+ *
+ * The dev profile is the one that hurts. Measured the same day, two Guardians
+ * on it cut off at request ~58 and answered 429 with `retry-after: 60`, which
+ * matches 60/min exactly and locks out EVERY route for a full minute. That
+ * lockout is what operators experience as the dashboard timing out when they
+ * click around. Paced at 50/min the same Guardian served 100 of 100 requests
+ * with no 429, so the limit is entirely avoidable by spacing requests out.
+ *
+ * A prod-profile Guardian must not be slowed down to dev speed, so pacing stays
+ * off until a Guardian proves it needs it: the first 429 turns it on for that
+ * endpoint and it stays on for the life of the instance. 45/min rather than the
+ * 50 measured safe, because Vercel runs several instances that pace separately.
  *
  * // ponytail: per-instance, like the caches in lib/account-cache.ts. Known
  * // ceiling: N warm instances can still sum past the Guardian's bucket. Upgrade

@@ -52,18 +52,20 @@ const MAX_SNAPSHOT_ENTRIES = 20_000;
 /**
  * How many snapshots one pass may fetch, discovered per endpoint.
  *
- * Operators configure their own rate limits and they differ by more than an
- * order of magnitude. Measured 2026-08-03 at concurrency 10:
+ * Guardians differ by ~80x in what they allow, because the limit comes from the
+ * operator's profile: prod is 200/sec and 5000/min, dev is 10/sec and 60/min,
+ * and either can be overridden per deployment (see lib/guardian-client.ts).
+ * Measured 2026-08-03 at concurrency 10:
  *
- *   openzeppelin  500 reads in 12.6s, zero 429s   (~2,400/min)
- *   lambda        429 after 55 reads, retry_after_secs=60
- *   gateway       429 after 39 reads
+ *   openzeppelin (prod)  500 reads in 8.8s, zero 429s  (~3,400/min, 57/sec)
+ *   lambda (dev)         429 after ~57 reads, retry_after_secs=60
+ *   gateway (dev)        429 after ~57 reads, retry_after_secs=60
  *
  * A single constant has to be sized for the tightest Guardian, and that made the
  * largest one unusable: 995 accounts active in 7 days at 12 a pass is ~28
- * minutes before a total appears. So the ceiling is not configured, it is
- * learned. Double it after a pass that filled it cleanly, halve it the moment
- * the Guardian answers 429.
+ * minutes before a total appears. So the ceiling is learned rather than
+ * configured. Double it after a pass that filled it cleanly, halve it the
+ * moment the Guardian answers 429.
  */
 const INITIAL_CEILING = 25;
 const MIN_CEILING = 5;

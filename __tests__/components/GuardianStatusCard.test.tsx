@@ -53,13 +53,13 @@ describe("GuardianStatusCard", () => {
     expect(container.querySelector("[data-slot='skeleton'], .animate-pulse")).toBeTruthy();
   });
 
-  it("shows Online badge when node is up", () => {
+  it("shows Online badge when Guardian is up", () => {
     mockSWR();
     render(<GuardianStatusCard />);
     expect(screen.getByText("Online")).toBeInTheDocument();
   });
 
-  it("shows Offline badge when node is down", () => {
+  it("shows Offline badge when Guardian is down", () => {
     mockSWR({ health: healthDown });
     render(<GuardianStatusCard />);
     expect(screen.getByText("Offline")).toBeInTheDocument();
@@ -130,7 +130,7 @@ describe("GuardianStatusCard", () => {
     expect(screen.queryByText("—")).not.toBeInTheDocument();
   });
 
-  it("shows no uptime when the node reports no start time", () => {
+  it("shows no uptime when the Guardian reports no start time", () => {
     mockSWR({ overview: { build: { version: "0.15.0", gitCommit: "abc1234", startedAt: "", profile: "release" } } });
     render(<GuardianStatusCard />);
     expect(screen.queryByText("Uptime")).not.toBeInTheDocument();

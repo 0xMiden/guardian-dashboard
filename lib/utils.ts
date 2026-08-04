@@ -7,9 +7,9 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * What a failing guardian-proxy route puts in its body. The fields past
- * `error` come from the node's own error envelope (`meta`), forwarded by
+ * `error` come from the Guardian's own error envelope (`meta`), forwarded by
  * `guardianRoute` so the UI can say which permission is missing or how long
- * the node asked us to wait, rather than printing an HTTP status at someone.
+ * the Guardian asked us to wait, rather than printing an HTTP status at someone.
  */
 export type GuardianErrorBody = {
   error?: string;

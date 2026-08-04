@@ -47,8 +47,8 @@ describe("GET /api/accounts", () => {
   });
 
   // Every failure used to collapse to a 503 carrying the client's diagnostic
-  // Error text, so the UI could not tell a permission denial from a dead node.
-  it("forwards the node's status and error envelope instead of flattening to 503", async () => {
+  // Error text, so the UI could not tell a permission denial from a dead Guardian.
+  it("forwards the Guardian's status and error envelope instead of flattening to 503", async () => {
     mockHeaders("testnet");
     mockListAccounts.mockRejectedValue(
       new GuardianOperatorHttpError(403, "Forbidden", "{}", {
@@ -66,7 +66,7 @@ describe("GET /api/accounts", () => {
     });
   });
 
-  it("forwards the retry-after the node asked for on a rate limit", async () => {
+  it("forwards the retry-after the Guardian asked for on a rate limit", async () => {
     mockHeaders("testnet");
     mockListAccounts.mockRejectedValue(
       new GuardianOperatorHttpError(429, "Too Many Requests", "{}", {
@@ -78,9 +78,9 @@ describe("GET /api/accounts", () => {
     expect((await res.json()).retryAfterSecs).toBe(7);
   });
 
-  // The node takes a tri-state pause filter and our wrapper used to type the
+  // The Guardian takes a tri-state pause filter and our wrapper used to type the
   // options as PaginationOptions, which dropped it. Without this there is no
-  // way to ask "which accounts are frozen" short of paging the whole node.
+  // way to ask "which accounts are frozen" short of paging the whole Guardian.
   it("passes the paused filter through", async () => {
     mockHeaders("testnet");
     mockListAccounts.mockResolvedValue({ items: [], nextCursor: null });

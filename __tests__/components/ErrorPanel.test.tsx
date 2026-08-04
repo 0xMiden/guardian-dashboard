@@ -10,7 +10,7 @@ describe("ErrorPanel", () => {
   // The case that sent us to KODA: the panel used to print
   // "Guardian operator HTTP error 403: Forbidden - You don't have permission
   // to do that", which names neither the permission nor who can grant it.
-  it("names the permission the node is withholding", () => {
+  it("names the permission the Guardian is withholding", () => {
     render(<ErrorPanel error={err(403, {
       code: "insufficient_operator_permission",
       missingPermissions: ["accounts:pause"],
@@ -28,19 +28,19 @@ describe("ErrorPanel", () => {
     expect(screen.getByText(/does not recognise this operator key/i)).toBeInTheDocument();
   });
 
-  it("passes on the node's own retry-after rather than inventing a wait", () => {
+  it("passes on the Guardian's own retry-after rather than inventing a wait", () => {
     render(<ErrorPanel error={err(429, { retryAfterSecs: 12 })} />);
     expect(screen.getByText(/12s/)).toBeInTheDocument();
   });
 
-  it("separates a missing record from a broken node", () => {
+  it("separates a missing record from a broken Guardian", () => {
     render(<ErrorPanel error={err(404, { code: "account_not_found" })} />);
-    expect(screen.getByText("Not found on this node")).toBeInTheDocument();
+    expect(screen.getByText("Not found on this Guardian")).toBeInTheDocument();
   });
 
-  it("treats anything the node never answered as unavailable", () => {
+  it("treats anything the Guardian never answered as unavailable", () => {
     render(<ErrorPanel error={err(503, { error: "fetch failed" })} />);
-    expect(screen.getByText("Guardian node unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Guardian unavailable")).toBeInTheDocument();
   });
 
   // Retrying a permission denial or a missing account cannot succeed, so the

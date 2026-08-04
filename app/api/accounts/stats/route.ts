@@ -9,9 +9,9 @@ const MS_7D  = 7  * 24 * 60 * 60 * 1000;
 const MS_30D = 30 * 24 * 60 * 60 * 1000;
 
 // The walk runs to the end of the list rather than stopping at 30 days, because
-// the Accounts table's kind counts have to describe the node instead of
+// the Accounts table's kind counts have to describe the Guardian instead of
 // whichever page the user has scrolled to. It costs pages the 30-day stop used
-// to skip: 4 requests instead of 1 on the 1,573-account node, once per cache
+// to skip: 4 requests instead of 1 on the 1,573-account Guardian, once per cache
 // TTL. `asset-totals` is unaffected, since it filters its own 7-day window out
 // of whatever inventory it is handed, and a deeper walk satisfies its shallower
 // one from the same cache entry.
@@ -55,7 +55,7 @@ export async function GET(req: Request) {
     }
 
     // `counted` is what the walk actually saw. The table's chips read it rather
-    // than `total`, so the three of them always sum, even on a node whose
+    // than `total`, so the three of them always sum, even on a Guardian whose
     // reported total disagrees with what the list endpoint hands back.
     return { total, count7d, count30d, counted: accounts.length, wallet, other: accounts.length - wallet, frozen, released };
   });

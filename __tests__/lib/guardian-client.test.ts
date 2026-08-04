@@ -24,7 +24,7 @@ vi.mock("@/lib/endpoints", () => {
   const endpoint = (id: string) => ({
     id,
     label: "Test",
-    url: "https://node.test",
+    url: "https://Guardian.test",
     network: "test",
     commitment: "0xcommitment",
     privateKey: "0xkey",
@@ -35,7 +35,7 @@ vi.mock("@/lib/endpoints", () => {
   };
 });
 
-import { getGuardianClient } from "@/lib/guardian-client";
+import { getGuardianClient, __resetGuardianClients } from "@/lib/guardian-client";
 import { GuardianOperatorHttpError } from "@openzeppelin/guardian-operator-client";
 
 const rateLimitError = () =>
@@ -45,8 +45,13 @@ const rateLimitError = () =>
 
 const page = { items: [], nextCursor: null };
 
+const TEST_PACE_MS = 20;
+
 beforeEach(() => {
   vi.clearAllMocks();
+  // Fresh client state per test, and a pacing interval short enough to assert
+  // spacing without spending real seconds on it.
+  __resetGuardianClients(TEST_PACE_MS);
   mocks.challenge.mockResolvedValue({ challenge: { signingDigest: "0xdigest" } });
   mocks.verify.mockResolvedValue({ success: true });
 });
@@ -59,7 +64,7 @@ describe("guardian-client withRetry", () => {
     expect(mocks.listAccounts).toHaveBeenCalledTimes(2);
   });
 
-  it("fails fast when the node asks to retry after longer than the cap", async () => {
+  it("fails fast when the Guardian asks to retry after longer than the cap", async () => {
     mocks.listAccounts.mockRejectedValue(
       new GuardianOperatorHttpError(429, "Too Many Requests", "sustained limit", {
         retryAfterSecs: 60,
@@ -100,5 +105,84 @@ describe("guardian-client withRetry", () => {
     expect(mocks.challenge).toHaveBeenCalledTimes(1);
     expect(mocks.verify).toHaveBeenCalledTimes(1);
     expect(mocks.listAccounts).toHaveBeenCalledTimes(3);
+  });
+});
+
+/**
+ * Measured 2026-08-03: lambda and gateway serve ~57 requests per 60s, then 429
+ * with `retry-after: 60`, which locks out every route for a minute. Paced at
+ * 50/min the same Guardian served 100 of 100 with no 429 at all. OpenZeppelin has
+ * no limit and must not be slowed down, so pacing has to stay off until a Guardian
+ * proves it needs it.
+ */
+describe("per-endpoint pacing", () => {
+  it("does not pace a Guardian that has never limited us", async () => {
+    mocks.listAccounts.mockResolvedValue(page);
+    const client = getGuardianClient("unpaced");
+
+    const started = Date.now();
+    for (let i = 0; i < 8; i++) await client.listAccounts();
+    const elapsed = Date.now() - started;
+
+    expect(client.pacingIntervalMs()).toBe(0);
+    // Eight sequential calls with no artificial delay between them.
+    expect(elapsed).toBeLessThan(500);
+  });
+
+  it("engages pacing after one 429 and keeps it on", async () => {
+    mocks.listAccounts
+      .mockRejectedValueOnce(
+        new GuardianOperatorHttpError(429, "Too Many Requests", "sustained", { retryAfterSecs: 60 } as never),
+      )
+      .mockResolvedValue(page);
+    const client = getGuardianClient("engages");
+
+    expect(client.pacingIntervalMs()).toBe(0);
+    await expect(client.listAccounts()).rejects.toMatchObject({ status: 429 });
+
+    // Even though that 429 was NOT retried (60s is past the fail-fast cap), the
+    // Guardian still told us its capacity and every later route must respect it.
+    expect(client.pacingIntervalMs()).toBeGreaterThan(0);
+  });
+
+  it("spaces requests once paced", async () => {
+    mocks.listAccounts
+      .mockRejectedValueOnce(
+        new GuardianOperatorHttpError(429, "Too Many Requests", "sustained", { retryAfterSecs: 60 } as never),
+      )
+      .mockResolvedValue(page);
+    const client = getGuardianClient("spaces");
+    await expect(client.listAccounts()).rejects.toMatchObject({ status: 429 });
+
+    const interval = client.pacingIntervalMs();
+    const started = Date.now();
+    await client.listAccounts();
+    await client.listAccounts();
+    const elapsed = Date.now() - started;
+
+    // Two paced calls sit at least one interval apart. Generous lower bound so
+    // this asserts the spacing exists rather than pinning the exact rate.
+    expect(elapsed).toBeGreaterThanOrEqual(interval * 0.8);
+  });
+
+  it("charges the liveness ping against the budget without making it wait", async () => {
+    mocks.listAccounts
+      .mockRejectedValueOnce(
+        new GuardianOperatorHttpError(429, "Too Many Requests", "sustained", { retryAfterSecs: 60 } as never),
+      )
+      .mockResolvedValue(page);
+    const client = getGuardianClient("health-paced");
+    await expect(client.listAccounts()).rejects.toMatchObject({ status: 429 });
+
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true }) as never));
+    const started = Date.now();
+    const health = await client.checkHealth();
+    const elapsed = Date.now() - started;
+    vi.unstubAllGlobals();
+
+    expect(health.status).toBe("up");
+    // A health check that queued behind a snapshot burst would report a healthy
+    // Guardian as down, so it never waits, it only spends a slot.
+    expect(elapsed).toBeLessThan(200);
   });
 });

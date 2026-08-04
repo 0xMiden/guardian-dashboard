@@ -7,7 +7,7 @@ export type AccountStats = {
   count7d: number;
   count30d: number;
   // From the same paged walk the counts above use, so the Accounts table can
-  // label its filters with what the node holds instead of what it has paged in.
+  // label its filters with what the Guardian holds instead of what it has paged in.
   counted?: number;
   wallet?: number;
   other?: number;
@@ -22,7 +22,7 @@ export const STATS_KEY = "/api/accounts/stats";
 const ASSETS_KEY = "/api/accounts/asset-totals";
 
 /**
- * Recompute the strip from the node rather than from the route caches. Both
+ * Recompute the strip from the Guardian rather than from the route caches. Both
  * routes hold a 60s answer, so a plain revalidation would hand back the same
  * numbers; `refresh=1` re-walks the account list, which is what surfaces
  * accounts whose version moved.
@@ -35,8 +35,8 @@ export async function refreshStatStrip(): Promise<void> {
 }
 
 /**
- * Inventory summary for this Guardian node. Shown above both the Accounts table
- * and the Activity feed: the same question ("how much is on this node") comes up
+ * Inventory summary for this Guardian. Shown above both the Accounts table
+ * and the Activity feed: the same question ("how much is on this Guardian") comes up
  * on either page, and both are already polling.
  *
  * The SWR keys are shared, so mounting this twice costs nothing extra.

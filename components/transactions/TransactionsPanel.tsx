@@ -223,7 +223,7 @@ export function TransactionsPanel() {
         </div>
       ) : rows.length === 0 ? (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed px-4 text-center text-sm text-muted-foreground">
-          {/* The filter sees the entries loaded so far. The node's activity feeds
+          {/* The filter sees the entries loaded so far. The Guardian's activity feeds
               take a cursor and a status, so there is nothing to search with. */}
           {query
             ? `No activity for an account matching "${query.trim()}" in the entries loaded so far.`

@@ -184,7 +184,7 @@ describe("AccountsPanel asset totals", () => {
   // The observer used to be rebuilt from a hand-kept list of the state that
   // changes the rendered rows. The chip filter was on that list and the search
   // box was not, so a search left `visibleRef` holding rows that were no longer
-  // mounted, and refresh went on spending node requests re-reading them.
+  // mounted, and refresh went on spending Guardian requests re-reading them.
   it("refresh does not re-read a row a search took off screen", async () => {
     mockRows([A, B]);
     render(<AccountsPanel />);
@@ -219,11 +219,11 @@ describe("AccountsPanel asset totals", () => {
   });
 });
 
-// The node defaults to 50 per page. Leaving it there meant 29 round trips to
-// scroll a 1,418-account node, so the panel asks for the documented maximum and
+// The Guardian defaults to 50 per page. Leaving it there meant 29 round trips to
+// scroll a 1,418-account Guardian, so the panel asks for the documented maximum and
 // has to keep asking for it once it starts paging.
 describe("AccountsPanel page size", () => {
-  it("requests the node's maximum page rather than its default", () => {
+  it("requests the Guardian's maximum page rather than its default", () => {
     expect(ACCOUNTS_KEY).toBe("/api/accounts?limit=500");
   });
 

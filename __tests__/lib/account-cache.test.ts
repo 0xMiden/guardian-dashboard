@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { GuardianOperatorHttpError } from "@openzeppelin/guardian-operator-client";
 import {
   getInventory,
   getSnapshotTotals,
@@ -7,6 +8,14 @@ import {
   __resetAccountCaches,
   INVENTORY_TTL_MS,
 } from "@/lib/account-cache";
+
+/** What a Guardian answers when it wants us to back off. lambda sends 60s. */
+const rateLimit = () =>
+  new GuardianOperatorHttpError(429, "Too Many Requests", "", {
+    message: "Rate limit exceeded",
+    retryAfterSecs: 60,
+    retryable: true,
+  });
 
 vi.mock("@/lib/token-registry", () => ({
   normalizeAmount: (_faucetId: string, amount: string) => {
@@ -219,7 +228,7 @@ describe("per-pass fetch budget", () => {
     expect(getAccountSnapshot).toHaveBeenCalledTimes(25); // each account fetched once
   });
 
-  // An account the node refuses must not block the aggregate forever. Only
+  // An account the Guardian refuses must not block the aggregate forever. Only
   // accounts we chose not to read count as incomplete.
   it("counts a refused account as attempted, not skipped", async () => {
     const { client } = reader((id) => {
@@ -231,9 +240,117 @@ describe("per-pass fetch budget", () => {
     expect(Object.keys(totals)).toEqual(["0x0", "0x2"]);
   });
 
-  it("is unlimited by default", async () => {
+  it("starts a cold endpoint at the initial ceiling", async () => {
     const { client, getAccountSnapshot } = reader();
     await getSnapshotTotals(client, "ep", rows(40));
-    expect(getAccountSnapshot).toHaveBeenCalledTimes(40);
+    expect(getAccountSnapshot).toHaveBeenCalledTimes(25);
+  });
+});
+
+// Operators set their own rate limits and they differ by more than an order of
+// magnitude (measured 2026-08-03: OZ served 500 reads with no 429, lambda 429'd
+// after 55). One constant sized for the tightest Guardian made the largest one take
+// ~28 minutes to publish a total, so the ceiling is discovered per endpoint.
+describe("learned per-endpoint ceiling", () => {
+  const reader = (impl?: (id: string) => unknown) => {
+    const getAccountSnapshot = vi.fn(async (id: string) => (impl ? impl(id) : snapshot(10)));
+    return { client: { getAccountSnapshot } as never, getAccountSnapshot };
+  };
+  const rows = (n: number) => Array.from({ length: n }, (_, i) => account(`0x${i}`, 1000 + i));
+
+  it("doubles the ceiling after a pass that filled it", async () => {
+    const { client, getAccountSnapshot } = reader();
+    const all = rows(400);
+
+    await getSnapshotTotals(client, "ep", all);
+    expect(getAccountSnapshot).toHaveBeenCalledTimes(25);
+
+    getAccountSnapshot.mockClear();
+    await getSnapshotTotals(client, "ep", all);
+    expect(getAccountSnapshot).toHaveBeenCalledTimes(50);
+
+    getAccountSnapshot.mockClear();
+    await getSnapshotTotals(client, "ep", all);
+    expect(getAccountSnapshot).toHaveBeenCalledTimes(100);
+  });
+
+  // The ramp is what makes a large Guardian usable; without it the walk never
+  // outruns the 20s poll and the card reads as stuck.
+  it("reaches a 995-account Guardian in far fewer passes than a fixed 12", async () => {
+    const { client } = reader();
+    const all = rows(995);
+    let complete = false;
+    let passes = 0;
+    while (!complete && passes < 50) {
+      ({ complete } = await getSnapshotTotalsChecked(client, "ep", all));
+      passes++;
+    }
+    expect(complete).toBe(true);
+    expect(passes).toBe(6); // 25, 50, 100, 200, 400, remainder
+  });
+
+  it("halves the ceiling when the Guardian answers 429", async () => {
+    let limitAfter = Infinity;
+    let served = 0;
+    const { client, getAccountSnapshot } = reader(() => {
+      if (served++ >= limitAfter) throw rateLimit();
+      return snapshot(10);
+    });
+    const all = rows(400);
+
+    // Two clean passes take the ceiling to 100.
+    await getSnapshotTotals(client, "ep", all);
+    await getSnapshotTotals(client, "ep", all);
+
+    // Third pass: the Guardian cuts us off partway through.
+    served = 0;
+    limitAfter = 30;
+    getAccountSnapshot.mockClear();
+    await getSnapshotTotals(client, "ep", all);
+
+    // Fourth pass runs against the halved ceiling rather than 100 again.
+    served = 0;
+    limitAfter = Infinity;
+    getAccountSnapshot.mockClear();
+    await getSnapshotTotals(client, "ep", all);
+    expect(getAccountSnapshot).toHaveBeenCalledTimes(50);
+  });
+
+  // A 429 means the account went unread. Counting it as attempted let a
+  // rate-limited Guardian publish a sum that was quietly missing accounts.
+  it("reports incomplete when a 429 cost it accounts", async () => {
+    const { client } = reader((id) => {
+      if (id === "0x3") throw rateLimit();
+      return snapshot(10);
+    });
+    const { complete } = await getSnapshotTotalsChecked(client, "ep", rows(5));
+    expect(complete).toBe(false);
+  });
+
+  it("stops the pass at the first 429 instead of collecting more", async () => {
+    const { client, getAccountSnapshot } = reader((id) => {
+      if (id === "0x3") throw rateLimit();
+      return snapshot(10);
+    });
+    await getSnapshotTotals(client, "ep", rows(25));
+    // Concurrency is 5, so the batch holding 0x3 finishes and no further batch
+    // starts: 5 attempts, not all 25.
+    expect(getAccountSnapshot).toHaveBeenCalledTimes(5);
+  });
+
+  it("retries a rate-limited account on the next pass rather than caching it", async () => {
+    let limited = true;
+    const { client } = reader((id) => {
+      if (id === "0x3" && limited) throw rateLimit();
+      return snapshot(10);
+    });
+    const all = rows(5);
+
+    await getSnapshotTotals(client, "ep", all);
+    limited = false;
+    const { totals, complete } = await getSnapshotTotalsChecked(client, "ep", all);
+
+    expect(complete).toBe(true);
+    expect(totals["0x3"]).toBe(10);
   });
 });

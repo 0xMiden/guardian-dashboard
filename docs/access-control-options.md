@@ -2,7 +2,7 @@
 
 ## Background
 
-The Guardian Dashboard is a Next.js web app that lets an operator monitor and manage a Guardian node (accounts, transactions, compliance rules, logs). It talks to a Guardian server using the operator's **Falcon-512 keypair** (a post-quantum signature scheme used by the Miden protocol).
+The Guardian Dashboard is a Next.js web app that lets an operator monitor and manage a Guardian (accounts, transactions, compliance rules, logs). It talks to a Guardian server using the operator's **Falcon-512 keypair** (a post-quantum signature scheme used by the Miden protocol).
 
 Currently the dashboard has a login page and a middleware guard, but since no password variable is set in the environment, **auth is completely bypassed** — anyone who can reach the URL can use the dashboard.
 

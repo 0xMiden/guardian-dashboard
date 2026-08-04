@@ -90,7 +90,7 @@ function PauseModal({
         body: JSON.stringify(needsReason ? { reason: reason.trim() } : {}),
       });
       const data = await res.json().catch(() => null);
-      // A FetchError rather than a bare Error, so the node's error envelope
+      // A FetchError rather than a bare Error, so the Guardian's error envelope
       // survives as far as the message the operator reads. This is the button
       // that produced "Guardian operator HTTP error 403: Forbidden - You don't
       // have permission to do that", which names neither the permission that is

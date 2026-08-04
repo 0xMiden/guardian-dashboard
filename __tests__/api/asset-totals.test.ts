@@ -77,10 +77,10 @@ describe("GET /api/accounts/asset-totals", () => {
     expect((await res.json()).usd7d).toBe(30);
   });
 
-  // The card polls a warming answer every 20s and a settled one every 60s, so
-  // the ceiling has to be the smaller of the two here or the walk would spend
-  // 75 of the node's 60 requests a minute.
-  it("caps a warm-up pass below the settled ceiling and reports its progress", async () => {
+  // The route no longer picks the per-pass size; the cache layer learns it per
+  // endpoint and hands a cold one the initial ceiling. What the route still owns
+  // is refusing to publish a sum it knows is short.
+  it("declines to publish a partial sum and reports its progress instead", async () => {
     mockHeaders("ep-warming");
     const items = Array.from({ length: 40 }, (_, i) => account(`0x${i}`, 1));
     mockListAccounts.mockResolvedValue({ items, nextCursor: null });
@@ -88,25 +88,26 @@ describe("GET /api/accounts/asset-totals", () => {
 
     const body = await (await GET(new Request("http://localhost/api/accounts/asset-totals"))).json();
 
-    expect(mockGetAccountSnapshot).toHaveBeenCalledTimes(12);
-    expect(body).toMatchObject({ usd7d: null, warming: true, done: 12, total: 40 });
+    expect(mockGetAccountSnapshot).toHaveBeenCalledTimes(25);
+    expect(body).toMatchObject({ usd7d: null, warming: true, done: 25, total: 40 });
   });
 
   // Without this the count is a lie that never reaches its total, and the card
   // reads as stuck for exactly as long as it did before.
   it("advances the count on each pass until the total is published", async () => {
     mockHeaders("ep-progress");
-    const items = Array.from({ length: 20 }, (_, i) => account(`0x${i}`, 1));
+    const items = Array.from({ length: 60 }, (_, i) => account(`0x${i}`, 1));
     mockListAccounts.mockResolvedValue({ items, nextCursor: null });
     mockGetAccountSnapshot.mockResolvedValue(snapshot(2));
 
     const first = await (await GET(new Request("http://localhost/api/accounts/asset-totals"))).json();
-    expect(first).toMatchObject({ warming: true, done: 12, total: 20 });
+    expect(first).toMatchObject({ warming: true, done: 25, total: 60 });
 
-    // Second pass, the plain poll the card makes: the 12 already read are cache
-    // hits, so the remaining 8 fit inside the same ceiling.
+    // Second pass, the plain poll the card makes. The 25 already read are cache
+    // hits, and the clean first pass doubled the ceiling to 50, so the remaining
+    // 35 all fit and the total lands.
     const second = await (await GET(new Request("http://localhost/api/accounts/asset-totals"))).json();
-    expect(second.usd7d).toBe(40);
+    expect(second.usd7d).toBe(120);
     expect(second.warming).toBeUndefined();
   });
 

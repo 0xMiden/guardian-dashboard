@@ -16,10 +16,10 @@ const { useRouter, useSearchParams } = await import("next/navigation");
 beforeEach(() => vi.clearAllMocks());
 
 // Arriving from the Overview frozen count. The filter is server-side, unlike
-// the chips and the search box, so the panel has to ask the node for it rather
+// the chips and the search box, so the panel has to ask the Guardian for it rather
 // than filter what it already holds.
 describe("AccountsPanel frozen-only", () => {
-  it("asks the node for paused accounts and says the table is filtered", () => {
+  it("asks the Guardian for paused accounts and says the table is filtered", () => {
     vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams("paused=true") as never);
     // Keyed by URL: a blanket mockReturnValue hands the accounts payload to
     // StatStrip as well, which then reads stats fields off it.
@@ -81,14 +81,14 @@ describe("AccountsPanel", () => {
     expect(container.querySelectorAll(".animate-pulse, [data-slot='skeleton']").length).toBeGreaterThan(0);
   });
 
-  // A failure that reached the node arrives from `fetcher` as a FetchError
+  // A failure that reached the Guardian arrives from `fetcher` as a FetchError
   // carrying its status, which is what lets the panel name the problem instead
   // of echoing HTTP at the reader.
-  it("names the node as unavailable when it did not answer", () => {
-    useSWR.mockReturnValue({ data: undefined, error: new FetchError("Node offline", 503) });
+  it("names the Guardian as unavailable when it did not answer", () => {
+    useSWR.mockReturnValue({ data: undefined, error: new FetchError("Guardian offline", 503) });
     render(<AccountsPanel />);
-    expect(screen.getByText("Guardian node unavailable")).toBeInTheDocument();
-    expect(screen.getByText("Node offline")).toBeInTheDocument();
+    expect(screen.getByText("Guardian unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Guardian offline")).toBeInTheDocument();
   });
 
   it("names the missing permission rather than the status code", () => {
@@ -128,7 +128,7 @@ describe("AccountsPanel", () => {
     });
     render(<AccountsPanel />);
     expect(screen.getByText("0xabc123")).toBeInTheDocument();
-    expect(screen.queryByText(/guardian node unavailable/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Guardian unavailable/i)).not.toBeInTheDocument();
   });
 
   it("shows empty state when no accounts", () => {
@@ -322,13 +322,13 @@ describe("AccountsPanel sorting and export", () => {
   const idsInOrder = (container: HTMLElement) =>
     [...container.querySelectorAll("tr[data-account-id]")].map((r) => r.getAttribute("data-account-id"));
 
-  it("leaves rows in the node's order until a header is clicked", () => {
+  it("leaves rows in the Guardian's order until a header is clicked", () => {
     mockRows([row("0xb", { authorizedSignerCount: 9 }), row("0xa", { authorizedSignerCount: 1 })]);
     const { container } = render(<AccountsPanel />);
     expect(idsInOrder(container)).toEqual(["0xb", "0xa"]);
   });
 
-  it("cycles a column through descending, ascending, then back to node order", () => {
+  it("cycles a column through descending, ascending, then back to Guardian order", () => {
     mockRows([row("0xb", { authorizedSignerCount: 9 }), row("0xa", { authorizedSignerCount: 1 })]);
     const { container } = render(<AccountsPanel />);
     const header = screen.getByRole("button", { name: /signers/i });
@@ -371,7 +371,7 @@ describe("AccountsPanel sorting and export", () => {
   });
 });
 
-// The chips used to count the rows paged in, so they read "All (50)" on a node
+// The chips used to count the rows paged in, so they read "All (50)" on a Guardian
 // holding 1,418 and only moved when scrolling happened to load more.
 describe("AccountsPanel kind counts", () => {
   const row = (id: string, over: Record<string, unknown> = {}) => ({
@@ -388,7 +388,7 @@ describe("AccountsPanel kind counts", () => {
     });
   }
 
-  it("counts what the node holds, not the page that has been loaded", () => {
+  it("counts what the Guardian holds, not the page that has been loaded", () => {
     mock({
       items: [row("0xa"), row("0xb")],
       stats: { total: 1418, count7d: 0, count30d: 0, counted: 1418, wallet: 1410, other: 8 },
@@ -401,7 +401,7 @@ describe("AccountsPanel kind counts", () => {
 
   // Below the table rather than beside the chips: sitting in the chip row it
   // read as a fourth filter rather than as a note on the table's completeness.
-  it("says how much of the node the table is showing", () => {
+  it("says how much of the Guardian the table is showing", () => {
     mock({
       items: [row("0xa"), row("0xb")],
       stats: { total: 1418, count7d: 0, count30d: 0, counted: 1418, wallet: 1410, other: 8 },

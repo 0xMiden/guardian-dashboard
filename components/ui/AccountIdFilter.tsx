@@ -4,10 +4,10 @@ import { Search, X } from "lucide-react";
 /**
  * Account ID filter for the tables that list accounts or activity.
  *
- * // ponytail: filters the rows already loaded. The node has no search
+ * // ponytail: filters the rows already loaded. The Guardian has no search
  * // parameter (`ListAccountsOptions` is limit/cursor/paused), so a server-side
  * // filter would mean paging the whole inventory on every keystroke. Upgrade
- * // path is a search parameter on the node's list endpoints; until then the
+ * // path is a search parameter on the Guardian's list endpoints; until then the
  * // Accounts table offers a direct open for an ID that is not loaded yet.
  */
 export function AccountIdFilter({ value, onChange }: { value: string; onChange: (v: string) => void }) {

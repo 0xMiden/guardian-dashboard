@@ -1,14 +1,14 @@
+import { GuardianOperatorHttpError } from "@openzeppelin/guardian-operator-client";
 import type { DashboardAccountSummary, PagedResult } from "@openzeppelin/guardian-operator-client";
 import { normalizeAmount } from "@/lib/token-registry";
 
 /**
  * Request-reduction layer shared by the account routes.
  *
- * The node rate-limits per client IP at 60 requests/minute across all routes,
- * and it has no batch read: one snapshot is one HTTP request. Rendering the
- * accounts page used to cost ~576 requests against that budget, because
- * `stats` and `asset-totals` each paged the whole inventory and then fetched a
- * snapshot per active account, every time.
+ * Guardians rate-limit per operator commitment and have no batch read: one snapshot
+ * is one HTTP request. Rendering the accounts page used to cost ~576 requests,
+ * because `stats` and `asset-totals` each paged the whole inventory and then
+ * fetched a snapshot per active account, every time.
  *
  * Two caches fix that WITHOUT trading freshness away, which matters because
  * the asset TTL was deliberately cut from 5 min to 60s (566be23) after users
@@ -35,19 +35,51 @@ export const INVENTORY_TTL_MS = 60 * 1000;
 
 // A Refresh click hits stats and asset-totals within milliseconds of each
 // other, and both need the account list. `refresh` therefore means "a much
-// shorter TTL" rather than "no cache": the click still gets a walk the node
+// shorter TTL" rather than "no cache": the click still gets a walk the Guardian
 // answered moments ago, and pays for it once instead of twice.
 const REFRESH_TTL_MS = 2 * 1000;
 
-// The node's documented maximum page size. Every page is one request against
-// the same 60/minute budget, so the walk costs 4 requests on the 1,573-account
-// OZ node instead of 16. Verified against all four reachable nodes: they return
-// a full 500 items (OZ in ~750ms).
+// The Guardian's documented maximum page size. Every page is one request against
+// the same budget, so the walk costs 4 requests on the 1,573-account OZ Guardian
+// instead of 16. Verified against all four reachable Guardians: they return a full
+// 500 items (OZ in ~750ms).
 const PAGE_SIZE = 500;
 
 // Bounded so a long-lived instance cannot grow without limit. Oldest-first
 // eviction; entries are cheap (a number keyed by a short string).
 const MAX_SNAPSHOT_ENTRIES = 20_000;
+
+/**
+ * How many snapshots one pass may fetch, discovered per endpoint.
+ *
+ * Operators configure their own rate limits and they differ by more than an
+ * order of magnitude. Measured 2026-08-03 at concurrency 10:
+ *
+ *   openzeppelin  500 reads in 12.6s, zero 429s   (~2,400/min)
+ *   lambda        429 after 55 reads, retry_after_secs=60
+ *   gateway       429 after 39 reads
+ *
+ * A single constant has to be sized for the tightest Guardian, and that made the
+ * largest one unusable: 995 accounts active in 7 days at 12 a pass is ~28
+ * minutes before a total appears. So the ceiling is not configured, it is
+ * learned. Double it after a pass that filled it cleanly, halve it the moment
+ * the Guardian answers 429.
+ */
+const INITIAL_CEILING = 25;
+const MIN_CEILING = 5;
+const MAX_CEILING = 1000;
+
+const ceilings = new Map<string, number>();
+
+/**
+ * A 429 means the account went unread and is worth retrying. Every other
+ * failure is the Guardian refusing this account (unavailable state, EVM account
+ * with no Miden vault) and counts as attempted, or one permanently broken
+ * account would block the aggregate forever.
+ */
+function isRateLimited(err: unknown): boolean {
+  return err instanceof GuardianOperatorHttpError && err.status === 429;
+}
 
 // `maxAgeMs` is recorded because callers walk to different depths: asset
 // totals only needs 7 days, stats needs 30. A shallower walk MUST NOT satisfy
@@ -76,6 +108,7 @@ function rememberSnapshot(key: string, value: number): void {
 export function __resetAccountCaches(): void {
   inventoryCache.clear();
   snapshotCache.clear();
+  ceilings.clear();
 }
 
 export type AccountLister = {
@@ -84,7 +117,16 @@ export type AccountLister = {
 
 export type SnapshotReader = {
   getAccountSnapshot(accountId: string): Promise<{ vault: { fungible: { faucetId: string; amount: string }[] } }>;
+  /** Present on the real client; 0 or absent when the Guardian is not being paced. */
+  pacingIntervalMs?(): number;
 };
+
+/**
+ * How long one pass may spend waiting on a paced Guardian. `maxDuration` on the
+ * asset-totals route is 120s and the card polls every 20s while warming, so a
+ * pass has to end well short of both. Only bites on a Guardian that limits us.
+ */
+const PASS_TIME_BUDGET_MS = 30_000;
 
 /**
  * Page the account list once and share it. `maxAgeMs` bounds how far back the
@@ -149,7 +191,7 @@ async function collectSnapshotTotals(
   {
     concurrency = 5,
     refresh = false,
-    maxFetches = Infinity,
+    maxFetches,
   }: { concurrency?: number; refresh?: boolean; maxFetches?: number } = {},
 ): Promise<{ totals: Record<string, number>; skipped: number }> {
   const result: Record<string, number> = {};
@@ -165,17 +207,35 @@ async function collectSnapshotTotals(
   }
 
   // A cold instance would otherwise fetch every miss in one burst, which on a
-  // large node is thousands of requests against a 60/minute budget. Capping
-  // the pass keeps each invocation inside the budget; the caller checks
-  // `complete` on the result and declines to publish a partial aggregate.
-  const budgeted = misses.slice(0, maxFetches);
+  // large Guardian is thousands of requests. Capping the pass keeps each invocation
+  // inside whatever this Guardian tolerates; the caller checks `complete` on the
+  // result and declines to publish a partial aggregate.
+  const ceiling = ceilings.get(endpointId) ?? INITIAL_CEILING;
 
-  for (let i = 0; i < budgeted.length; i += concurrency) {
+  // On a paced Guardian each read costs real wall-clock time, so the pass is bound
+  // by the invocation as well as by the Guardian's budget. Once the pacer exists,
+  // the ceiling stops being what prevents 429s and is only a length bound.
+  const interval = client.pacingIntervalMs?.() ?? 0;
+  const fitsInPass = interval ? Math.max(MIN_CEILING, Math.floor(PASS_TIME_BUDGET_MS / interval)) : Infinity;
+  const budgeted = misses.slice(0, Math.min(maxFetches ?? ceiling, fitsInPass));
+
+  // Accounts a 429 cost us. They were not refused, so they must not count as
+  // attempted, or the caller publishes a sum that is quietly missing them.
+  let unread = 0;
+  let rateLimited = false;
+
+  for (let i = 0; i < budgeted.length && !rateLimited; i += concurrency) {
     const batch = budgeted.slice(i, i + concurrency);
     const settled = await Promise.allSettled(batch.map((m) => client.getAccountSnapshot(m.accountId)));
     for (let j = 0; j < settled.length; j++) {
       const r = settled[j];
-      if (r.status !== "fulfilled") continue;
+      if (r.status !== "fulfilled") {
+        if (isRateLimited(r.reason)) {
+          rateLimited = true;
+          unread++;
+        }
+        continue;
+      }
       const total = r.value.vault.fungible.reduce(
         (sum, asset) => sum + normalizeAmount(asset.faucetId, asset.amount),
         0,
@@ -184,9 +244,20 @@ async function collectSnapshotTotals(
       const key = batch[j].key;
       if (key) rememberSnapshot(key, total);
     }
+    // Once the Guardian is limiting, the rest of this pass would only collect more
+    // 429s. Stop and let the next poll try again against a lower ceiling.
+    if (rateLimited) unread += budgeted.length - (i + batch.length);
   }
 
-  return { totals: result, skipped: misses.length - budgeted.length };
+  // Grow only when a pass actually filled the ceiling, so a caller with its own
+  // small budget (the snapshots route, tests) cannot inflate it on no evidence.
+  if (rateLimited) {
+    ceilings.set(endpointId, Math.max(MIN_CEILING, Math.floor(ceiling / 2)));
+  } else if (budgeted.length >= ceiling) {
+    ceilings.set(endpointId, Math.min(MAX_CEILING, ceiling * 2));
+  }
+
+  return { totals: result, skipped: misses.length - budgeted.length + unread };
 }
 
 /**
@@ -195,10 +266,15 @@ async function collectSnapshotTotals(
  * `complete` is false, because accounts were deliberately left unread and the
  * total would be confidently wrong.
  *
- * An account the node refused (unavailable state, EVM account with no Miden
+ * An account the Guardian refused (unavailable state, EVM account with no Miden
  * vault) counts as attempted. Treating those as incomplete would let one
  * permanently failing account block the aggregate forever, which is worse than
  * the pre-existing behaviour of omitting it.
+ *
+ * A 429 is the exception: it is the Guardian asking us to slow down, not refusing
+ * the account, so it reports incomplete and the pass is retried later. Counting
+ * it as attempted let a rate-limited Guardian publish a sum that was silently
+ * missing accounts.
  */
 export async function getSnapshotTotalsChecked(
   client: SnapshotReader,
@@ -210,7 +286,7 @@ export async function getSnapshotTotalsChecked(
   return { totals, complete: skipped === 0 };
 }
 
-/** How many of these accounts would hit the node right now. Used by tests and the request-count harness. */
+/** How many of these accounts would hit the Guardian right now. Used by tests and the request-count harness. */
 export function countSnapshotMisses(
   endpointId: string,
   accounts: { accountId: string; updatedAt: string }[],

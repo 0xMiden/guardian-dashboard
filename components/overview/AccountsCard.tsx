@@ -9,8 +9,8 @@ import { formatCount } from "@/lib/format";
 
 interface OverviewData {
   totalAccounts: number;
-  // null when the node has stopped computing the breakdown, which it does above
-  // a per-node account threshold. The total stays exact either way.
+  // null when the Guardian has stopped computing the breakdown, which it does above
+  // a per-Guardian account threshold. The total stays exact either way.
   falcon: number | null;
   ecdsa: number | null;
   evm: number | null;
@@ -59,9 +59,9 @@ export function AccountsCard() {
             {data.falcon === null ? (
               <p
                 className="text-xs text-muted-foreground"
-                title="This Guardian node stops computing the per-auth-method breakdown above a certain account count. The total above is still exact."
+                title="This Guardian stops computing the per-auth-method breakdown above a certain account count. The total above is still exact."
               >
-                Breakdown unavailable on this node
+                Breakdown unavailable on this Guardian
               </p>
             ) : (
               <>

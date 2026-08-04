@@ -23,7 +23,7 @@ interface OverviewData {
   degradedAggregates?: string[];
 }
 
-// The node names what it cannot compute in its own vocabulary. An operator
+// The Guardian names what it cannot compute in its own vocabulary. An operator
 // should not have to know that `accounts_by_auth_method` is the auth split.
 const DEGRADED_LABELS: Record<string, string> = {
   accounts_by_auth_method: "the account breakdown by auth method",
@@ -60,13 +60,13 @@ type LatencySample = { t: number; ms: number };
  * it can draw a line at all.
  *
  * Keyed by endpoint URL, which is the part that matters: an earlier version kept
- * these in a module-level array and plotted one Guardian node's latency as
+ * these in a module-level array and plotted one Guardian's latency as
  * another's after switching endpoints. sessionStorage also scopes them to the
- * tab, so two tabs on different nodes cannot contaminate each other.
+ * tab, so two tabs on different Guardians cannot contaminate each other.
  *
  * // ponytail: sessionStorage, so history is per tab and gone when it closes.
  * // Fine for a live latency sparkline; a real retention window would need the
- * // node to serve its own health history.
+ * // Guardian to serve its own health history.
  */
 const SAMPLES_KEY = "guardian:latency";
 const MAX_SAMPLES = 20;
@@ -206,7 +206,7 @@ export function GuardianStatusCard() {
   // so leaving the Overview tab and coming straight back was enough to leave
   // this reading "—" under a "since ..." line that was clearly populated.
   // `checkedAt` is the clock: it arrives as data, so this stays a pure function
-  // of what the node reported and still advances with every 5s poll.
+  // of what the Guardian reported and still advances with every 5s poll.
   const startedMs = build?.startedAt ? new Date(build.startedAt).getTime() : NaN;
   const checkedMs = health ? new Date(health.checkedAt).getTime() : NaN;
   const uptimeSecs = Number.isFinite(startedMs) && Number.isFinite(checkedMs)
@@ -248,7 +248,7 @@ export function GuardianStatusCard() {
 
             {/* Two different questions. Reachability is our ping; this is the
                 server's own verdict, which it reports and we used to discard.
-                A green badge over a node calling itself degraded is worse than
+                A green badge over a Guardian calling itself degraded is worse than
                 no badge at all. */}
             {overview?.serviceStatus && (
               <div className="mt-3 flex items-start gap-2">
@@ -301,7 +301,7 @@ export function GuardianStatusCard() {
                 <Row
                   label="Endpoint"
                   value={<span className="text-xs">{opInfo.url.replace(/^https?:\/\//, "")}</span>}
-                  info="The Guardian node you are currently connected to."
+                  info="The Guardian you are currently connected to."
                 />
                 <Row
                   label="Network"
@@ -310,7 +310,7 @@ export function GuardianStatusCard() {
                       {opInfo.network}
                     </Badge>
                   }
-                  info="The Miden network this Guardian node is operating on."
+                  info="The Miden network this Guardian is operating on."
                 />
                 {/* No start time means no uptime to show: the row is dropped
                     rather than rendered as a dash next to a "since" line. */}
@@ -355,7 +355,7 @@ export function GuardianStatusCard() {
                           <Row
                             label="Public key"
                             value={<CopyableHash value={opInfo.publicKey} />}
-                            info="Your dashboard Falcon-512 public key as registered with this Guardian node. Click to copy."
+                            info="Your dashboard Falcon-512 public key as registered with this Guardian. Click to copy."
                           />
                         )}
                       </>

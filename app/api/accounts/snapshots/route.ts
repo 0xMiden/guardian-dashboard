@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  * with no version has no way to ever be invalidated.
  */
 
-// One id is one request to a node that allows 60 a minute, and `ids` arrives
+// One id is one request to a Guardian that allows 60 a minute, and `ids` arrives
 // from the browser. Capped so no single call can spend the whole budget: the
 // caller asks for the rows on screen, and a viewport holds ~15 of them.
 const MAX_IDS = 25;

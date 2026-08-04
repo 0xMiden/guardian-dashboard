@@ -8,8 +8,8 @@ import { getGuardianClient } from "./guardian-client";
 //
 // Everything used to collapse to a 503 carrying `err.message`, which is the
 // Error text the client builds ("Guardian operator HTTP error 403: Forbidden -
-// ..."). A missing permission, a rate limit and a dead node all arrived looking
-// the same, so a panel could only echo HTTP at the operator. The node already
+// ..."). A missing permission, a rate limit and a dead Guardian all arrived looking
+// the same, so a panel could only echo HTTP at the operator. The Guardian already
 // sends a `meta` envelope the 0.16.0 client parses onto `err.data`; forwarding
 // it alongside the real status is what lets `ErrorPanel` name the problem.
 //
@@ -26,7 +26,7 @@ export async function guardianRoute(
   } catch (err) {
     if (err instanceof GuardianOperatorHttpError) {
       return NextResponse.json({
-        // `data.message` is the node's short, user-safe text (feature
+        // `data.message` is the Guardian's short, user-safe text (feature
         // 009-human-readable-errors); `err.message` is the diagnostic form.
         error: err.data?.message ?? err.message,
         code: err.data?.code,
@@ -34,18 +34,18 @@ export async function guardianRoute(
         retryAfterSecs: err.retryAfterSecs,
       }, { status: err.status });
     }
-    // Anything that never reached the node: DNS, TLS, timeout, config.
+    // Anything that never reached the Guardian: DNS, TLS, timeout, config.
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 503 });
   }
 }
 
 // Shared cursor/limit query parsing (drops invalid limits instead of
-// forwarding NaN to the guardian node).
+// forwarding NaN to the Guardian).
 export function pageOptions(req: Request): { cursor?: string; limit?: number; paused?: boolean } {
   const { searchParams } = new URL(req.url);
   const limit = parseInt(searchParams.get("limit") ?? "", 10);
-  // Tri-state on the node: true for paused only, false for active only, absent
+  // Tri-state on the Guardian: true for paused only, false for active only, absent
   // for both. An absent param has to stay absent rather than becoming `false`,
   // or every unfiltered listing would silently hide frozen accounts.
   const paused = searchParams.get("paused");

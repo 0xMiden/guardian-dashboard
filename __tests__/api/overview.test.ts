@@ -70,10 +70,10 @@ describe("GET /api/overview", () => {
     expect(body.ecdsa).toBe(0);
   });
 
-  // A node past its aggregate threshold returns an empty breakdown and names it
+  // A Guardian past its aggregate threshold returns an empty breakdown and names it
   // in `degradedAggregates`. Reporting that as zero Falcon and zero ECDSA
-  // accounts on a node with 1,573 of them is a wrong number, not a missing one.
-  it("reports the auth-method breakdown as unavailable when the node degrades it", async () => {
+  // accounts on a Guardian with 1,573 of them is a wrong number, not a missing one.
+  it("reports the auth-method breakdown as unavailable when the Guardian degrades it", async () => {
     mockHeaders("testnet");
     mockGetDashboardInfo.mockResolvedValue(makeDashboardInfo({
       totalAccountCount: 1573,

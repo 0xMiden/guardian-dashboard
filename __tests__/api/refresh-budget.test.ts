@@ -11,26 +11,23 @@ import { GET as snapshotsGET } from "@/app/api/accounts/snapshots/route";
  * One Refresh click used to ask asset-totals to refetch every active account's
  * snapshot, which on the OZ Guardian is ~470 requests in one go.
  *
- * This is the guard for that click. It counts every call the four routes make
- * to the Guardian. What it can no longer do is assert one universal cap, because
- * the allowance follows the operator's profile: prod is 5000/min, dev is 60/min,
- * and either can be overridden per deployment. Measured 2026-08-03, a
- * prod-profile Guardian served 500 snapshot reads in 8.8s without a 429 while a
- * dev-profile one cut off around 57, so a single number is either far too slow
- * for one Guardian or far too fast for the other. The per-pass ceiling is
- * learned per endpoint instead (see lib/account-cache.ts).
+ * This counts every call the four routes make to the Guardian. What it cannot
+ * assert is one universal cap, because the allowance follows the operator's
+ * profile: prod is 5000/min, dev is 60/min, and either can be overridden per
+ * deployment. A single number would be far too slow for one Guardian or far too
+ * fast for the other.
  *
- * So what is guarded here is the shape rather than a magic number: a click costs
- * a bounded amount that does NOT scale with how many accounts the Guardian holds,
- * the ramp converges instead of running away, and a Guardian that pushes back pulls
- * it straight back down.
+ * A cold click now reads every active account in one pass deliberately. The
+ * count-based ramp it replaced needed six consecutive passes on the same
+ * serverless instance, which the per-instance caches cannot guarantee, so the
+ * total could take many minutes to appear or never appear at all. Measured
+ * 2026-08-04, the full OZ walk is 1,076 requests in 19.1s against 5000/min.
+ *
+ * So what is guarded here is the shape: a cold click pays for the walk once and
+ * a warm one is nearly free, and a Guardian that pushes back stops the pass
+ * rather than being hammered through it.
  */
 
-/**
- * The dev profile's per-minute allowance, which is the tightest a Guardian can
- * be run at: 60/min, measured as a cut-off around request 57 followed by
- * `retry-after: 60`. Prod allows 5000/min.
- */
 const DEV_PROFILE_PER_MIN = 55;
 
 let calls = 0;
@@ -102,22 +99,19 @@ beforeEach(() => {
 });
 
 describe("one Refresh click against a 1,500-account Guardian", () => {
-  it("costs a bounded amount on a cold instance", async () => {
+  it("pays for the whole walk once on a cold instance", async () => {
     mockHeaders("ep-cold");
     const accounts = seedLargeNode();
 
     await refreshClick(accounts.slice(0, 20));
 
-    // 1 accounts page + 1 dashboard info + 3 inventory pages + 25 snapshots +
-    // 20 on-screen rows. Asserted exactly so a regression shows up as a number
-    // rather than as a still-passing inequality.
-    expect(calls).toBe(50);
-    // The point of the ceiling: 470 accounts are active, and the click reads a
-    // fixed slice of them rather than all 470.
-    expect(calls).toBeLessThan(470);
+    // 1 accounts page + 1 dashboard info + 3 inventory pages + 470 active
+    // accounts + 20 on-screen rows. Asserted exactly so a regression shows up as
+    // a number rather than as a still-passing inequality.
+    expect(calls).toBe(1 + 1 + 3 + 470 + 20);
   });
 
-  it("costs less on a warm instance, and skips rows it already holds", async () => {
+  it("costs almost nothing on a warm instance", async () => {
     mockHeaders("ep-warm");
     const accounts = seedLargeNode();
 
@@ -129,47 +123,20 @@ describe("one Refresh click against a 1,500-account Guardian", () => {
 
     await refreshClick(accounts.slice(0, 20));
 
-    // No inventory walk: the polls paid for it and a refresh reuses a walk this
-    // recent. What is left is the accounts page, the dashboard total, one more
-    // (now doubled) snapshot pass, and the 20 on-screen rows — those are read
-    // again even though they are cached, because a Refresh deliberately
-    // bypasses the cache in both directions and must never be the stale answer.
-    expect(calls).toBe(1 + 1 + 50 + 20);
-    expect(mockGetAccountSnapshot).toHaveBeenCalledTimes(50 + 20);
+    // No inventory walk and no snapshot re-reads: every active account is held
+    // at its current version. What is left is the accounts page, the dashboard
+    // total, and the 20 on-screen rows, which a Refresh deliberately re-reads
+    // because it must never be the stale answer.
+    expect(calls).toBe(1 + 1 + 20);
+    expect(mockGetAccountSnapshot).toHaveBeenCalledTimes(20);
   });
 
-  // The click is the spike; warm-up is the sustained load underneath it, paced
-  // by the card's 20s poll. The ramp is the whole fix: a fixed 12 a pass took
-  // ~28 minutes to cover the OZ Guardian, so passes have to get bigger while the
-  // Guardian stays quiet.
-  it("accelerates while the Guardian stays quiet", async () => {
-    mockHeaders("ep-sustained");
-    seedLargeNode();
-
-    const perPass: number[] = [];
-    for (let i = 0; i < 3; i++) {
-      mockGetAccountSnapshot.mockClear();
-      await assetTotalsGET(new Request("http://localhost/api/accounts/asset-totals"));
-      perPass.push(mockGetAccountSnapshot.mock.calls.length);
-    }
-
-    expect(perPass).toEqual([25, 50, 100]);
-    // One inventory page on top, paid once and cached: the 7-day walk stops at
-    // the first page because its oldest entry is already outside the window.
-    expect(calls).toBe(1 + 25 + 50 + 100);
-  });
-
-  // The counterweight to the ramp. A Guardian that limits has to pull it back down,
-  // or the dashboard would keep hammering a Guardian that already said no.
-  it("backs off as soon as the Guardian answers 429", async () => {
+  // The walk is only unbounded on a Guardian that lets it be. One that pushes
+  // back has to stop the pass, or the dashboard hammers a Guardian that said no.
+  it("stops the pass as soon as the Guardian answers 429", async () => {
     mockHeaders("ep-limited");
     seedLargeNode();
 
-    // Two quiet passes take the ceiling to 100.
-    await assetTotalsGET(new Request("http://localhost/api/accounts/asset-totals"));
-    await assetTotalsGET(new Request("http://localhost/api/accounts/asset-totals"));
-
-    // The Guardian cuts us off partway through the third.
     let served = 0;
     mockGetAccountSnapshot.mockImplementation(async () => {
       calls++;
@@ -182,19 +149,14 @@ describe("one Refresh click against a 1,500-account Guardian", () => {
       }
       return { vault: { fungible: [{ faucetId: "0xf", amount: "10" }] } };
     });
+
     await assetTotalsGET(new Request("http://localhost/api/accounts/asset-totals"));
 
-    // Fourth pass runs against a halved ceiling instead of climbing to 200.
-    mockGetAccountSnapshot.mockClear();
-    mockGetAccountSnapshot.mockImplementation(async () => {
-      calls++;
-      return { vault: { fungible: [{ faucetId: "0xf", amount: "10" }] } };
-    });
-    await assetTotalsGET(new Request("http://localhost/api/accounts/asset-totals"));
-
-    expect(mockGetAccountSnapshot).toHaveBeenCalledTimes(50);
-    expect(mockGetAccountSnapshot.mock.calls.length).toBeLessThan(DEV_PROFILE_PER_MIN);
+    // Nothing like the 470 active accounts: it gives up within a batch of the
+    // Guardian's limit rather than grinding through the whole set.
+    expect(mockGetAccountSnapshot.mock.calls.length).toBeLessThan(DEV_PROFILE_PER_MIN + 20);
   });
+
 
   it("does not re-walk the account list twice for one click", async () => {
     mockHeaders("ep-walk");

@@ -8,17 +8,29 @@ type AssetTotals = { usd7d?: number; computedAt?: string; warming?: boolean; don
 
 const SETTLED_POLL_MS = 60_000;
 // A cold server publishes no total until it has walked every active account,
-// and it only walks while someone asks. Polling a warming answer on the same
-// 60s cadence as a settled one therefore stalls the walk at one pass a minute,
-// which read as "Calculating…" forever: the card only ever finished because
-// leaving the tab and coming back remounts it and forces an extra pass. How
-// much each pass covers is the server's call, and it grows that per endpoint
-// until the Guardian pushes back, so asking more often genuinely finishes sooner.
+// and it only walks while someone asks, so a warming answer is asked for more
+// often than a settled one.
 const WARMING_POLL_MS = 20_000;
+
+// MUST be module scope, not an inline arrow. SWR keeps `refreshInterval` in its
+// polling effect's dependency array, and the cleanup does `clearTimeout`:
+//
+//   useIsomorphicLayoutEffect(() => { ... next(); return () => clearTimeout(timer) },
+//     [refreshInterval, refreshWhenHidden, refreshWhenOffline, key])
+//
+// A new function identity on every render therefore tears the timer down and
+// schedules
+// a fresh FULL-length one, discarding the elapsed time. A card that re-renders
+// more often than the interval then never polls at all, which is exactly how
+// this card came to sit on "Calculating…" until you visited another tab and
+// came back. StatStrip subscribes to the same key with a literal 60_000, so its
+// timer is stable, which is why the Accounts page kept the walk moving.
+const pollInterval = (latest: AssetTotals | undefined) =>
+  latest?.warming ? WARMING_POLL_MS : SETTLED_POLL_MS;
 
 export function AssetsCard() {
   const { data, error } = useSWR<AssetTotals>("/api/accounts/asset-totals", fetcher, {
-    refreshInterval: (latest) => (latest?.warming ? WARMING_POLL_MS : SETTLED_POLL_MS),
+    refreshInterval: pollInterval,
   });
 
   return (

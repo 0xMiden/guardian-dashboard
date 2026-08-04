@@ -240,90 +240,32 @@ describe("per-pass fetch budget", () => {
     expect(Object.keys(totals)).toEqual(["0x0", "0x2"]);
   });
 
-  it("starts a cold endpoint at the initial ceiling", async () => {
+  // The whole point of dropping the ramp: a Guardian that can take it gets read
+  // in one pass, so the total lands from the mount fetch alone rather than
+  // needing six consecutive polls to reach the same serverless instance.
+  it("reads every outstanding account in one pass by default", async () => {
     const { client, getAccountSnapshot } = reader();
-    await getSnapshotTotals(client, "ep", rows(40));
-    expect(getAccountSnapshot).toHaveBeenCalledTimes(25);
+    const { complete } = await getSnapshotTotalsChecked(client, "ep", rows(1073));
+    expect(getAccountSnapshot).toHaveBeenCalledTimes(1073);
+    expect(complete).toBe(true);
   });
 });
 
-// Operators set their own rate limits and they differ by more than an order of
-// magnitude (measured 2026-08-03: OZ served 500 reads with no 429, lambda 429'd
-// after 55). One constant sized for the tightest Guardian made the largest one take
-// ~28 minutes to publish a total, so the ceiling is discovered per endpoint.
-describe("learned per-endpoint ceiling", () => {
+// A 429 means the account went unread. Counting it as attempted let a
+// rate-limited Guardian publish a sum that was quietly missing accounts.
+describe("a Guardian that pushes back", () => {
   const reader = (impl?: (id: string) => unknown) => {
     const getAccountSnapshot = vi.fn(async (id: string) => (impl ? impl(id) : snapshot(10)));
     return { client: { getAccountSnapshot } as never, getAccountSnapshot };
   };
   const rows = (n: number) => Array.from({ length: n }, (_, i) => account(`0x${i}`, 1000 + i));
 
-  it("doubles the ceiling after a pass that filled it", async () => {
-    const { client, getAccountSnapshot } = reader();
-    const all = rows(400);
-
-    await getSnapshotTotals(client, "ep", all);
-    expect(getAccountSnapshot).toHaveBeenCalledTimes(25);
-
-    getAccountSnapshot.mockClear();
-    await getSnapshotTotals(client, "ep", all);
-    expect(getAccountSnapshot).toHaveBeenCalledTimes(50);
-
-    getAccountSnapshot.mockClear();
-    await getSnapshotTotals(client, "ep", all);
-    expect(getAccountSnapshot).toHaveBeenCalledTimes(100);
-  });
-
-  // The ramp is what makes a large Guardian usable; without it the walk never
-  // outruns the 20s poll and the card reads as stuck.
-  it("reaches a 995-account Guardian in far fewer passes than a fixed 12", async () => {
-    const { client } = reader();
-    const all = rows(995);
-    let complete = false;
-    let passes = 0;
-    while (!complete && passes < 50) {
-      ({ complete } = await getSnapshotTotalsChecked(client, "ep", all));
-      passes++;
-    }
-    expect(complete).toBe(true);
-    expect(passes).toBe(6); // 25, 50, 100, 200, 400, remainder
-  });
-
-  it("halves the ceiling when the Guardian answers 429", async () => {
-    let limitAfter = Infinity;
-    let served = 0;
-    const { client, getAccountSnapshot } = reader(() => {
-      if (served++ >= limitAfter) throw rateLimit();
-      return snapshot(10);
-    });
-    const all = rows(400);
-
-    // Two clean passes take the ceiling to 100.
-    await getSnapshotTotals(client, "ep", all);
-    await getSnapshotTotals(client, "ep", all);
-
-    // Third pass: the Guardian cuts us off partway through.
-    served = 0;
-    limitAfter = 30;
-    getAccountSnapshot.mockClear();
-    await getSnapshotTotals(client, "ep", all);
-
-    // Fourth pass runs against the halved ceiling rather than 100 again.
-    served = 0;
-    limitAfter = Infinity;
-    getAccountSnapshot.mockClear();
-    await getSnapshotTotals(client, "ep", all);
-    expect(getAccountSnapshot).toHaveBeenCalledTimes(50);
-  });
-
-  // A 429 means the account went unread. Counting it as attempted let a
-  // rate-limited Guardian publish a sum that was quietly missing accounts.
   it("reports incomplete when a 429 cost it accounts", async () => {
     const { client } = reader((id) => {
       if (id === "0x3") throw rateLimit();
       return snapshot(10);
     });
-    const { complete } = await getSnapshotTotalsChecked(client, "ep", rows(5));
+    const { complete } = await getSnapshotTotalsChecked(client, "ep", rows(50));
     expect(complete).toBe(false);
   });
 
@@ -332,10 +274,10 @@ describe("learned per-endpoint ceiling", () => {
       if (id === "0x3") throw rateLimit();
       return snapshot(10);
     });
-    await getSnapshotTotals(client, "ep", rows(25));
-    // Concurrency is 5, so the batch holding 0x3 finishes and no further batch
-    // starts: 5 attempts, not all 25.
-    expect(getAccountSnapshot).toHaveBeenCalledTimes(5);
+    await getSnapshotTotals(client, "ep", rows(500));
+    // Concurrency is 10, so the batch holding 0x3 finishes and no further batch
+    // starts. Nothing like all 500.
+    expect(getAccountSnapshot).toHaveBeenCalledTimes(10);
   });
 
   it("retries a rate-limited account on the next pass rather than caching it", async () => {
@@ -353,4 +295,42 @@ describe("learned per-endpoint ceiling", () => {
     expect(complete).toBe(true);
     expect(totals["0x3"]).toBe(10);
   });
+
+  // A pass has to end inside the serverless invocation. On a paced Guardian each
+  // read costs real wall-clock time, so this is what bounds it now that there is
+  // no count-based ceiling.
+  it("stops at the deadline and reports incomplete", async () => {
+    const { getAccountSnapshot } = reader(() => snapshot(10));
+    const slow = {
+      getAccountSnapshot: async (id: string) => {
+        await new Promise((r) => setTimeout(r, 5));
+        return getAccountSnapshot(id);
+      },
+    } as never;
+
+    const { complete } = await getSnapshotTotalsChecked(slow, "ep-deadline", rows(500), {
+      deadlineMs: 20,
+    });
+
+    expect(complete).toBe(false);
+    expect(getAccountSnapshot.mock.calls.length).toBeLessThan(500);
+  });
+
+  it("resumes from the snapshot cache on the pass after a deadline", async () => {
+    const { client, getAccountSnapshot } = reader();
+    const all = rows(200);
+
+    const first = await getSnapshotTotalsChecked(client, "ep-resume", all, { deadlineMs: 0 });
+    const readFirst = getAccountSnapshot.mock.calls.length;
+    expect(first.complete).toBe(false);
+    expect(readFirst).toBeGreaterThan(0);
+
+    getAccountSnapshot.mockClear();
+    const second = await getSnapshotTotalsChecked(client, "ep-resume", all);
+    // The accounts read before the deadline are cache hits, so the second pass
+    // only pays for the remainder.
+    expect(getAccountSnapshot.mock.calls.length).toBe(200 - readFirst);
+    expect(second.complete).toBe(true);
+  });
 });
+

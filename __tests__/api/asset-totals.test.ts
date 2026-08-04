@@ -2,6 +2,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { __resetAccountCaches } from "@/lib/account-cache";
 import { headers } from "next/headers";
 import { GET } from "@/app/api/accounts/asset-totals/route";
+import { GuardianOperatorHttpError } from "@openzeppelin/guardian-operator-client";
+
+/** What a Guardian answers when it wants us to back off. */
+const rateLimit = () =>
+  new GuardianOperatorHttpError(429, "Too Many Requests", "", {
+    message: "Rate limit exceeded",
+    retryAfterSecs: 60,
+    retryable: true,
+  });
 
 const mockListAccounts = vi.fn();
 const mockGetAccountSnapshot = vi.fn();
@@ -77,19 +86,38 @@ describe("GET /api/accounts/asset-totals", () => {
     expect((await res.json()).usd7d).toBe(30);
   });
 
-  // The route no longer picks the per-pass size; the cache layer learns it per
-  // endpoint and hands a cold one the initial ceiling. What the route still owns
-  // is refusing to publish a sum it knows is short.
-  it("declines to publish a partial sum and reports its progress instead", async () => {
-    mockHeaders("ep-warming");
-    const items = Array.from({ length: 40 }, (_, i) => account(`0x${i}`, 1));
+  // A Guardian that can take it is read in one pass, so the total lands from the
+  // first request rather than needing several polls to reach the same instance.
+  it("publishes the whole total in one pass on a Guardian that allows it", async () => {
+    mockHeaders("ep-onepass");
+    const items = Array.from({ length: 300 }, (_, i) => account(`0x${i}`, 1));
     mockListAccounts.mockResolvedValue({ items, nextCursor: null });
     mockGetAccountSnapshot.mockResolvedValue(snapshot(1));
 
     const body = await (await GET(new Request("http://localhost/api/accounts/asset-totals"))).json();
 
-    expect(mockGetAccountSnapshot).toHaveBeenCalledTimes(25);
-    expect(body).toMatchObject({ usd7d: null, warming: true, done: 25, total: 40 });
+    expect(mockGetAccountSnapshot).toHaveBeenCalledTimes(300);
+    expect(body.usd7d).toBe(300);
+    expect(body.warming).toBeUndefined();
+  });
+
+  // What the route still owns is refusing to publish a sum it knows is short.
+  // With no per-pass ceiling that only happens when the Guardian pushes back.
+  it("declines to publish a partial sum and reports its progress instead", async () => {
+    mockHeaders("ep-warming");
+    const items = Array.from({ length: 40 }, (_, i) => account(`0x${i}`, 1));
+    mockListAccounts.mockResolvedValue({ items, nextCursor: null });
+    mockGetAccountSnapshot.mockImplementation(async (id: string) => {
+      if (id === "0x15") throw rateLimit();
+      return snapshot(1);
+    });
+
+    const body = await (await GET(new Request("http://localhost/api/accounts/asset-totals"))).json();
+
+    expect(body.usd7d).toBeNull();
+    expect(body.warming).toBe(true);
+    expect(body.total).toBe(40);
+    expect(body.done).toBeLessThan(40);
   });
 
   // Without this the count is a lie that never reaches its total, and the card
@@ -98,14 +126,19 @@ describe("GET /api/accounts/asset-totals", () => {
     mockHeaders("ep-progress");
     const items = Array.from({ length: 60 }, (_, i) => account(`0x${i}`, 1));
     mockListAccounts.mockResolvedValue({ items, nextCursor: null });
-    mockGetAccountSnapshot.mockResolvedValue(snapshot(2));
+    let limited = true;
+    mockGetAccountSnapshot.mockImplementation(async (id: string) => {
+      if (id === "0x25" && limited) throw rateLimit();
+      return snapshot(2);
+    });
 
     const first = await (await GET(new Request("http://localhost/api/accounts/asset-totals"))).json();
-    expect(first).toMatchObject({ warming: true, done: 25, total: 60 });
+    expect(first.warming).toBe(true);
+    expect(first.done).toBeLessThan(60);
 
-    // Second pass, the plain poll the card makes. The 25 already read are cache
-    // hits, and the clean first pass doubled the ceiling to 50, so the remaining
-    // 35 all fit and the total lands.
+    // Second pass, the plain poll the card makes. Everything already read is a
+    // cache hit, so only the remainder costs anything and the total lands.
+    limited = false;
     const second = await (await GET(new Request("http://localhost/api/accounts/asset-totals"))).json();
     expect(second.usd7d).toBe(120);
     expect(second.warming).toBeUndefined();

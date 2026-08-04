@@ -50,28 +50,32 @@ const PAGE_SIZE = 500;
 const MAX_SNAPSHOT_ENTRIES = 20_000;
 
 /**
- * How many snapshots one pass may fetch, discovered per endpoint.
+ * How long one pass may spend reading snapshots.
  *
- * Guardians differ by ~80x in what they allow, because the limit comes from the
- * operator's profile: prod is 200/sec and 5000/min, dev is 10/sec and 60/min,
- * and either can be overridden per deployment (see lib/guardian-client.ts).
- * Measured 2026-08-03 at concurrency 10:
+ * A pass used to be bounded by a *count* that ramped 25, 50, 100, 200, 400 as
+ * the Guardian stayed quiet. That needed six consecutive passes on the same
+ * serverless instance to cover the OZ Guardian, and the caches below are
+ * per-instance module state, so a poll landing elsewhere restarted at 25 with
+ * nothing cached. It could take many minutes to converge, or not converge.
  *
- *   openzeppelin (prod)  500 reads in 8.8s, zero 429s  (~3,400/min, 57/sec)
- *   lambda (dev)         429 after ~57 reads, retry_after_secs=60
- *   gateway (dev)        429 after ~57 reads, retry_after_secs=60
+ * A deadline is both simpler and faster, because the whole walk fits in one
+ * invocation. Measured 2026-08-04 against the OZ Guardian at concurrency 10:
  *
- * A single constant has to be sized for the tightest Guardian, and that made the
- * largest one unusable: 995 accounts active in 7 days at 12 a pass is ~28
- * minutes before a total appears. So the ceiling is learned rather than
- * configured. Double it after a pass that filled it cleanly, halve it the
- * moment the Guardian answers 429.
+ *   inventory   3 pages, 1,073 accounts active in 7d, 1.0s
+ *   snapshots   1,073 ok, zero 429s, 18.0s (60/sec)
+ *   total       19.1s, 1,076 requests against a 5000/min budget
+ *
+ * 45s leaves ~2x headroom over that and stays well inside the route's
+ * `maxDuration = 120`. On a rate-limited Guardian the pacer in
+ * lib/guardian-client.ts spaces requests out, so the same deadline simply
+ * yields fewer reads and the caller keeps serving the last complete answer.
  */
-const INITIAL_CEILING = 25;
-const MIN_CEILING = 5;
-const MAX_CEILING = 1000;
+const PASS_DEADLINE_MS = 45_000;
 
-const ceilings = new Map<string, number>();
+// Measured 60/sec with zero 429s on a prod-profile Guardian. A paced Guardian is
+// serialised by `reserveSlot` regardless, so this only speeds up the ones that
+// can take it.
+const WALK_CONCURRENCY = 10;
 
 /**
  * A 429 means the account went unread and is worth retrying. Every other
@@ -110,7 +114,6 @@ function rememberSnapshot(key: string, value: number): void {
 export function __resetAccountCaches(): void {
   inventoryCache.clear();
   snapshotCache.clear();
-  ceilings.clear();
 }
 
 export type AccountLister = {
@@ -122,13 +125,6 @@ export type SnapshotReader = {
   /** Present on the real client; 0 or absent when the Guardian is not being paced. */
   pacingIntervalMs?(): number;
 };
-
-/**
- * How long one pass may spend waiting on a paced Guardian. `maxDuration` on the
- * asset-totals route is 120s and the card polls every 20s while warming, so a
- * pass has to end well short of both. Only bites on a Guardian that limits us.
- */
-const PASS_TIME_BUDGET_MS = 30_000;
 
 /**
  * Page the account list once and share it. `maxAgeMs` bounds how far back the
@@ -181,7 +177,7 @@ export async function getSnapshotTotals(
   client: SnapshotReader,
   endpointId: string,
   accounts: { accountId: string; updatedAt: string }[],
-  options: { concurrency?: number; refresh?: boolean; maxFetches?: number } = {},
+  options: { concurrency?: number; refresh?: boolean; maxFetches?: number; deadlineMs?: number } = {},
 ): Promise<Record<string, number>> {
   return (await collectSnapshotTotals(client, endpointId, accounts, options)).totals;
 }
@@ -191,11 +187,17 @@ async function collectSnapshotTotals(
   endpointId: string,
   accounts: { accountId: string; updatedAt: string }[],
   {
-    concurrency = 5,
+    concurrency,
     refresh = false,
     maxFetches,
-  }: { concurrency?: number; refresh?: boolean; maxFetches?: number } = {},
+    deadlineMs = PASS_DEADLINE_MS,
+  }: { concurrency?: number; refresh?: boolean; maxFetches?: number; deadlineMs?: number } = {},
 ): Promise<{ totals: Record<string, number>; skipped: number }> {
+  // A paced Guardian has its requests serialised by `reserveSlot`, so asking for
+  // ten at once only queues ten slot reservations. On a Guardian mid-lockout
+  // that means spending ~13s to collect ten 429s instead of one, which delays
+  // the recovery it is supposed to protect.
+  const batchSize = concurrency ?? (client.pacingIntervalMs?.() ? 1 : WALK_CONCURRENCY);
   const result: Record<string, number> = {};
   const misses: { accountId: string; key: string | null }[] = [];
 
@@ -208,26 +210,20 @@ async function collectSnapshotTotals(
     else misses.push({ accountId: a.accountId, key });
   }
 
-  // A cold instance would otherwise fetch every miss in one burst, which on a
-  // large Guardian is thousands of requests. Capping the pass keeps each invocation
-  // inside whatever this Guardian tolerates; the caller checks `complete` on the
-  // result and declines to publish a partial aggregate.
-  const ceiling = ceilings.get(endpointId) ?? INITIAL_CEILING;
+  // Read everything outstanding. The pass ends early only on the deadline or on
+  // a 429; the caller checks `complete` and declines to publish a partial
+  // aggregate. `maxFetches` stays available for callers with their own budget.
+  const budgeted = maxFetches === undefined ? misses : misses.slice(0, maxFetches);
 
-  // On a paced Guardian each read costs real wall-clock time, so the pass is bound
-  // by the invocation as well as by the Guardian's budget. Once the pacer exists,
-  // the ceiling stops being what prevents 429s and is only a length bound.
-  const interval = client.pacingIntervalMs?.() ?? 0;
-  const fitsInPass = interval ? Math.max(MIN_CEILING, Math.floor(PASS_TIME_BUDGET_MS / interval)) : Infinity;
-  const budgeted = misses.slice(0, Math.min(maxFetches ?? ceiling, fitsInPass));
-
-  // Accounts a 429 cost us. They were not refused, so they must not count as
-  // attempted, or the caller publishes a sum that is quietly missing them.
+  // Accounts a 429 or the deadline cost us. They were not refused, so they must
+  // not count as attempted, or the caller publishes a sum quietly missing them.
   let unread = 0;
   let rateLimited = false;
+  let outOfTime = false;
+  const startedAt = Date.now();
 
-  for (let i = 0; i < budgeted.length && !rateLimited; i += concurrency) {
-    const batch = budgeted.slice(i, i + concurrency);
+  for (let i = 0; i < budgeted.length && !rateLimited && !outOfTime; i += batchSize) {
+    const batch = budgeted.slice(i, i + batchSize);
     const settled = await Promise.allSettled(batch.map((m) => client.getAccountSnapshot(m.accountId)));
     for (let j = 0; j < settled.length; j++) {
       const r = settled[j];
@@ -246,17 +242,11 @@ async function collectSnapshotTotals(
       const key = batch[j].key;
       if (key) rememberSnapshot(key, total);
     }
-    // Once the Guardian is limiting, the rest of this pass would only collect more
-    // 429s. Stop and let the next poll try again against a lower ceiling.
-    if (rateLimited) unread += budgeted.length - (i + batch.length);
-  }
-
-  // Grow only when a pass actually filled the ceiling, so a caller with its own
-  // small budget (the snapshots route, tests) cannot inflate it on no evidence.
-  if (rateLimited) {
-    ceilings.set(endpointId, Math.max(MIN_CEILING, Math.floor(ceiling / 2)));
-  } else if (budgeted.length >= ceiling) {
-    ceilings.set(endpointId, Math.min(MAX_CEILING, ceiling * 2));
+    // Once the Guardian is limiting, the rest of this pass would only collect
+    // more 429s. Out of time, the invocation has to end. Either way the
+    // remainder is unread and the next pass resumes from the snapshot cache.
+    if (!rateLimited && Date.now() - startedAt >= deadlineMs) outOfTime = true;
+    if (rateLimited || outOfTime) unread += budgeted.length - (i + batch.length);
   }
 
   return { totals: result, skipped: misses.length - budgeted.length + unread };
@@ -282,7 +272,7 @@ export async function getSnapshotTotalsChecked(
   client: SnapshotReader,
   endpointId: string,
   accounts: { accountId: string; updatedAt: string }[],
-  options: { concurrency?: number; refresh?: boolean; maxFetches?: number } = {},
+  options: { concurrency?: number; refresh?: boolean; maxFetches?: number; deadlineMs?: number } = {},
 ): Promise<{ totals: Record<string, number>; complete: boolean }> {
   const { totals, skipped } = await collectSnapshotTotals(client, endpointId, accounts, options);
   return { totals, complete: skipped === 0 };

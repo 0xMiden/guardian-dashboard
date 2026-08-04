@@ -38,7 +38,7 @@ export function isWalletAccount(a: { authScheme: string; authorizedSignerCount: 
 
 // One word per account state, shared by the table badge, the detail page and
 // the CSV export so the three cannot drift apart. `released` wins over `frozen`:
-// an account that moved to another guardian is terminal for this node, so an
+// an account that moved to another guardian is terminal for this Guardian, so an
 // operator unfreeze can never bring it back.
 export function accountState(
   status: string,
@@ -53,7 +53,7 @@ export function accountState(
 
 // Counts carry a thousands separator wherever they are shown. Left to each
 // call site this drifts: the stat strip formatted and the overview cards did
-// not, so the same node read "1,813" in one place and "1813" in another.
+// not, so the same Guardian read "1,813" in one place and "1813" in another.
 export function formatCount(n: number): string {
   return n.toLocaleString();
 }

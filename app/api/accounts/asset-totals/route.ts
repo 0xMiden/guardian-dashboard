@@ -31,11 +31,11 @@ export async function GET(req: Request) {
     const active7d = accounts.filter((a) => now - new Date(a.updatedAt).getTime() <= MS_7D);
 
     // How many snapshots one pass may fetch is the cache layer's business, not
-    // this route's: nodes differ by more than an order of magnitude in what they
+    // this route's: Guardians differ by more than an order of magnitude in what they
     // tolerate, so the ceiling is learned per endpoint rather than guessed here.
     //
     // `refresh` is deliberately NOT forwarded. Snapshots are keyed by
-    // `accountId@updatedAt`, so a cache hit is a value the node itself says
+    // `accountId@updatedAt`, so a cache hit is a value the Guardian itself says
     // cannot have changed: re-reading it buys nothing and spends a request. What
     // a refresh does buy is the re-walked inventory above, which surfaces the
     // accounts whose version moved, and those miss the cache on their own.

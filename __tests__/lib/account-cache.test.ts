@@ -9,7 +9,7 @@ import {
   INVENTORY_TTL_MS,
 } from "@/lib/account-cache";
 
-/** What a node answers when it wants us to back off. lambda sends 60s. */
+/** What a Guardian answers when it wants us to back off. lambda sends 60s. */
 const rateLimit = () =>
   new GuardianOperatorHttpError(429, "Too Many Requests", "", {
     message: "Rate limit exceeded",
@@ -228,7 +228,7 @@ describe("per-pass fetch budget", () => {
     expect(getAccountSnapshot).toHaveBeenCalledTimes(25); // each account fetched once
   });
 
-  // An account the node refuses must not block the aggregate forever. Only
+  // An account the Guardian refuses must not block the aggregate forever. Only
   // accounts we chose not to read count as incomplete.
   it("counts a refused account as attempted, not skipped", async () => {
     const { client } = reader((id) => {
@@ -249,7 +249,7 @@ describe("per-pass fetch budget", () => {
 
 // Operators set their own rate limits and they differ by more than an order of
 // magnitude (measured 2026-08-03: OZ served 500 reads with no 429, lambda 429'd
-// after 55). One constant sized for the tightest node made the largest one take
+// after 55). One constant sized for the tightest Guardian made the largest one take
 // ~28 minutes to publish a total, so the ceiling is discovered per endpoint.
 describe("learned per-endpoint ceiling", () => {
   const reader = (impl?: (id: string) => unknown) => {
@@ -274,9 +274,9 @@ describe("learned per-endpoint ceiling", () => {
     expect(getAccountSnapshot).toHaveBeenCalledTimes(100);
   });
 
-  // The ramp is what makes a large node usable; without it the walk never
+  // The ramp is what makes a large Guardian usable; without it the walk never
   // outruns the 20s poll and the card reads as stuck.
-  it("reaches a 995-account node in far fewer passes than a fixed 12", async () => {
+  it("reaches a 995-account Guardian in far fewer passes than a fixed 12", async () => {
     const { client } = reader();
     const all = rows(995);
     let complete = false;
@@ -289,7 +289,7 @@ describe("learned per-endpoint ceiling", () => {
     expect(passes).toBe(6); // 25, 50, 100, 200, 400, remainder
   });
 
-  it("halves the ceiling when the node answers 429", async () => {
+  it("halves the ceiling when the Guardian answers 429", async () => {
     let limitAfter = Infinity;
     let served = 0;
     const { client, getAccountSnapshot } = reader(() => {
@@ -302,7 +302,7 @@ describe("learned per-endpoint ceiling", () => {
     await getSnapshotTotals(client, "ep", all);
     await getSnapshotTotals(client, "ep", all);
 
-    // Third pass: the node cuts us off partway through.
+    // Third pass: the Guardian cuts us off partway through.
     served = 0;
     limitAfter = 30;
     getAccountSnapshot.mockClear();
@@ -317,7 +317,7 @@ describe("learned per-endpoint ceiling", () => {
   });
 
   // A 429 means the account went unread. Counting it as attempted let a
-  // rate-limited node publish a sum that was quietly missing accounts.
+  // rate-limited Guardian publish a sum that was quietly missing accounts.
   it("reports incomplete when a 429 cost it accounts", async () => {
     const { client } = reader((id) => {
       if (id === "0x3") throw rateLimit();

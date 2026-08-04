@@ -15,7 +15,7 @@ interface ClientState {
   client: GuardianOperatorHttpClient;
   sessionCookie: string | null;
   authInFlight: Promise<void> | null;
-  /** Minimum gap between node requests. 0 means this node has never limited us. */
+  /** Minimum gap between Guardian requests. 0 means this Guardian has never limited us. */
   pacedIntervalMs: number;
   /** Earliest moment the next request may go out. */
   nextSlotAt: number;
@@ -29,19 +29,19 @@ const clients = new Map<string, ClientState>();
  * Measured 2026-08-03: lambda and gateway each serve ~57 requests per 60s and
  * then answer 429 with `retry-after: 60`, which locks out EVERY route for a
  * full minute. That lockout is what operators experience as the dashboard
- * timing out when they click around. Paced at 50/min the same node served 100
+ * timing out when they click around. Paced at 50/min the same Guardian served 100
  * of 100 requests with no 429 at all, so the limit is entirely avoidable by
  * spacing requests rather than bursting into them.
  *
  * OpenZeppelin has no limit and must not be slowed down, so pacing stays off
- * until a node proves it needs it: the first 429 from an endpoint turns it on
+ * until a Guardian proves it needs it: the first 429 from an endpoint turns it on
  * for that endpoint and it stays on for the life of the instance.
  *
  * 45/min rather than the 50 measured safe, because Vercel runs several
  * instances and each paces independently.
  *
  * // ponytail: per-instance, like the caches in lib/account-cache.ts. Known
- * // ceiling: N warm instances can still sum past the node's bucket. Upgrade
+ * // ceiling: N warm instances can still sum past the Guardian's bucket. Upgrade
  * // path is a shared store; until then the 429 handling below is the backstop.
  */
 const PACED_INTERVAL_MS = Math.ceil(60_000 / 45);
@@ -69,8 +69,8 @@ async function reserveSlot(state: ClientState): Promise<void> {
 
 /**
  * Spend a slot without waiting for one. For the liveness ping: it has to count
- * against the node's budget, but a health check that queues behind a snapshot
- * burst would report "down" for a node that is perfectly fine.
+ * against the Guardian's budget, but a health check that queues behind a snapshot
+ * burst would report "down" for a Guardian that is perfectly fine.
  */
 function chargeSlot(state: ClientState): void {
   if (!state.pacedIntervalMs) return;
@@ -117,12 +117,12 @@ function getState(endpointId: string): ClientState {
 function ensureAuthenticated(state: ClientState, endpointId: string): Promise<void> {
   if (state.sessionCookie) return Promise.resolve();
   // Single-flight: concurrent requests on a fresh instance share one
-  // challenge/verify instead of each running their own handshake — the node
+  // challenge/verify instead of each running their own handshake — the Guardian
   // rate-limits per operator commitment, so extra handshakes burn the budget.
   if (!state.authInFlight) {
     state.authInFlight = (async () => {
       const ep = getEndpoint(endpointId)!;
-      // The handshake is two more node requests, so it pays the same toll.
+      // The handshake is two more Guardian requests, so it pays the same toll.
       await reserveSlot(state);
       const { challenge } = await state.client.challenge(ep.commitment);
       const signature = await signDigest(ep.privateKey, challenge.signingDigest);
@@ -147,7 +147,7 @@ async function withRetry<T>(state: ClientState, endpointId: string, fn: () => Pr
       await reserveSlot(state);
       return await fn();
     } catch (err) {
-      // Any 429 is the node telling us its real capacity. Pace every route from
+      // Any 429 is the Guardian telling us its real capacity. Pace every route from
       // here on, whether or not this particular call is worth retrying, so we
       // stop bursting into a lockout that takes the whole dashboard with it.
       if (err instanceof GuardianOperatorHttpError && err.status === 429) startPacing(state);
@@ -157,8 +157,8 @@ async function withRetry<T>(state: ClientState, endpointId: string, fn: () => Pr
         state.sessionCookie = null;
         continue;
       }
-      // The node rate-limits per operator commitment (429 + retry_after_secs);
-      // honor it instead of failing the whole page load. When the node's
+      // The Guardian rate-limits per operator commitment (429 + retry_after_secs);
+      // honor it instead of failing the whole page load. When the Guardian's
       // sustained limit asks for more than we're willing to wait (e.g. 60s),
       // fail fast — clients keep stale data and SWR retries later.
       if (
@@ -179,7 +179,7 @@ export function getGuardianClient(endpointId: string) {
   const state = getState(endpointId);
   return {
     /**
-     * How far apart this node's requests are being spaced, 0 when unpaced. The
+     * How far apart this Guardian's requests are being spaced, 0 when unpaced. The
      * asset walk reads it to size a pass that still fits inside the serverless
      * invocation (see lib/account-cache.ts).
      */
@@ -190,7 +190,7 @@ export function getGuardianClient(endpointId: string) {
       const ep = getEndpoint(endpointId)!;
       const start = Date.now();
       // Charged, not queued: this is a 2s liveness ping, and one that waited its
-      // turn behind a snapshot burst would report a healthy node as down.
+      // turn behind a snapshot burst would report a healthy Guardian as down.
       chargeSlot(state);
       try {
         const res = await fetch(`${ep.url.replace(/\/$/, "")}/pubkey`, { signal: AbortSignal.timeout(2000) });

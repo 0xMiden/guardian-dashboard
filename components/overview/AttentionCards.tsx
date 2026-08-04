@@ -20,7 +20,7 @@ import { STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
  * an empty slot. A muted "None" reads as "checked, nothing to do"; a big grey
  * 0 reads as missing data.
  *
- * There is deliberately no "released accounts" count. The node documents a
+ * There is deliberately no "released accounts" count. The Guardian documents a
  * `releasedAt` on every summary, meaning the account moved to a different
  * guardian, but it is null on all 2,270 accounts across all five configured
  * endpoints, every one of which reports `stateStatus: "available"`. Since
@@ -74,7 +74,7 @@ export function AttentionCards() {
         {stats == null ? (
           <Skeleton className="h-8 w-16" />
         ) : frozen ? (
-          // The count is only useful if it leads somewhere. The node filters
+          // The count is only useful if it leads somewhere. The Guardian filters
           // by pause state natively, so this is one request rather than a walk.
           <Link href="/accounts?paused=true" className="hover:underline">
             {formatCount(frozen)}

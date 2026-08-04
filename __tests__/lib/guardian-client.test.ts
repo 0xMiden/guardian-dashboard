@@ -24,7 +24,7 @@ vi.mock("@/lib/endpoints", () => {
   const endpoint = (id: string) => ({
     id,
     label: "Test",
-    url: "https://node.test",
+    url: "https://Guardian.test",
     network: "test",
     commitment: "0xcommitment",
     privateKey: "0xkey",
@@ -64,7 +64,7 @@ describe("guardian-client withRetry", () => {
     expect(mocks.listAccounts).toHaveBeenCalledTimes(2);
   });
 
-  it("fails fast when the node asks to retry after longer than the cap", async () => {
+  it("fails fast when the Guardian asks to retry after longer than the cap", async () => {
     mocks.listAccounts.mockRejectedValue(
       new GuardianOperatorHttpError(429, "Too Many Requests", "sustained limit", {
         retryAfterSecs: 60,
@@ -111,12 +111,12 @@ describe("guardian-client withRetry", () => {
 /**
  * Measured 2026-08-03: lambda and gateway serve ~57 requests per 60s, then 429
  * with `retry-after: 60`, which locks out every route for a minute. Paced at
- * 50/min the same node served 100 of 100 with no 429 at all. OpenZeppelin has
- * no limit and must not be slowed down, so pacing has to stay off until a node
+ * 50/min the same Guardian served 100 of 100 with no 429 at all. OpenZeppelin has
+ * no limit and must not be slowed down, so pacing has to stay off until a Guardian
  * proves it needs it.
  */
 describe("per-endpoint pacing", () => {
-  it("does not pace a node that has never limited us", async () => {
+  it("does not pace a Guardian that has never limited us", async () => {
     mocks.listAccounts.mockResolvedValue(page);
     const client = getGuardianClient("unpaced");
 
@@ -141,7 +141,7 @@ describe("per-endpoint pacing", () => {
     await expect(client.listAccounts()).rejects.toMatchObject({ status: 429 });
 
     // Even though that 429 was NOT retried (60s is past the fail-fast cap), the
-    // node still told us its capacity and every later route must respect it.
+    // Guardian still told us its capacity and every later route must respect it.
     expect(client.pacingIntervalMs()).toBeGreaterThan(0);
   });
 
@@ -182,7 +182,7 @@ describe("per-endpoint pacing", () => {
 
     expect(health.status).toBe("up");
     // A health check that queued behind a snapshot burst would report a healthy
-    // node as down, so it never waits, it only spends a slot.
+    // Guardian as down, so it never waits, it only spends a slot.
     expect(elapsed).toBeLessThan(200);
   });
 });

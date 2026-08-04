@@ -1,6 +1,6 @@
 /**
  * Standalone auth flow test — run with:
- *   node scripts/test-auth.mjs
+ *   Guardian scripts/test-auth.mjs
  *
  * Loads the devnet endpoint from GUARDIAN_ENDPOINTS, derives pubkey from
  * the stored private key, prints the public key we'd send the engineer,

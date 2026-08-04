@@ -38,7 +38,7 @@ beforeEach(() => {
 
 describe("GET /api/accounts/stats", () => {
   // Counted from the inventory the route already walks, so they cost no extra
-  // node request. Uses `accountState`, so a released-and-paused account counts
+  // Guardian request. Uses `accountState`, so a released-and-paused account counts
   // once, as released, exactly as the table badges it.
   it("counts frozen and released accounts", async () => {
     mockGetDashboardInfo.mockResolvedValue({ totalAccountCount: 5 });
@@ -84,7 +84,7 @@ describe("GET /api/accounts/stats", () => {
 
   // The 30-day stop was dropped here on purpose: the Accounts table labels its
   // filters from these counts, so a walk that stopped early would describe a
-  // slice of the node while the chip claimed to describe the node.
+  // slice of the Guardian while the chip claimed to describe the Guardian.
   it("walks the whole list rather than stopping at the 30-day mark", async () => {
     mockGetDashboardInfo.mockResolvedValue({ totalAccountCount: 3 });
     mockListAccounts

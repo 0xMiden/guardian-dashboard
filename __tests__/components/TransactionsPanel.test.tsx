@@ -42,7 +42,7 @@ beforeEach(() => {
 afterEach(() => fetchSpy.mockRestore());
 
 describe("TransactionsPanel", () => {
-  it("renders the node's inventory strip above the feed", () => {
+  it("renders the Guardian's inventory strip above the feed", () => {
     mockFeeds([delta("0xaaa111", 1)]);
     render(<TransactionsPanel />);
     expect(screen.getByText("Total")).toBeInTheDocument();

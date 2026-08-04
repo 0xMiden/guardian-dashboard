@@ -9,22 +9,22 @@ import { GET as snapshotsGET } from "@/app/api/accounts/snapshots/route";
 
 /**
  * One Refresh click used to ask asset-totals to refetch every active account's
- * snapshot, which on the OZ node is ~470 requests in one go.
+ * snapshot, which on the OZ Guardian is ~470 requests in one go.
  *
  * This is the guard for that click. It counts every call the four routes make
- * to the node. What it can no longer do is assert one universal cap: measured
- * 2026-08-03, the OpenZeppelin node served 500 snapshot reads in 12.6s without
+ * to the Guardian. What it can no longer do is assert one universal cap: measured
+ * 2026-08-03, the OpenZeppelin Guardian served 500 snapshot reads in 12.6s without
  * a 429 while lambdaclass 429'd after 55, so a single number is either far too
- * slow for one node or too fast for the other. The per-pass ceiling is learned
+ * slow for one Guardian or too fast for the other. The per-pass ceiling is learned
  * per endpoint instead (see lib/account-cache.ts).
  *
  * So what is guarded here is the shape rather than a magic number: a click costs
- * a bounded amount that does NOT scale with how many accounts the node holds,
- * the ramp converges instead of running away, and a node that pushes back pulls
+ * a bounded amount that does NOT scale with how many accounts the Guardian holds,
+ * the ramp converges instead of running away, and a Guardian that pushes back pulls
  * it straight back down.
  */
 
-/** The tightest limit measured across the reachable nodes (lambda: 55, then 60s). */
+/** The tightest limit measured across the reachable Guardians (lambda: 55, then 60s). */
 const TIGHTEST_NODE_BURST = 55;
 
 let calls = 0;
@@ -32,7 +32,7 @@ let inventory: Account[] = [];
 
 type Account = { accountId: string; updatedAt: string };
 
-// Pages the seeded inventory the way the node does, honouring the requested
+// Pages the seeded inventory the way the Guardian does, honouring the requested
 // page size so the test counts the same number of requests production would.
 const mockListAccounts = vi.fn(async ({ cursor, limit = 50 }: { cursor?: string; limit?: number } = {}) => {
   calls++;
@@ -70,10 +70,10 @@ function mockHeaders(endpointId: string) {
 
 const DAY = 24 * 60 * 60 * 1000;
 
-/** A node the size of the OZ one: 1,500 accounts, 470 of them active in 7d. */
+/** A Guardian the size of the OZ one: 1,500 accounts, 470 of them active in 7d. */
 function seedLargeNode(): Account[] {
   inventory = Array.from({ length: 1500 }, (_, i) => ({
-    // Newest-updated first, which is the order the node returns.
+    // Newest-updated first, which is the order the Guardian returns.
     accountId: `0x${i}`,
     updatedAt: new Date(Date.now() - (i < 470 ? 1 : 20) * DAY).toISOString(),
   }));
@@ -95,7 +95,7 @@ beforeEach(() => {
   calls = 0;
 });
 
-describe("one Refresh click against a 1,500-account node", () => {
+describe("one Refresh click against a 1,500-account Guardian", () => {
   it("costs a bounded amount on a cold instance", async () => {
     mockHeaders("ep-cold");
     const accounts = seedLargeNode();
@@ -134,9 +134,9 @@ describe("one Refresh click against a 1,500-account node", () => {
 
   // The click is the spike; warm-up is the sustained load underneath it, paced
   // by the card's 20s poll. The ramp is the whole fix: a fixed 12 a pass took
-  // ~28 minutes to cover the OZ node, so passes have to get bigger while the
-  // node stays quiet.
-  it("accelerates while the node stays quiet", async () => {
+  // ~28 minutes to cover the OZ Guardian, so passes have to get bigger while the
+  // Guardian stays quiet.
+  it("accelerates while the Guardian stays quiet", async () => {
     mockHeaders("ep-sustained");
     seedLargeNode();
 
@@ -153,9 +153,9 @@ describe("one Refresh click against a 1,500-account node", () => {
     expect(calls).toBe(1 + 25 + 50 + 100);
   });
 
-  // The counterweight to the ramp. A node that limits has to pull it back down,
-  // or the dashboard would keep hammering a node that already said no.
-  it("backs off as soon as the node answers 429", async () => {
+  // The counterweight to the ramp. A Guardian that limits has to pull it back down,
+  // or the dashboard would keep hammering a Guardian that already said no.
+  it("backs off as soon as the Guardian answers 429", async () => {
     mockHeaders("ep-limited");
     seedLargeNode();
 
@@ -163,7 +163,7 @@ describe("one Refresh click against a 1,500-account node", () => {
     await assetTotalsGET(new Request("http://localhost/api/accounts/asset-totals"));
     await assetTotalsGET(new Request("http://localhost/api/accounts/asset-totals"));
 
-    // The node cuts us off partway through the third.
+    // The Guardian cuts us off partway through the third.
     let served = 0;
     mockGetAccountSnapshot.mockImplementation(async () => {
       calls++;
@@ -203,7 +203,7 @@ describe("one Refresh click against a 1,500-account node", () => {
   });
 
   // `ids` arrives from the browser, so this is a trust boundary: 1,500 ids in a
-  // query string must not become 1,500 requests to the node.
+  // query string must not become 1,500 requests to the Guardian.
   it("caps how many snapshots one snapshots call can ask for", async () => {
     mockHeaders("ep-cap");
     const accounts = seedLargeNode();

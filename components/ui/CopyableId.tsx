@@ -37,8 +37,8 @@ export function CopyableId({ id, href, onNavigate, prefixLen = 10, suffixLen = 6
           href={href}
           // Prefetch is off deliberately. Next prefetches every link in view, and
           // a table row's link points at an account page that reads from the
-          // Guardian node, so a scroll down a 1,400-row list would spend the
-          // node's request budget on pages nobody opened. The same budget is why
+          // Guardian, so a scroll down a 1,400-row list would spend the
+          // Guardian's request budget on pages nobody opened. The same budget is why
           // this table fetches asset totals per visible row.
           prefetch={false}
           // The row handler navigates too, so letting this bubble would push the

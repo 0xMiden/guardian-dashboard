@@ -19,7 +19,7 @@ POST /auth/verify   { commitment: string, signature: string }
 
 ## GET /dashboard/info → [`dashboard-info.json`](api-shapes/dashboard-info.json)
 
-Node-level aggregate summary. Single object, no pagination.
+Guardian-level aggregate summary. Single object, no pagination.
 
 **Notes:**
 - `accounts_by_auth_method`: currently `miden_ecdsa` and `miden_falcon`; `evm` key absent when count is 0

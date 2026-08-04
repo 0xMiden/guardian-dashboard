@@ -114,7 +114,7 @@ describe("accountsToCsv", () => {
     expect(row.split(",")[3]).toBe("");
   });
 
-  it("falls back to the hex id when the node returns no bech32 form", () => {
+  it("falls back to the hex id when the Guardian returns no bech32 form", () => {
     const row = accountsToCsv([{ ...account, accountIdBech32: null }], {}).split("\r\n")[1];
     expect(row.startsWith("0xabc,0xabc,")).toBe(true);
   });

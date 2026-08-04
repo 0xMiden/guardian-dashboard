@@ -23,7 +23,7 @@ import posthog from "posthog-js";
 const NO_SHELL_PATHS = ["/sign-in", "/sign-up", "/select-endpoint"];
 
 const SWR_CONFIG = {
-  // The Guardian node rate-limits per operator commitment (429, retry after
+  // The Guardian rate-limits per operator commitment (429, retry after
   // 1s) — retry sooner than SWR's 5s default so transient errors heal fast,
   // and dedupe harder so rapid navigation doesn't refire identical requests.
   errorRetryInterval: 2000,

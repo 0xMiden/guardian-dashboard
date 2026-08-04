@@ -5,10 +5,10 @@ export const dynamic = "force-dynamic";
 export function GET() {
   return guardianRoute(async (client) => {
     const info = await client.getDashboardInfo();
-    // Above a per-node account threshold the server stops computing this
+    // Above a per-Guardian account threshold the server stops computing this
     // breakdown: it returns `accountsByAuthMethod: {}` and names the aggregate
     // in `degradedAggregates`. `?? 0` reported that as zero Falcon and zero
-    // ECDSA accounts, which on the OZ node (1,573 accounts) is a wrong number
+    // ECDSA accounts, which on the OZ Guardian (1,573 accounts) is a wrong number
     // rather than a missing one. `null` means unavailable, and the card says so.
     const degraded = info.degradedAggregates?.includes("accounts_by_auth_method") ?? false;
     const count = (method: string) => (degraded ? null : info.accountsByAuthMethod[method] ?? 0);
@@ -20,7 +20,7 @@ export function GET() {
       deltaStatusCounts: info.deltaStatusCounts,
       inFlightProposalCount: info.inFlightProposalCount,
       serviceStatus: info.serviceStatus,
-      // The node's own verdict on itself, and what it is unhappy about. Both
+      // The Guardian's own verdict on itself, and what it is unhappy about. Both
       // were being fetched and thrown away, so the page could only ever show
       // our liveness ping and never the server's assessment.
       degradedAggregates: info.degradedAggregates ?? [],

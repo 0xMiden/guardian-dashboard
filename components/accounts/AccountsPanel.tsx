@@ -35,10 +35,10 @@ const HIDEABLE: readonly ColumnKey[] = ["status", "type", "signers", "pending", 
 // Coalescing window for rows scrolling into view.
 const SNAPSHOT_BATCH_MS = 150;
 
-// The node's documented maximum page size, the same figure the server-side
-// inventory walk uses and verified there against every reachable node. A page
-// costs one request whatever size it is, so leaving this to the node's 50-row
-// default meant 29 round trips to scroll the 1,418-account node instead of 3.
+// The Guardian's documented maximum page size, the same figure the server-side
+// inventory walk uses and verified there against every reachable Guardian. A page
+// costs one request whatever size it is, so leaving this to the Guardian's 50-row
+// default meant 29 round trips to scroll the 1,418-account Guardian instead of 3.
 // Asset totals are still fetched per visible row, so a larger page pulls no
 // extra snapshots.
 const PAGE_SIZE = 500;
@@ -78,8 +78,8 @@ function sortValue(a: DashboardAccountSummary, key: SortKey, assets: Record<stri
 
 // ponytail: sorts the rows already paged in, the same ceiling the filters above
 // carry. `ListAccountsOptions` is limit/cursor/paused with no ordering, so a
-// full-inventory sort would mean paging the whole node first. Upgrade path is an
-// order parameter on the node's list endpoints.
+// full-inventory sort would mean paging the whole Guardian first. Upgrade path is an
+// order parameter on the Guardian's list endpoints.
 function sortAccounts(items: DashboardAccountSummary[], sort: Sort, assets: Record<string, number>) {
   return [...items].sort((a, b) => {
     const av = sortValue(a, sort.key, assets);
@@ -142,7 +142,7 @@ export function AccountsPanel() {
   const [kind, setKind] = useState<AccountKind>("all");
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-  // null is the node's own order. Clicking a header cycles desc, asc, back to
+  // null is the Guardian's own order. Clicking a header cycles desc, asc, back to
   // null, so there is a way back to the order the rows arrived in.
   const [sort, setSort] = useState<Sort | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -171,7 +171,7 @@ export function AccountsPanel() {
   // without unmounting any, so the observer keeps watching the same elements.
   const renderedKey = filtered.map((a) => a.accountId).join(",");
 
-  // The node has no batch read, so one row's asset total is one request to it.
+  // The Guardian has no batch read, so one row's asset total is one request to it.
   // Rows carry `updatedAt` so the server can skip accounts that provably have
   // not changed since it last looked.
   const fetchSnapshots = useCallback(async (rows: SnapshotTarget[], refresh = false) => {
@@ -218,7 +218,7 @@ export function AccountsPanel() {
   useEffect(() => { fetchSnapshotsRef.current = fetchSnapshots; }, [fetchSnapshots]);
 
   // Asset totals are fetched for rows the user can actually see. Loading a
-  // 100-row page used to cost 100 node requests up front; a viewport holds
+  // 100-row page used to cost 100 Guardian requests up front; a viewport holds
   // roughly 15. Rows are registered by the observer below and drained on a
   // short timer so a fast scroll coalesces into one request instead of many.
   const pendingRef = useRef(new Map<string, string>());
@@ -341,13 +341,13 @@ export function AccountsPanel() {
 
   const items = sort ? sortAccounts(filtered, sort, perAccount) : filtered;
 
-  // The chips count what the node holds, from the same paged walk that feeds
+  // The chips count what the Guardian holds, from the same paged walk that feeds
   // the stat strip above, so they no longer read as a total while showing one
   // page. Until that answers, they fall back to the loaded rows, which is what
   // they always were. The filters themselves still act on loaded rows, hence
   // the "of" line beside them.
   //
-  // Under the frozen filter the node counts describe the wrong population:
+  // Under the frozen filter the Guardian counts describe the wrong population:
   // "All (173)" beside a single frozen row is a contradiction. The loaded rows
   // *are* the whole frozen set, because that filter is applied server-side, so
   // counting them is both correct and complete here.
@@ -358,7 +358,7 @@ export function AccountsPanel() {
   // Exports exactly what the table shows: same filter, same sort, same rows.
   // ponytail: loaded rows only, so an export after scrolling three pages holds
   // three pages. The empty state and the column ceilings say the same thing;
-  // a whole-inventory export needs the node-side paging this panel avoids.
+  // a whole-inventory export needs the Guardian-side paging this panel avoids.
   function exportCsv() {
     posthog.capture("accounts_exported", { row_count: items.length, filter: kind, sorted: !!sort });
     const url = URL.createObjectURL(
@@ -459,7 +459,7 @@ export function AccountsPanel() {
   const pad = CELL_PADDING[density];
 
   if (!loaded.length) {
-    // An empty *filtered* list is not an empty node. Saying "no accounts
+    // An empty *filtered* list is not an empty Guardian. Saying "no accounts
     // registered" to someone who arrived from the frozen count would be flatly
     // untrue, and would strand them with no way back.
     return pausedOnly ? (
@@ -483,7 +483,7 @@ export function AccountsPanel() {
           Row-scoped controls stay on the left, table-scoped ones on the right. */}
       {/* A filtered table that does not say so is a table that lies. This is a
           server-side filter, so the chips and counts below describe the frozen
-          subset rather than the node. */}
+          subset rather than the Guardian. */}
       {pausedOnly && (
         <div className="flex items-center gap-2 rounded-lg border border-state-frozen/40 bg-state-frozen/10 px-3 py-2 text-data">
           <Snowflake className="h-3.5 w-3.5 shrink-0 text-state-frozen" />

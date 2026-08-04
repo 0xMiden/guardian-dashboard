@@ -1,8 +1,8 @@
 # Guardian Dashboard
 
-A monitoring dashboard for [OpenZeppelin Guardian](https://github.com/OpenZeppelin/guardian/) nodes.
+A monitoring dashboard for [OpenZeppelin Guardian](https://github.com/OpenZeppelin/guardian/) servers.
 
-Guardian is a key-management service for [Miden](https://miden.xyz) accounts — it holds Falcon-512 signing keys, validates state transitions, and cosigns transactions on behalf of accounts. This dashboard gives operators a real-time view of a running node: liveness, account inventory, and per-account details.
+Guardian is a key-management service for [Miden](https://miden.xyz) accounts — it holds Falcon-512 signing keys, validates state transitions, and cosigns transactions on behalf of accounts. This dashboard gives operators a real-time view of a running Guardian: liveness, account inventory, and per-account details.
 
 ---
 
@@ -25,7 +25,7 @@ Guardian is a key-management service for [Miden](https://miden.xyz) accounts —
 ### 1. Prerequisites
 
 - Node.js 20+
-- A running Guardian node (local or remote)
+- A running Guardian (local or remote)
 - A [Clerk](https://clerk.com) application (for authentication)
 - The operator's **commitment** and **private key** (Falcon-512, hex-encoded) — used to authenticate with the Guardian server
 
@@ -38,7 +38,7 @@ Copy `.env.example` to `.env.local` and fill in:
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
 CLERK_SECRET_KEY=sk_...
 
-# Guardian endpoints — JSON array, one entry per Guardian node
+# Guardian endpoints — JSON array, one entry per Guardian
 # Each user's allowed endpoint IDs and role are set in Clerk user public metadata
 GUARDIAN_ENDPOINTS=[{
   "id": "testnet",
@@ -71,7 +71,7 @@ Users are managed via Clerk. Set `publicMetadata` on each user in the Clerk dash
 ```
 
 - `role`: `"admin"` shows the User Management tab; `"viewer"` hides it
-- `endpointIds`: which Guardian nodes the user can connect to
+- `endpointIds`: which Guardian servers the user can connect to
 
 ### 4. Run
 

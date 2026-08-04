@@ -115,7 +115,7 @@ export function AccountTransactions({ accountId }: Props) {
         </div>
       ) : deltasError && !deltasData ? (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-          {deltasError.message || "Guardian node unavailable"}
+          {deltasError.message || "Guardian unavailable"}
         </div>
       ) : rows.length === 0 ? (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">

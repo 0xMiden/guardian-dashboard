@@ -73,9 +73,9 @@ describe("AccountDetail", () => {
     expect(container.querySelectorAll("[data-slot='skeleton']").length).toBeGreaterThan(0);
     unmount();
 
-    useSWR.mockReturnValue({ data: undefined, error: new Error("Node offline"), mutate: vi.fn() });
+    useSWR.mockReturnValue({ data: undefined, error: new Error("Guardian offline"), mutate: vi.fn() });
     render(<AccountDetail accountId="0xabc123" />);
-    expect(screen.getByText("Node offline")).toBeInTheDocument();
+    expect(screen.getByText("Guardian offline")).toBeInTheDocument();
   });
 
   it("renders signers, technical details on expand, and the vault", () => {
@@ -115,10 +115,10 @@ describe("AccountDetail", () => {
     expect(submit).toBeDisabled(); // no reason typed yet
 
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    fetchSpy.mockResolvedValue(new Response(JSON.stringify({ error: "node refused" }), { status: 503 }));
+    fetchSpy.mockResolvedValue(new Response(JSON.stringify({ error: "Guardian refused" }), { status: 503 }));
     fireEvent.change(screen.getByPlaceholderText(/suspicious activity/i), { target: { value: "incident 42" } });
     fireEvent.click(submit);
-    await waitFor(() => expect(screen.getByText("node refused")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Guardian refused")).toBeInTheDocument());
     fetchSpy.mockRestore();
   });
 

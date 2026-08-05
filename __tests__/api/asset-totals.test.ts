@@ -73,17 +73,41 @@ describe("GET /api/accounts/asset-totals", () => {
     expect(mockListAccounts).toHaveBeenCalledTimes(1);
   });
 
-  it("ignores snapshot failures for individual accounts", async () => {
+  // An account the Guardian declines for good (no Miden vault) must not block
+  // the total forever, so it counts as attempted and the sum still publishes.
+  it("publishes the total when an account is refused for good", async () => {
     mockHeaders("ep-partial");
     mockListAccounts.mockResolvedValue({
       items: [account("0xa", 1), account("0xb", 2)],
       nextCursor: null,
     });
-    mockGetAccountSnapshot
-      .mockResolvedValueOnce(snapshot(30))
-      .mockRejectedValueOnce(new Error("boom"));
+    mockGetAccountSnapshot.mockResolvedValueOnce(snapshot(30)).mockRejectedValueOnce(
+      new GuardianOperatorHttpError(422, "Unprocessable Entity", "", {
+        message: "unsupported_for_network",
+        retryable: false,
+      }),
+    );
     const res = await GET(new Request("http://localhost/api/accounts/asset-totals"));
     expect((await res.json()).usd7d).toBe(30);
+  });
+
+  // The opposite case, and the bug this fixes: the Guardian says the account is
+  // temporarily unavailable, so the total is short and must not be published.
+  it("withholds the total when an account was only temporarily unavailable", async () => {
+    mockHeaders("ep-transient");
+    mockListAccounts.mockResolvedValue({
+      items: [account("0xa", 1), account("0xb", 2)],
+      nextCursor: null,
+    });
+    mockGetAccountSnapshot.mockResolvedValueOnce(snapshot(30)).mockRejectedValueOnce(
+      new GuardianOperatorHttpError(503, "Service Unavailable", "", {
+        message: "This account's data is temporarily unavailable. Please try again.",
+        retryable: true,
+      }),
+    );
+    const body = await (await GET(new Request("http://localhost/api/accounts/asset-totals"))).json();
+    expect(body.usd7d).toBeNull();
+    expect(body.warming).toBe(true);
   });
 
   // A Guardian that can take it is read in one pass, so the total lands from the

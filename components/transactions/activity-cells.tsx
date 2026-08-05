@@ -27,10 +27,36 @@ export function activityLabel(category?: string, proposalType?: string): string 
   }
 }
 
-export function deltaStatusBadge(status: string) {
+/** Why a delta left the active path, in the operator's words rather than the wire's. */
+const STATUS_REASONS: Record<string, string> = {
+  retry_exhausted: "the Guardian ran out of retries verifying it",
+  diverged: "the Guardian found it no longer matches the chain",
+  client_abandoned: "the client stopped before submitting it",
+};
+
+export function statusReasonText(reason?: string): string | undefined {
+  if (!reason) return undefined;
+  return STATUS_REASONS[reason] ?? reason.replace(/_/g, " ");
+}
+
+export function deltaStatusBadge(status: string, statusReason?: string) {
   if (status === "canonical") return <Badge className="bg-state-active text-white">confirmed</Badge>;
   if (status === "candidate") return <Badge className="bg-state-pending text-white">submitted</Badge>;
-  return <Badge className="bg-state-neutral text-white">{status}</Badge>;
+  // `retained` arrived in Guardian 0.16.1 (issue #345): the Guardian gave up
+  // verifying this candidate but keeps it for background reconciliation, so it
+  // may still recover. "recovering" says that; the raw word does not.
+  if (status === "retained") {
+    return (
+      <Badge className="bg-state-pending text-white" title={statusReasonText(statusReason)}>
+        recovering
+      </Badge>
+    );
+  }
+  return (
+    <Badge className="bg-state-neutral text-white" title={statusReasonText(statusReason)}>
+      {status}
+    </Badge>
+  );
 }
 
 export function proposalStatusBadge(collected: number, required: number) {

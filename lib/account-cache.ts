@@ -78,10 +78,34 @@ const PASS_DEADLINE_MS = 45_000;
 const WALK_CONCURRENCY = 10;
 
 /**
- * A 429 means the account went unread and is worth retrying. Every other
- * failure is the Guardian refusing this account (unavailable state, EVM account
- * with no Miden vault) and counts as attempted, or one permanently broken
- * account would block the aggregate forever.
+ * Did this account go unread, or did the Guardian refuse it for good?
+ *
+ * The Guardian mostly answers this itself, through `meta.retryable` on the
+ * error envelope. A 429 carries it, and so does `account_data_unavailable`:
+ * "This account's data is temporarily unavailable. Please try again." Measured
+ * on the gateway.fm Guardian 2026-08-05, that 503 accounted for 32 of 60 reads
+ * at concurrency 10. Counting those as attempted would publish an asset total
+ * silently missing half the accounts, which is the same class of bug the 429
+ * handling already exists to prevent.
+ *
+ * The flag cannot be relied on alone: the client types it as "absent for every
+ * other code", so the status is the fallback. 5xx is the Guardian failing to
+ * answer, 4xx is the Guardian declining to. A refusal counts as attempted, or
+ * one permanently broken account (unavailable state, EVM account with no Miden
+ * vault) would block the aggregate forever.
+ */
+function isUnread(err: unknown): boolean {
+  // No HTTP answer at all: a network or decode failure. We did not read it.
+  if (!(err instanceof GuardianOperatorHttpError)) return true;
+  if (err.data?.retryable === true) return true;
+  if (err.data?.retryable === false) return false;
+  return err.status === 429 || err.status >= 500;
+}
+
+/**
+ * Only a rate limit ends the pass. A single account being temporarily
+ * unavailable says nothing about the next one, and on the Guardian above most
+ * of the batch still succeeded.
  */
 function isRateLimited(err: unknown): boolean {
   return err instanceof GuardianOperatorHttpError && err.status === 429;
@@ -228,10 +252,8 @@ async function collectSnapshotTotals(
     for (let j = 0; j < settled.length; j++) {
       const r = settled[j];
       if (r.status !== "fulfilled") {
-        if (isRateLimited(r.reason)) {
-          rateLimited = true;
-          unread++;
-        }
+        if (isUnread(r.reason)) unread++;
+        if (isRateLimited(r.reason)) rateLimited = true;
         continue;
       }
       const total = r.value.vault.fungible.reduce(

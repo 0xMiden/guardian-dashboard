@@ -87,7 +87,7 @@ export function AccountTransactions({ accountId }: Props) {
       key: `delta-${d.nonce}`,
       seq: d.nonce,
       label: activityLabel(d.category, d.proposalType),
-      statusNode: deltaStatusBadge(d.status),
+      statusNode: deltaStatusBadge(d.status, d.statusReason),
       assets: d.assets,
       counterparty: d.counterparty,
       timestamp: d.statusTimestamp,

@@ -8,7 +8,10 @@ import { fetcher } from "@/lib/utils";
 import { formatCount } from "@/lib/format";
 
 interface OverviewData {
-  deltaStatusCounts: { candidate: number; canonical: number; discarded: number };
+  // `retained` arrived in Guardian 0.16.1 (issue #345): candidates the worker
+  // gave up verifying, kept for background reconciliation rather than
+  // discarded. Optional because a Guardian on an older build omits it.
+  deltaStatusCounts: { candidate: number; canonical: number; discarded: number; retained?: number };
   inFlightProposalCount: number;
 }
 
@@ -72,6 +75,16 @@ export function ActivityCard() {
               value={data.inFlightProposalCount}
               accent={data.inFlightProposalCount > 0 ? "text-state-pending" : undefined}
             />
+            {/* Shown only when there are any. A permanent "Recovering 0" adds a
+                row of noise to every Guardian that never has one, and Guardians
+                below 0.16.1 do not report this at all. */}
+            {(data.deltaStatusCounts.retained ?? 0) > 0 && (
+              <Row
+                label="Recovering"
+                value={data.deltaStatusCounts.retained}
+                accent="text-state-pending"
+              />
+            )}
           </div>
         )}
       </CardContent>

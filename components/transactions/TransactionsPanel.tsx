@@ -37,6 +37,9 @@ const FILTERS: Array<{ label: string; value: FilterValue }> = [
   { label: "Ready to Submit", value: "ready" },
   { label: "Submitted", value: "candidate" },
   { label: "Confirmed", value: "canonical" },
+  // Guardian 0.16.1 (issue #345). Findable, or six retained deltas on the OZ
+  // Guardian are invisible unless you happen to scroll past one.
+  { label: "Recovering", value: "retained" },
   { label: "Discarded", value: "discarded" },
 ];
 
@@ -86,7 +89,7 @@ function toRows(
         key: `delta-${d.accountId}-${d.nonce}`,
         accountId: d.accountId,
         label: activityLabel(d.category, d.proposalType),
-        statusNode: deltaStatusBadge(d.status),
+        statusNode: deltaStatusBadge(d.status, d.statusReason),
         assets: d.assets,
         counterparty: d.counterparty,
         timestamp: d.statusTimestamp,

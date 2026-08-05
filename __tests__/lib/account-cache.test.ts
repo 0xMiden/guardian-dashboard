@@ -17,6 +17,24 @@ const rateLimit = () =>
     retryable: true,
   });
 
+/** The Guardian declining an account for good: no Miden vault to read. */
+const refusal = () =>
+  new GuardianOperatorHttpError(422, "Unprocessable Entity", "", {
+    message: "unsupported_for_network",
+    retryable: false,
+  });
+
+/**
+ * `account_data_unavailable`, verbatim from the gateway.fm Guardian under
+ * concurrent load. The Guardian says `retryable: true`, so the account is
+ * unread rather than refused.
+ */
+const temporarilyUnavailable = () =>
+  new GuardianOperatorHttpError(503, "Service Unavailable", "", {
+    message: "This account's data is temporarily unavailable. Please try again.",
+    retryable: true,
+  });
+
 vi.mock("@/lib/token-registry", () => ({
   normalizeAmount: (_faucetId: string, amount: string) => {
     const n = Number(amount);
@@ -232,12 +250,44 @@ describe("per-pass fetch budget", () => {
   // accounts we chose not to read count as incomplete.
   it("counts a refused account as attempted, not skipped", async () => {
     const { client } = reader((id) => {
-      if (id === "0x1") throw new Error("unsupported_for_network");
+      if (id === "0x1") throw refusal();
       return snapshot(10);
     });
     const { totals, complete } = await getSnapshotTotalsChecked(client, "ep", rows(3));
     expect(complete).toBe(true);
     expect(Object.keys(totals)).toEqual(["0x0", "0x2"]);
+  });
+
+  // The Guardian marks this one retryable, so it is unread. Publishing a sum
+  // without it would be the 429 bug again wearing a different status code.
+  it("treats a retryable failure as unread rather than attempted", async () => {
+    const { client } = reader((id) => {
+      if (id === "0x1") throw temporarilyUnavailable();
+      return snapshot(10);
+    });
+    const { complete } = await getSnapshotTotalsChecked(client, "ep", rows(3));
+    expect(complete).toBe(false);
+  });
+
+  // Unlike a 429, one unavailable account says nothing about the next.
+  it("keeps reading the rest of the pass after a retryable failure", async () => {
+    const { client, getAccountSnapshot } = reader((id) => {
+      if (id === "0x1") throw temporarilyUnavailable();
+      return snapshot(10);
+    });
+    const { totals } = await getSnapshotTotalsChecked(client, "ep", rows(60));
+    expect(getAccountSnapshot).toHaveBeenCalledTimes(60);
+    expect(Object.keys(totals)).toHaveLength(59);
+  });
+
+  // No HTTP answer at all. We did not read it, so it cannot count as attempted.
+  it("treats a network failure as unread", async () => {
+    const { client } = reader((id) => {
+      if (id === "0x1") throw new Error("socket hang up");
+      return snapshot(10);
+    });
+    const { complete } = await getSnapshotTotalsChecked(client, "ep", rows(3));
+    expect(complete).toBe(false);
   });
 
   // The whole point of dropping the ramp: a Guardian that can take it gets read

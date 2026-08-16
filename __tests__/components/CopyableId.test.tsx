@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { CopyableId } from "@/components/ui/CopyableId";
 
 beforeEach(() => {
@@ -19,12 +19,15 @@ describe("CopyableId", () => {
     expect(screen.getByText("short")).toBeInTheDocument();
   });
 
-  it("copies full id to clipboard on button click", () => {
+  it("copies full id to clipboard on button click", async () => {
     const id = "0x1234567890abcdef1234567890abcdef";
     render(<CopyableId id={id} />);
     const btn = screen.getByRole("button");
     fireEvent.click(btn);
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(id);
+    await waitFor(() => {
+      expect(btn.querySelector(".text-state-active")).toBeInTheDocument();
+    });
   });
 
   it("stops propagation on click", () => {
@@ -38,11 +41,16 @@ describe("CopyableId", () => {
     expect(parentClick).not.toHaveBeenCalled();
   });
 
-  it("handles clipboard failure gracefully", () => {
+  it("does not show copied state when clipboard write fails", async () => {
     Object.assign(navigator, {
       clipboard: { writeText: vi.fn().mockRejectedValue(new Error("denied")) },
     });
     render(<CopyableId id="fail-id" />);
-    expect(() => fireEvent.click(screen.getByRole("button"))).not.toThrow();
+    const btn = screen.getByRole("button");
+    expect(() => fireEvent.click(btn)).not.toThrow();
+    await waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith("fail-id");
+    });
+    expect(btn.querySelector(".text-state-active")).not.toBeInTheDocument();
   });
 });

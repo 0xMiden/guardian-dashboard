@@ -3,6 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Copy, Check } from "lucide-react";
 import { truncateId } from "@/lib/format";
+import { copyText } from "@/lib/clipboard";
 
 interface Props {
   id: string;
@@ -25,13 +26,11 @@ export function CopyableId({ id, href, onNavigate, prefixLen = 10, suffixLen = 6
 
   const copy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard
-      ?.writeText(id)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      })
-      .catch(() => {});
+    copyText(id).then((ok) => {
+      if (!ok) return;
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
   };
 
   return (

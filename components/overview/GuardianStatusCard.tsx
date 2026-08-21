@@ -9,6 +9,7 @@ import { ChevronDown, ChevronUp, AlertTriangle, Check, Info } from "lucide-react
 import { fetcher } from "@/lib/utils";
 import { formatCount } from "@/lib/format";
 import { truncateId } from "@/lib/format";
+import { copyText } from "@/lib/clipboard";
 
 interface HealthData {
   status: "up" | "down";
@@ -127,21 +128,11 @@ function formatUptime(secs: number): string {
 function CopyableHash({ value, short }: { value: string; short?: boolean }) {
   const [copied, setCopied] = useState(false);
   function copy() {
-    const flash = () => { setCopied(true); setTimeout(() => setCopied(false), 1500); };
-    // execCommand runs synchronously inside the click handler (user gesture intact)
-    try {
-      const el = Object.assign(document.createElement("textarea"), {
-        value,
-        style: "position:fixed;top:0;left:0;opacity:0;pointer-events:none",
-      });
-      document.body.appendChild(el);
-      el.focus();
-      el.select();
-      if (document.execCommand("copy")) { document.body.removeChild(el); flash(); return; }
-      document.body.removeChild(el);
-    } catch { /* fall through */ }
-    // Clipboard API fallback (async, requires secure context)
-    navigator.clipboard?.writeText(value).then(flash).catch(() => {});
+    copyText(value).then((ok) => {
+      if (!ok) return;
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
   }
   const display = short ? value.slice(0, 7) : truncateId(value, 8, 6);
   return (

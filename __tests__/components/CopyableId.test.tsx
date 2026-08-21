@@ -70,4 +70,19 @@ describe("CopyableId", () => {
     window.removeEventListener("error", onError);
     expect(onError).not.toHaveBeenCalled();
   });
+
+  // The point of the copy button is the copy, not the absence of a crash.
+  // `execCommand` is deprecated but it is the only path that works without a
+  // Clipboard API, which is exactly the case above.
+  it("still copies when the page has no Clipboard API", async () => {
+    Object.assign(navigator, { clipboard: undefined });
+    Object.assign(document, { execCommand: vi.fn().mockReturnValue(true) });
+    render(<CopyableId id="no-clipboard" />);
+    const btn = screen.getByRole("button");
+    fireEvent.click(btn);
+    expect(document.execCommand).toHaveBeenCalledWith("copy");
+    await waitFor(() => {
+      expect(btn.querySelector(".text-state-active")).toBeInTheDocument();
+    });
+  });
 });

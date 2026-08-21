@@ -359,6 +359,10 @@ export function AccountsPanel() {
   // ponytail: loaded rows only, so an export after scrolling three pages holds
   // three pages. The empty state and the column ceilings say the same thing;
   // a whole-inventory export needs the Guardian-side paging this panel avoids.
+  // Upgrade path is the server-side walk in lib/account-cache.ts, which already
+  // pages the whole inventory for the stats route. Revisit when someone asks
+  // for an export that is not what they are looking at, or when the row count
+  // makes scrolling to collect it absurd; at 7,198 accounts it nearly is.
   function exportCsv() {
     posthog.capture("accounts_exported", { row_count: items.length, filter: kind, sorted: !!sort });
     const url = URL.createObjectURL(

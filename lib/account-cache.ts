@@ -40,9 +40,9 @@ export const INVENTORY_TTL_MS = 60 * 1000;
 const REFRESH_TTL_MS = 2 * 1000;
 
 // The Guardian's documented maximum page size. Every page is one request against
-// the same budget, so the walk costs 4 requests on the 1,573-account OZ Guardian
-// instead of 16. Verified against all four reachable Guardians: they return a full
-// 500 items (OZ in ~750ms).
+// the same budget, so the walk costs 15 requests on the OZ Guardian instead of
+// 72 (7,198 accounts, 2026-08-21). Verified against all four reachable
+// Guardians: they return a full 500 items (OZ in ~750ms).
 const PAGE_SIZE = 500;
 
 // Bounded so a long-lived instance cannot grow without limit. Oldest-first
@@ -65,8 +65,13 @@ const MAX_SNAPSHOT_ENTRIES = 20_000;
  *   snapshots   1,073 ok, zero 429s, 18.0s (60/sec)
  *   total       19.1s, 1,076 requests against a 5000/min budget
  *
- * 45s leaves ~2x headroom over that and stays well inside the route's
- * `maxDuration = 120`. On a rate-limited Guardian the pacer in
+ * Re-measured 2026-08-21 at 7,198 accounts: 36.3s, still one pass, still no
+ * 429s. So the headroom is nearer 1.25x than the 2x it was sized for. What the
+ * snapshot phase tracks is the account *creation rate* (~200/day), not the
+ * total, because it only reads the 7-day active set, so this holds while the
+ * rate holds. Re-run tasks/live-pacing-check.live.ts and raise this if the walk
+ * approaches the deadline; 45s stays well inside the route's
+ * `maxDuration = 120`, so there is room. On a rate-limited Guardian the pacer in
  * lib/guardian-client.ts spaces requests out, so the same deadline simply
  * yields fewer reads and the caller keeps serving the last complete answer.
  */

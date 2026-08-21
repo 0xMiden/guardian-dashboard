@@ -11,9 +11,11 @@ const MS_30D = 30 * 24 * 60 * 60 * 1000;
 // The walk runs to the end of the list rather than stopping at 30 days, because
 // the Accounts table's kind counts have to describe the Guardian instead of
 // whichever page the user has scrolled to. It costs pages the 30-day stop used
-// to skip: 4 requests instead of 1 on the 1,573-account Guardian, once per cache
-// TTL. `asset-totals` is unaffected, since it filters its own 7-day window out
-// of whatever inventory it is handed, and a deeper walk satisfies its shallower
+// to skip, though fewer of them than it used to: measured 2026-08-21, 15
+// requests instead of 13 on the OZ Guardian, which holds 7,198 accounts of
+// which 6,054 were created inside the last 30 days. Once per cache TTL.
+// `asset-totals` is unaffected, since it filters its own 7-day window out of
+// whatever inventory it is handed, and a deeper walk satisfies its shallower
 // one from the same cache entry.
 const FULL_WALK = Number.POSITIVE_INFINITY;
 

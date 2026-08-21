@@ -31,6 +31,22 @@ const DEGRADED_LABELS: Record<string, string> = {
 const describeDegraded = (keys: string[]) =>
   keys.map((k) => DEGRADED_LABELS[k] ?? k.replace(/_/g, " ")).join(", ");
 
+// Aggregates the Guardian declines to compute above an account-count threshold,
+// as opposed to ones it failed at. OZ confirmed (2026-08-21) that
+// `accounts_by_auth_method` is capped at 1000 accounts on purpose, because it is
+// computed per request: past the limit it is dropped and `service_status` reads
+// `degraded` from then on. Their Guardian is at 7,160 accounts and gaining ~200
+// a day, so for any Guardian in real use this is the steady state. A stated
+// limit gets an explanation; a degraded status we cannot account for keeps its
+// warning.
+//
+// The 1000 is written into the copy below and does not come over the wire, so it
+// has to be changed by hand if OZ raises the cap. They are weighing it, and the
+// aggregation service that replaces the per-request computation is in flight.
+// The copy below also speaks for exactly one aggregate; a second entry here
+// needs its own sentence.
+const CAPPED_AGGREGATES = new Set(["accounts_by_auth_method"]);
+
 interface OperatorInfo {
   url: string;
   network: string;
@@ -200,6 +216,9 @@ export function GuardianStatusCard() {
   const history = samples.list;
   const isUp = health?.status === "up";
   const build = overview?.build;
+  const degradedAggregates = overview?.degradedAggregates ?? [];
+  const cappedOnly =
+    degradedAggregates.length > 0 && degradedAggregates.every((k) => CAPPED_AGGREGATES.has(k));
 
   // Uptime is derived from the two timestamps the polls already carry, rather
   // than from state set in `onSuccess`. A cache read fires no success callback,
@@ -259,13 +278,21 @@ export function GuardianStatusCard() {
                       Server reports itself healthy
                     </p>
                   </>
+                ) : cappedOnly ? (
+                  <>
+                    <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <p className="text-label text-muted-foreground">
+                      Server reports itself degraded: {describeDegraded(degradedAggregates)}{" "}
+                      stops computing above 1000 accounts (aggregation service is WIP).
+                    </p>
+                  </>
                 ) : (
                   <>
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-state-frozen" />
                     <p className="text-label text-state-frozen">
                       Server reports itself degraded
-                      {overview.degradedAggregates?.length
-                        ? `: it cannot compute ${describeDegraded(overview.degradedAggregates)}.`
+                      {degradedAggregates.length
+                        ? `: it cannot compute ${describeDegraded(degradedAggregates)}.`
                         : "."}
                     </p>
                   </>

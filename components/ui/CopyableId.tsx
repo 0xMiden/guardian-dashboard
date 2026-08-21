@@ -26,7 +26,7 @@ export function CopyableId({ id, href, onNavigate, prefixLen = 10, suffixLen = 6
   const copy = (e: React.MouseEvent) => {
     e.stopPropagation();
     navigator.clipboard
-      .writeText(id)
+      ?.writeText(id)
       .then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);

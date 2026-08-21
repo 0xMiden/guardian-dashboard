@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { CopyableId } from "@/components/ui/CopyableId";
 
 beforeEach(() => {
@@ -52,5 +52,22 @@ describe("CopyableId", () => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith("fail-id");
     });
     expect(btn.querySelector(".text-state-active")).not.toBeInTheDocument();
+  });
+
+  // `navigator.clipboard` only exists in a secure context. Over plain http, which
+  // is how a self-hosted dashboard or a phone pointed at the dev server reaches
+  // this page, the whole object is undefined and reading `.writeText` off it
+  // throws before the `.catch()` can see it. `GuardianStatusCard` has always
+  // guarded this call; this one did not.
+  it("does not throw when the page has no Clipboard API", async () => {
+    Object.assign(navigator, { clipboard: undefined });
+    const onError = vi.fn();
+    window.addEventListener("error", onError);
+    render(<CopyableId id="no-clipboard" />);
+    fireEvent.click(screen.getByRole("button"));
+    // React reports an uncaught handler error asynchronously, so let it land.
+    await act(async () => {});
+    window.removeEventListener("error", onError);
+    expect(onError).not.toHaveBeenCalled();
   });
 });

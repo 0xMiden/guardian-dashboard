@@ -57,6 +57,9 @@ export function CopyableId({ id, href, onNavigate, prefixLen = 10, suffixLen = 6
       )}
       <button
         onClick={copy}
+        // The icon and its colour are the whole of the copied state on screen,
+        // so the name carries it for anyone not looking at it.
+        aria-label={copied ? `Copied ${id}` : `Copy ${id}`}
         className="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity text-muted-foreground"
         title={id}
       >

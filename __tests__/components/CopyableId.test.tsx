@@ -71,6 +71,19 @@ describe("CopyableId", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
+  // The button's only accessible name was `title`, so a screen reader read out a
+  // 66-character hex string and never said what the button does. The copied
+  // state was carried by an icon swap and a colour, which is nothing at all
+  // without sight.
+  it("names the copy button, and says so once the copy lands", async () => {
+    render(<CopyableId id="0xabc" />);
+    const btn = screen.getByRole("button", { name: "Copy 0xabc" });
+    fireEvent.click(btn);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Copied 0xabc" })).toBeInTheDocument();
+    });
+  });
+
   // The point of the copy button is the copy, not the absence of a crash.
   // `execCommand` is deprecated but it is the only path that works without a
   // Clipboard API, which is exactly the case above.

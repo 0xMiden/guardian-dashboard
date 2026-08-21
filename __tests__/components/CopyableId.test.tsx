@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { CopyableId } from "@/components/ui/CopyableId";
 
 beforeEach(() => {
@@ -52,5 +52,50 @@ describe("CopyableId", () => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith("fail-id");
     });
     expect(btn.querySelector(".text-state-active")).not.toBeInTheDocument();
+  });
+
+  // `navigator.clipboard` only exists in a secure context. Over plain http, which
+  // is how a self-hosted dashboard or a phone pointed at the dev server reaches
+  // this page, the whole object is undefined and reading `.writeText` off it
+  // throws before the `.catch()` can see it. `GuardianStatusCard` has always
+  // guarded this call; this one did not.
+  it("does not throw when the page has no Clipboard API", async () => {
+    Object.assign(navigator, { clipboard: undefined });
+    const onError = vi.fn();
+    window.addEventListener("error", onError);
+    render(<CopyableId id="no-clipboard" />);
+    fireEvent.click(screen.getByRole("button"));
+    // React reports an uncaught handler error asynchronously, so let it land.
+    await act(async () => {});
+    window.removeEventListener("error", onError);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  // The button's only accessible name was `title`, so a screen reader read out a
+  // 66-character hex string and never said what the button does. The copied
+  // state was carried by an icon swap and a colour, which is nothing at all
+  // without sight.
+  it("names the copy button, and says so once the copy lands", async () => {
+    render(<CopyableId id="0xabc" />);
+    const btn = screen.getByRole("button", { name: "Copy 0xabc" });
+    fireEvent.click(btn);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Copied 0xabc" })).toBeInTheDocument();
+    });
+  });
+
+  // The point of the copy button is the copy, not the absence of a crash.
+  // `execCommand` is deprecated but it is the only path that works without a
+  // Clipboard API, which is exactly the case above.
+  it("still copies when the page has no Clipboard API", async () => {
+    Object.assign(navigator, { clipboard: undefined });
+    Object.assign(document, { execCommand: vi.fn().mockReturnValue(true) });
+    render(<CopyableId id="no-clipboard" />);
+    const btn = screen.getByRole("button");
+    fireEvent.click(btn);
+    expect(document.execCommand).toHaveBeenCalledWith("copy");
+    await waitFor(() => {
+      expect(btn.querySelector(".text-state-active")).toBeInTheDocument();
+    });
   });
 });

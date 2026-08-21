@@ -126,7 +126,7 @@ const inventoryCache = new Map<string, Inventory>();
 const snapshotCache = new Map<string, number>();
 
 /** Cache key for one account's vault value at a specific version. */
-export function snapshotKey(endpointId: string, accountId: string, updatedAt: string): string {
+function snapshotKey(endpointId: string, accountId: string, updatedAt: string): string {
   return `${endpointId}|${accountId}@${updatedAt}`;
 }
 

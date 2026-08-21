@@ -178,3 +178,58 @@ describe("GuardianStatusCard", () => {
     expect(document.execCommand).toHaveBeenCalledWith("copy");
   });
 });
+
+/**
+ * The Guardian's own verdict on itself. OZ confirmed (2026-08-21) that
+ * `accounts_by_auth_method` is capped at 1000 accounts on purpose, because it is
+ * computed per request: above the cap the aggregate is dropped and
+ * `service_status` flips to `degraded` permanently. Their Guardian passed the
+ * cap long ago and is at 7,160 accounts, so this is the steady state, not an
+ * incident. A stated limit gets an explanation; anything else still gets a
+ * warning.
+ */
+describe("GuardianStatusCard service status", () => {
+  const withStatus = (
+    serviceStatus: "healthy" | "degraded",
+    degradedAggregates: string[] = [],
+  ) => mockSWR({ overview: { ...overview, serviceStatus, degradedAggregates } });
+
+  it("relays a healthy verdict", () => {
+    withStatus("healthy");
+    render(<GuardianStatusCard />);
+    expect(screen.getByText(/reports itself healthy/)).toBeInTheDocument();
+  });
+
+  it("explains a capped aggregate rather than warning about it", () => {
+    withStatus("degraded", ["accounts_by_auth_method"]);
+    render(<GuardianStatusCard />);
+    const line = screen.getByText(/stops computing above 1000 accounts/);
+    expect(line).toHaveTextContent(
+      "Server reports itself degraded: the account breakdown by auth method stops " +
+        "computing above 1000 accounts (aggregation service is WIP).",
+    );
+    // The amber treatment is what said "something is wrong here".
+    expect(line.className).not.toContain("text-state-frozen");
+  });
+
+  it("still warns when the Guardian is degraded for a reason we do not know", () => {
+    withStatus("degraded", ["some_new_aggregate"]);
+    render(<GuardianStatusCard />);
+    const line = screen.getByText(/cannot compute/);
+    expect(line).toHaveTextContent("some new aggregate");
+    expect(line.className).toContain("text-state-frozen");
+  });
+
+  // A cap alongside a real failure is a real failure.
+  it("warns when a capped aggregate arrives with an unknown one", () => {
+    withStatus("degraded", ["accounts_by_auth_method", "some_new_aggregate"]);
+    render(<GuardianStatusCard />);
+    expect(screen.getByText(/cannot compute/).className).toContain("text-state-frozen");
+  });
+
+  it("warns when the Guardian is degraded and names nothing", () => {
+    withStatus("degraded", []);
+    render(<GuardianStatusCard />);
+    expect(screen.getByText(/reports itself degraded/).className).toContain("text-state-frozen");
+  });
+});

@@ -1,5 +1,3 @@
-import { mergeProps } from "@base-ui/react/merge-props"
-import { useRender } from "@base-ui/react/use-render"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
@@ -10,15 +8,10 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
-        secondary:
-          "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
         destructive:
           "bg-destructive/10 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-destructive/20",
         outline:
           "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
-        ghost:
-          "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
-        link: "text-primary underline-offset-4 hover:underline",
       },
     },
     defaultVariants: {
@@ -27,26 +20,24 @@ const badgeVariants = cva(
   }
 )
 
+// A span with classes on it. The shadcn original routed this through base-ui's
+// `useRender` so a caller could swap the tag with a `render` prop; nothing in
+// this app ever did, and that prop was the only reason @base-ui/react was a
+// dependency. `data-slot` and `data-variant` are kept because they are what the
+// rendered markup carried before.
 function Badge({
   className,
   variant = "default",
-  render,
   ...props
-}: useRender.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
-  return useRender({
-    defaultTagName: "span",
-    props: mergeProps<"span">(
-      {
-        className: cn(badgeVariants({ variant }), className),
-      },
-      props
-    ),
-    render,
-    state: {
-      slot: "badge",
-      variant,
-    },
-  })
+}: React.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
+  return (
+    <span
+      data-slot="badge"
+      data-variant={variant}
+      className={cn(badgeVariants({ variant }), className)}
+      {...props}
+    />
+  )
 }
 
-export { Badge, badgeVariants }
+export { Badge }

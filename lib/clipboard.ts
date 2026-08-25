@@ -11,6 +11,13 @@
  *
  * Returns whether the text actually reached the clipboard, so a caller only
  * confirms a copy that happened.
+ *
+ * // ponytail: a deprecated API as the primary path, with no polyfill and no
+ * // dependency. Known ceiling: if a browser drops execCommand, copying from a
+ * // non-secure origin stops working, though it fails honestly, returning
+ * // false so no confirmation is shown. Upgrade path is serving the dashboard
+ * // over https, where the Clipboard API covers it and this branch is dead
+ * // code that can be deleted.
  */
 export async function copyText(value: string): Promise<boolean> {
   // Selecting the scratch textarea takes focus away from whatever the user was

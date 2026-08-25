@@ -9,8 +9,13 @@ export const maxDuration = 120;
 const MS_7D = 7 * 24 * 60 * 60 * 1000;
 
 type AssetTotals = { usd7d: number; computedAt: string };
-// ponytail: per-serverless-instance cache — cold instances recompute; good
-// enough while account counts stay small (upgrade path: KV / CDN caching)
+// ponytail: per-serverless-instance cache, so cold instances recompute. The
+// ceiling was written as "while account counts stay small" at 1,573 accounts;
+// the OZ Guardian holds 7,198 (2026-08-21) and one cold walk now takes 36s.
+// Upgrade path is KV or CDN caching, shared with the two other per-instance
+// caches that defer to the same thing (lib/account-cache.ts,
+// lib/guardian-client.ts). Revisit when a cold walk stops fitting in one
+// invocation, which tasks/live-pacing-check.live.ts measures.
 const cache = new Map<string, AssetTotals>();
 
 export async function GET(req: Request) {

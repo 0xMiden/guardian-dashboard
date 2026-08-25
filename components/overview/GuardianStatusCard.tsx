@@ -36,10 +36,10 @@ const describeDegraded = (keys: string[]) =>
 // as opposed to ones it failed at. OZ confirmed (2026-08-21) that
 // `accounts_by_auth_method` is capped at 1000 accounts on purpose, because it is
 // computed per request: past the limit it is dropped and `service_status` reads
-// `degraded` from then on. Their Guardian is at 7,160 accounts and gaining ~200
-// a day, so for any Guardian in real use this is the steady state. A stated
-// limit gets an explanation; a degraded status we cannot account for keeps its
-// warning.
+// `degraded` from then on. Their Guardian is at 7,198 accounts (2026-08-21) and
+// gaining ~200 a day, so for any Guardian in real use this is the steady state.
+// A stated limit gets an explanation; a degraded status we cannot account for
+// keeps its warning.
 //
 // The 1000 is written into the copy below and does not come over the wire, so it
 // has to be changed by hand if OZ raises the cap. They are weighing it, and the

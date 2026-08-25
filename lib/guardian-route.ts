@@ -44,7 +44,11 @@ export async function guardianRoute(
 // forwarding NaN to the Guardian).
 export function pageOptions(req: Request): { cursor?: string; limit?: number; paused?: boolean } {
   const { searchParams } = new URL(req.url);
-  const limit = parseInt(searchParams.get("limit") ?? "", 10);
+  const rawLimit = searchParams.get("limit") ?? "";
+  const parsedLimit = /^\d+$/.test(rawLimit) ? Number(rawLimit) : NaN;
+  const limit = Number.isInteger(parsedLimit) && parsedLimit >= 1 && parsedLimit <= 500
+    ? parsedLimit
+    : NaN;
   // Tri-state on the Guardian: true for paused only, false for active only, absent
   // for both. An absent param has to stay absent rather than becoming `false`,
   // or every unfiltered listing would silently hide frozen accounts.

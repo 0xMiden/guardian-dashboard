@@ -16,10 +16,32 @@ export function getDecimals(faucetId: string): number {
   return overrides[faucetId] ?? defaultDecimals;
 }
 
+/**
+ * Convert a raw on-chain base-unit amount string into a human-scale number.
+ *
+ * Uses BigInt for the base-unit value so amounts above Number.MAX_SAFE_INTEGER
+ * are not silently rounded before decimal scaling (unlike `Number(rawAmount)`).
+ */
 export function normalizeAmount(faucetId: string, rawAmount: string): number {
-  const n = Number(rawAmount);
-  if (Number.isNaN(n)) throw new Error(`Invalid token amount for faucet ${faucetId}: "${rawAmount}"`);
+  let amount: bigint;
+  try {
+    amount = BigInt(rawAmount);
+  } catch {
+    throw new Error(`Invalid token amount for faucet ${faucetId}: "${rawAmount}"`);
+  }
+
   const decimals = getDecimals(faucetId);
-  if (decimals === 0) return n;
-  return n / Math.pow(10, decimals);
+  if (decimals === 0) {
+    return Number(amount);
+  }
+
+  const negative = amount < 0n;
+  const abs = negative ? -amount : amount;
+  const factor = 10n ** BigInt(decimals);
+  const whole = abs / factor;
+  const fraction = abs % factor;
+  // Build via decimal string so large base units stay exact through scaling;
+  // the final Number() is only applied after dividing by 10^decimals.
+  const scaled = Number(`${whole.toString()}.${fraction.toString().padStart(decimals, "0")}`);
+  return negative ? -scaled : scaled;
 }

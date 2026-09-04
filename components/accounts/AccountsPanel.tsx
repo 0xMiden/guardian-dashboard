@@ -19,7 +19,7 @@ import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { TableControls, useTablePrefs, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
 import { StatStrip, refreshStatStrip, STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
 import { fetcher } from "@/lib/utils";
-import { isWalletAccount, matchesAccountId, looksLikeAccountId, accountState, accountsToCsv, formatCount } from "@/lib/format";
+import { isWalletAccount, matchesAccountId, looksLikeAccountId, accountState, accountsToCsv, formatCount, formatUsd } from "@/lib/format";
 
 type AccountsPage = PagedResult<DashboardAccountSummary>;
 type AccountKind = "all" | "wallet" | "other";
@@ -443,7 +443,7 @@ export function AccountsPanel() {
       key: "assets", label: "Total Assets", width: "w-32", align: "right", sortKey: "assets",
       cellClass: "text-figure",
       cell: (a) => perAccount[a.accountId] !== undefined
-        ? <span className="tabular-nums text-foreground">${perAccount[a.accountId].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        ? <span className="tabular-nums text-foreground">${formatUsd(perAccount[a.accountId])}</span>
         : inFlight.has(a.accountId)
         ? <Skeleton className="ml-auto h-3 w-16" data-testid={`assets-loading-${a.accountId}`} />
         : <span className="text-muted-foreground" title="Not fetched yet. Totals load for rows as they scroll into view.">—</span>,
@@ -500,9 +500,9 @@ export function AccountsPanel() {
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <AccountIdFilter value={query} onChange={setQuery} />
         {([
-          ["all", `All (${counts.all.toLocaleString()})`],
-          ["wallet", `Wallet (${counts.wallet.toLocaleString()})`],
-          ["other", `Other (${counts.other.toLocaleString()})`],
+          ["all", `All (${formatCount(counts.all)})`],
+          ["wallet", `Wallet (${formatCount(counts.wallet)})`],
+          ["other", `Other (${formatCount(counts.other)})`],
         ] as const).map(([value, label]) => (
           <FilterChip key={value} active={kind === value} onClick={() => setKind(value)}>
             {label}

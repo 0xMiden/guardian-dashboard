@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { ErrorPanel, describeError } from "@/components/ui/ErrorPanel";
 import Link from "next/link";
 import { ArrowLeft, Snowflake, Sun, ArrowLeftRight, ChevronDown, ChevronRight } from "lucide-react";
+import { formatAmount } from "@/lib/format";
 import type { DashboardAccountDetail } from "@openzeppelin/guardian-operator-client";
 import posthog from "posthog-js";
 import { fetcher, FetchError } from "@/lib/utils";
@@ -354,7 +355,7 @@ export function AccountDetail({ accountId }: Props) {
                       <div key={asset.faucetId} className="flex items-start justify-between gap-4 py-2 text-sm">
                         <div className="flex flex-col gap-0.5 min-w-0">
                           <CopyableId id={asset.faucetId} prefixLen={10} suffixLen={6} className="text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">{BigInt(asset.amount).toLocaleString()} units</span>
+                          <span className="text-xs text-muted-foreground">{formatAmount(asset.amount)} units</span>
                         </div>
                       </div>
                     ))}

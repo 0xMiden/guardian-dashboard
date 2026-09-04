@@ -42,6 +42,16 @@ export async function guardianRoute(
 
 // Shared cursor/limit query parsing (drops invalid limits instead of
 // forwarding NaN to the Guardian).
+//
+// `limit` reaches the Guardian, so it is clamped rather than merely checked for
+// NaN: a negative or zero limit is a malformed request the Guardian should never
+// have to interpret, and an arbitrarily large one turns a single dashboard URL
+// into an unbounded read against the operator's rate budget. 500 is the ceiling
+// because it is the page size the app itself uses (PAGE_SIZE in
+// components/accounts/AccountsPanel.tsx and lib/account-cache.ts), so clamping
+// there cannot narrow any request the UI actually makes.
+const MAX_LIMIT = 500;
+
 export function pageOptions(req: Request): { cursor?: string; limit?: number; paused?: boolean } {
   const { searchParams } = new URL(req.url);
   const limit = parseInt(searchParams.get("limit") ?? "", 10);
@@ -51,7 +61,7 @@ export function pageOptions(req: Request): { cursor?: string; limit?: number; pa
   const paused = searchParams.get("paused");
   return {
     cursor: searchParams.get("cursor") ?? undefined,
-    limit: Number.isNaN(limit) ? undefined : limit,
+    limit: Number.isNaN(limit) ? undefined : Math.min(Math.max(limit, 1), MAX_LIMIT),
     paused: paused === null ? undefined : paused === "true",
   };
 }

@@ -3,6 +3,7 @@ import useSWR from "swr";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetcher } from "@/lib/utils";
+import { formatCount, formatUsd } from "@/lib/format";
 
 type AssetTotals = { usd7d?: number; computedAt?: string; warming?: boolean; done?: number; total?: number };
 
@@ -41,7 +42,7 @@ export function AssetsCard() {
           <Skeleton className="h-8 w-20 mt-1" />
         ) : data?.usd7d != null ? (
           <p className="text-stat text-foreground">
-            ${data.usd7d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            ${formatUsd(data.usd7d)}
           </p>
         ) : data?.warming ? (
           // Says so rather than showing the same dash a dead Guardian would. The
@@ -51,7 +52,7 @@ export function AssetsCard() {
             Calculating…
             {data.done != null && data.total != null && (
               <span className="ml-1 text-data">
-                {data.done.toLocaleString()} of {data.total.toLocaleString()}
+                {formatCount(data.done)} of {formatCount(data.total)}
               </span>
             )}
           </p>

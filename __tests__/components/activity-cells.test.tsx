@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { deltaStatusBadge, statusReasonText } from "@/components/transactions/activity-cells";
+import { activityLabel, deltaStatusBadge, statusReasonText } from "@/components/transactions/activity-cells";
 
 /**
  * Guardian 0.16.1 added a fourth delta status, `retained` (issue #345): a
@@ -51,5 +51,48 @@ describe("statusReasonText", () => {
 
   it("is absent when the Guardian gave no reason", () => {
     expect(statusReasonText(undefined)).toBeUndefined();
+  });
+});
+
+/**
+ * Miden testnet v0.16 put two new proposal types on the wire, both filed under
+ * the generic `custom` category: `recallable_send` and `bridged_send`. A fleet
+ * walk on 2026-09-10 found 942 of 2,233 deltas were `custom + recallable_send`,
+ * so preferring the category label named 42% of activity "Custom".
+ */
+describe("activityLabel", () => {
+  it("names the types the new testnet brought", () => {
+    expect(activityLabel("custom", "recallable_send")).toBe("Recallable Send");
+    expect(activityLabel("custom", "bridged_send")).toBe("Bridged Send");
+    expect(activityLabel("custom", "swap")).toBe("Swap");
+  });
+
+  // The proposal type is the more specific view of the same event, so it wins.
+  // The same inversion used to call an add_signer delta "Account Changed".
+  it("prefers the proposal type over the category it arrives with", () => {
+    expect(activityLabel("account_storage_change", "add_signer")).toBe("Signer Added");
+    expect(activityLabel("account_storage_change", "remove_signer")).toBe("Signer Removed");
+    expect(activityLabel("note_consumption", "consume_notes")).toBe("Note Consumed");
+  });
+
+  it("still labels a delta that carries no proposal type", () => {
+    expect(activityLabel("note_creation")).toBe("Note Created");
+    expect(activityLabel("guardian_switch")).toBe("Switch Guardian");
+  });
+
+  // Proposals reach this with no category at all.
+  it("labels a proposal from its type alone", () => {
+    expect(activityLabel(undefined, "switch_guardian")).toBe("Switch Guardian");
+  });
+
+  // A type this build has never heard of must fall back to the category rather
+  // than to "State Change", which would throw away what the Guardian did say.
+  it("falls back to the category for an unknown proposal type", () => {
+    expect(activityLabel("custom", "custom_transaction")).toBe("Custom");
+    expect(activityLabel("some_new_category", "some_new_type")).toBe("some_new_category");
+  });
+
+  it("has a last resort when the Guardian gives neither", () => {
+    expect(activityLabel()).toBe("State Change");
   });
 });

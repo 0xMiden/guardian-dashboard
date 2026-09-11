@@ -13,18 +13,35 @@ export const CATEGORY_LABELS: Record<string, string> = {
   custom: "Custom",
 };
 
+/**
+ * The operator's stated proposal type. Always the more specific view of the
+ * same event: a walk of 2,233 deltas across the fleet on 2026-09-10 found no
+ * pair where the category said something the proposal type contradicted, so
+ * this is consulted first.
+ *
+ * Miden testnet v0.16 brought two types the Guardian files under the generic
+ * `custom` category, which is why preferring the category read 942 of those
+ * 2,233 deltas as "Custom": `recallable_send` (a P2IDE payment the sender can
+ * pull back) and `bridged_send` (the Miden/Ethereum bridge).
+ */
+const PROPOSAL_TYPE_LABELS: Record<string, string> = {
+  p2id: "Asset Transfer",
+  consume_notes: "Note Consumed",
+  recallable_send: "Recallable Send",
+  bridged_send: "Bridged Send",
+  swap: "Swap",
+  add_signer: "Signer Added",
+  remove_signer: "Signer Removed",
+  change_threshold: "Threshold Changed",
+  update_procedure_threshold: "Threshold Changed",
+  switch_guardian: "Switch Guardian",
+};
+
 export function activityLabel(category?: string, proposalType?: string): string {
+  const byType = proposalType ? PROPOSAL_TYPE_LABELS[proposalType] : undefined;
+  if (byType) return byType;
   if (category) return CATEGORY_LABELS[category] ?? category;
-  switch (proposalType) {
-    case "p2id": return "Asset Transfer";
-    case "consume_notes": return "Note Consumed";
-    case "add_signer": return "Signer Added";
-    case "remove_signer": return "Signer Removed";
-    case "change_threshold": return "Threshold Changed";
-    case "update_procedure_threshold": return "Threshold Changed";
-    case "switch_guardian": return "Switch Guardian";
-    default: return "State Change";
-  }
+  return "State Change";
 }
 
 /** Why a delta left the active path, in the operator's words rather than the wire's. */

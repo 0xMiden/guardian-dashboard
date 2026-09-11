@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
-import { formatAmount, storageSlotLabel } from "@/lib/format";
+import { formatAmount, formatCount, storageSlotLabel } from "@/lib/format";
 import { fetcher } from "@/lib/utils";
 import { CATEGORY_LABELS, deltaStatusBadge } from "@/components/transactions/activity-cells";
 import type {
@@ -69,7 +69,13 @@ function NoteCard({ note, direction }: { note: DashboardDeltaDecodedNote; direct
     <div className="border rounded-lg p-3 text-xs space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <CopyableId id={note.noteId} prefixLen={10} suffixLen={6} className="text-muted-foreground" />
-        <Badge variant="outline" className="text-xs shrink-0">{tagLabel}</Badge>
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Onchain note visibility, added by client 0.17.0. Absent on every
+              note the fleet serves today, so this stays dark until a Guardian
+              starts sending it. */}
+          {note.noteType && <Badge variant="outline" className="text-xs">{note.noteType}</Badge>}
+          <Badge variant="outline" className="text-xs">{tagLabel}</Badge>
+        </div>
       </div>
       {note.sender && (
         <div className="flex gap-2">
@@ -234,6 +240,19 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
                 )}
                 {data!.proposal.amount && (
                   <Row label="Amount" value={formatAmount(data!.proposal.amount)} />
+                )}
+                {/* P2ID visibility (issue #322) and the two P2IDE block heights
+                    (issue #366, client 0.17.0). No Guardian in the fleet fills
+                    any of the three in yet, so these appear on their own once
+                    one starts. */}
+                {data!.proposal.noteType && (
+                  <Row label="Note visibility" value={data!.proposal.noteType} />
+                )}
+                {data!.proposal.reclaimHeight !== undefined && (
+                  <Row label="Recallable from block" value={formatCount(data!.proposal.reclaimHeight)} />
+                )}
+                {data!.proposal.timelockHeight !== undefined && (
+                  <Row label="Unlocks at block" value={formatCount(data!.proposal.timelockHeight)} />
                 )}
                 {data!.proposal.requiredSignatures !== undefined && (
                   <Row label="Signatures required" value={data!.proposal.requiredSignatures} />

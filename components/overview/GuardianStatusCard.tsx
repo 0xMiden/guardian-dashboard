@@ -9,6 +9,7 @@ import { ChevronDown, ChevronUp, AlertTriangle, Check, Info } from "lucide-react
 import { fetcher } from "@/lib/utils";
 import { formatCount } from "@/lib/format";
 import { truncateId } from "@/lib/format";
+import { LOCALE } from "@/lib/format";
 import { copyText } from "@/lib/clipboard";
 
 interface HealthData {
@@ -251,7 +252,7 @@ export function GuardianStatusCard() {
                     the actual time is what tells you the chart is live and
                     what its x-axis means. */}
                 <p className="mt-1 text-label text-muted-foreground">
-                  Last checked {new Date(health.checkedAt).toLocaleTimeString()} · polling every {HEALTH_POLL_MS / 1000}s
+                  Last checked {new Date(health.checkedAt).toLocaleTimeString(LOCALE)} · polling every {HEALTH_POLL_MS / 1000}s
                 </p>
               </>
             )}
@@ -336,7 +337,7 @@ export function GuardianStatusCard() {
                   <Row
                     label="Uptime"
                     value={formatUptime(uptimeSecs)}
-                    sub={`since ${new Date(startedMs).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
+                    sub={`since ${new Date(startedMs).toLocaleString(LOCALE, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}`}
                     info="Time elapsed since the Guardian process last started."
                   />
                 )}

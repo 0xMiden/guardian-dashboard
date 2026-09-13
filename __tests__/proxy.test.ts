@@ -24,10 +24,17 @@ const proxy = (await import("@/proxy")).default as unknown as (
 ) => Promise<Response | undefined>;
 
 const auth = { protect: vi.fn() };
-const request = (path: string, cookie?: string) =>
-  new NextRequest(`https://dashboard.test${path}`, {
-    headers: cookie ? { cookie: `cockpit-endpoint=${cookie}` } : {},
-  });
+const request = (path: string, cookie?: string, spoofedEndpointId?: string) => {
+  const headers: Record<string, string> = {};
+  if (cookie) headers.cookie = `cockpit-endpoint=${cookie}`;
+  // Lets a test act as a client that hand-writes the header the app trusts.
+  if (spoofedEndpointId) headers["x-guardian-endpoint-id"] = spoofedEndpointId;
+  return new NextRequest(`https://dashboard.test${path}`, { headers });
+};
+
+/** The endpoint id the middleware hands to the app, or null when it sent none. */
+const forwardedEndpointId = (res: Response | undefined) =>
+  res?.headers.get("x-middleware-request-x-guardian-endpoint-id") ?? null;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -44,7 +51,7 @@ describe("proxy", () => {
   it("hands the endpoint id to the app when the cookie verifies", async () => {
     const res = await proxy(auth, request("/overview", signEndpointCookie(USER, "testnet")));
     expect(auth.protect).toHaveBeenCalled();
-    expect(res!.headers.get("x-middleware-request-x-guardian-endpoint-id")).toBe("testnet");
+    expect(forwardedEndpointId(res)).toBe("testnet");
   });
 
   it("sends a request with no cookie to endpoint selection", async () => {
@@ -75,8 +82,32 @@ describe("proxy", () => {
   it.each(["/select-endpoint", "/api/select-endpoint", "/admin", "/api/admin/users"])(
     "authenticates %s but asks it for no endpoint cookie",
     async (path) => {
-      expect(await proxy(auth, request(path))).toBeUndefined();
+      const res = await proxy(auth, request(path));
       expect(auth.protect).toHaveBeenCalled();
+      // These paths are reachable before an endpoint is chosen, so the middleware
+      // forwards no endpoint id at all. (It used to return `undefined` here; it
+      // now returns a `next()` that carries the sanitized request headers, so the
+      // assertion is on the absence of the id rather than the absence of a response.)
+      expect(forwardedEndpointId(res)).toBeNull();
+    },
+  );
+
+  // `x-guardian-endpoint-id` is how the middleware reports which Guardian the
+  // caller was authorized for, and lib/guardian-route.ts trusts it verbatim, so a
+  // caller writing that header must never be able to influence what the app sees.
+  it("ignores a client-supplied endpoint header on a guarded path", async () => {
+    const res = await proxy(
+      auth,
+      request("/overview", signEndpointCookie(USER, "testnet"), "attacker-chosen"),
+    );
+    expect(forwardedEndpointId(res)).toBe("testnet");
+  });
+
+  it.each(["/admin", "/api/admin/users"])(
+    "strips a client-supplied endpoint header on %s, which sets none of its own",
+    async (path) => {
+      const res = await proxy(auth, request(path, undefined, "attacker-chosen"));
+      expect(forwardedEndpointId(res)).toBeNull();
     },
   );
 });

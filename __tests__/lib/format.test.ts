@@ -120,10 +120,12 @@ describe("accountsToCsv", () => {
   });
 });
 
-// Phrasing comes from Intl and so varies with locale; these build their
-// expectations the same way, which leaves the unit choice, rounding and sign
-// (the logic that is actually ours) as the thing under test.
-const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+// Phrasing is now pinned to en-US in lib/format.ts (see the LOCALE comment
+// there), so these assert the literal strings an operator reads rather than
+// re-deriving them from Intl. Deriving them made the comparison a tautology and
+// made the suite's result depend on the host's locale: on a tr-TR machine the
+// implementation and the expectation moved together and the assertion could not
+// fail, while the formatAmount tests below — which do use literals — did.
 const NOW = Date.parse("2026-07-31T12:00:00.000Z");
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
 const MINUTE = 60_000, HOUR = 60 * MINUTE, DAY = 24 * HOUR;
@@ -144,14 +146,14 @@ describe("formatTimestamp", () => {
 
 describe("relativeTime", () => {
   it("picks the largest unit that still describes the gap", () => {
-    expect(relativeTime(ago(30_000), NOW)).toBe(rtf.format(-30, "second"));
-    expect(relativeTime(ago(5 * MINUTE), NOW)).toBe(rtf.format(-5, "minute"));
-    expect(relativeTime(ago(2 * HOUR), NOW)).toBe(rtf.format(-2, "hour"));
-    expect(relativeTime(ago(3 * DAY), NOW)).toBe(rtf.format(-3, "day"));
+    expect(relativeTime(ago(30_000), NOW)).toBe("30 seconds ago");
+    expect(relativeTime(ago(5 * MINUTE), NOW)).toBe("5 minutes ago");
+    expect(relativeTime(ago(2 * HOUR), NOW)).toBe("2 hours ago");
+    expect(relativeTime(ago(3 * DAY), NOW)).toBe("3 days ago");
   });
 
   it("phrases a future timestamp forwards", () => {
-    expect(relativeTime(ago(-2 * HOUR), NOW)).toBe(rtf.format(2, "hour"));
+    expect(relativeTime(ago(-2 * HOUR), NOW)).toBe("in 2 hours");
   });
 
   it("gives up past a week, where the date says more than the gap does", () => {

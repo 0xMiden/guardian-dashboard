@@ -38,6 +38,34 @@ const nextConfig: NextConfig = {
     ];
   },
   skipTrailingSlashRedirect: true,
+  // Baseline response headers. This dashboard authenticates Guardian operators
+  // and drives pause/unpause on live accounts, so the cheap browser-side
+  // defenses are worth having even though none of them replaces the auth checks
+  // in proxy.ts and lib/require-admin.ts.
+  //
+  // Deliberately limited to headers that cannot change how the app renders:
+  // - `frame-ancestors 'none'` is the CSP form of clickjacking protection; the
+  //   dashboard is never embedded. No `default-src`/`script-src` is set, because
+  //   Next injects inline bootstrap scripts and locking those down needs
+  //   per-request nonces rather than a static config entry.
+  // - `nosniff` stops a JSON route from being re-interpreted as HTML or script.
+  // - `Referrer-Policy` keeps account ids in dashboard URLs out of the Referer
+  //   header on outbound navigations (PostHog assets are proxied through
+  //   /ingest/* above, so they are same-origin and unaffected).
+  // - HSTS is set with a modest max-age and no `preload`, so it is reversible.
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Strict-Transport-Security", value: "max-age=15552000; includeSubDomains" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

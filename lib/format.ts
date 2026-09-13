@@ -1,3 +1,27 @@
+// Every formatter below pins its locale instead of passing `undefined`.
+//
+// `undefined` means "whatever locale the host resolved", which is the OS locale
+// on the server and the browser locale on the client. Two consequences, both bad
+// for an operator console:
+//
+//  1. The same Guardian reads differently to different operators — `1,000,000`
+//     under en-US and `1.000.000` under tr-TR — and these numbers get compared
+//     against Guardian log lines, CSV exports and counterparty records, where a
+//     swapped group/decimal separator changes the value being read. This is the
+//     cross-locale form of the drift the `formatCount` comment below already
+//     fights within a single page.
+//  2. The rest of the UI is English-only, so an unpinned locale mixed Turkish
+//     relative times ("2 saat önce") into English sentences.
+//
+// This is language and separator only: no `timeZone` option is set anywhere, so
+// timestamps still render in the reader's own zone and keep the `timeZoneName`
+// that makes them comparable — the property formatTimestamp was written for.
+//
+// Exported for the handful of call sites that need their own option set (e.g. the
+// "since <date>" line in GuardianStatusCard) so there is still one place to
+// change if the dashboard ever becomes properly localized.
+export const LOCALE = "en-US";
+
 export function truncateId(id: string, prefixLen = 10, suffixLen = 6): string {
   if (id.length <= prefixLen + suffixLen + 1) return id;
   return `${id.slice(0, prefixLen)}…${id.slice(-suffixLen)}`;
@@ -7,7 +31,7 @@ export function formatAmount(amount: string): string {
   const sign = amount[0] === "-" || amount[0] === "+" ? amount[0] : "";
   const digits = sign ? amount.slice(1) : amount;
   try {
-    return sign + BigInt(digits).toLocaleString();
+    return sign + BigInt(digits).toLocaleString(LOCALE);
   } catch {
     return amount;
   }
@@ -55,7 +79,15 @@ export function accountState(
 // call site this drifts: the stat strip formatted and the overview cards did
 // not, so the same Guardian read "1,813" in one place and "1813" in another.
 export function formatCount(n: number): string {
-  return n.toLocaleString();
+  return n.toLocaleString(LOCALE);
+}
+
+// USD totals, always to the cent. Same reasoning as `formatCount`: the call sites
+// were each spelling out `toLocaleString(undefined, { minimumFractionDigits: 2,
+// maximumFractionDigits: 2 })`, which repeated the options three times and left
+// the locale unpinned in all three.
+export function formatUsd(n: number): string {
+  return n.toLocaleString(LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 const MINUTE = 60_000;
@@ -72,7 +104,7 @@ const RELATIVE_LIMIT = 7 * DAY;
 export function formatTimestamp(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString(LOCALE, {
     year: "numeric", month: "short", day: "numeric",
     hour: "2-digit", minute: "2-digit", timeZoneName: "short",
   });
@@ -87,7 +119,7 @@ export function relativeTime(iso: string, now: number = Date.now()): string | nu
   const diff = t - now;
   const abs = Math.abs(diff);
   if (abs >= RELATIVE_LIMIT) return null;
-  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  const rtf = new Intl.RelativeTimeFormat(LOCALE, { numeric: "auto" });
   if (abs < MINUTE) return rtf.format(Math.round(diff / 1000), "second");
   if (abs < HOUR) return rtf.format(Math.round(diff / MINUTE), "minute");
   if (abs < DAY) return rtf.format(Math.round(diff / HOUR), "hour");

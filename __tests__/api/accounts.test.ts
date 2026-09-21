@@ -103,4 +103,28 @@ describe("GET /api/accounts", () => {
     await GET(makeRequest("http://localhost/api/accounts?cursor=abc&limit=10"));
     expect(mockListAccounts).toHaveBeenCalledWith({ cursor: "abc", limit: 10 });
   });
+
+  it.each(["0", "-1", "1.5", "10abc", "501"])(
+    "omits invalid limit %s instead of forwarding it to Guardian",
+    async (limit) => {
+      mockHeaders("testnet");
+      mockListAccounts.mockResolvedValue({ items: [], nextCursor: null });
+      await GET(makeRequest(`http://localhost/api/accounts?limit=${limit}`));
+      expect(mockListAccounts.mock.calls[0][0].limit).toBeUndefined();
+    },
+  );
+
+  it("keeps an empty limit omitted so Guardian applies its default", async () => {
+    mockHeaders("testnet");
+    mockListAccounts.mockResolvedValue({ items: [], nextCursor: null });
+    await GET(makeRequest("http://localhost/api/accounts?limit="));
+    expect(mockListAccounts.mock.calls[0][0].limit).toBeUndefined();
+  });
+
+  it.each(["1", "500"])("forwards valid limit %s", async (limit) => {
+    mockHeaders("testnet");
+    mockListAccounts.mockResolvedValue({ items: [], nextCursor: null });
+    await GET(makeRequest(`http://localhost/api/accounts?limit=${limit}`));
+    expect(mockListAccounts).toHaveBeenCalledWith({ limit: Number(limit) });
+  });
 });

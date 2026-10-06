@@ -19,10 +19,14 @@ export const CATEGORY_LABELS: Record<string, string> = {
  * pair where the category said something the proposal type contradicted, so
  * this is consulted first.
  *
- * Miden testnet v0.16 brought two types the Guardian files under the generic
- * `custom` category, which is why preferring the category read 942 of those
- * 2,233 deltas as "Custom": `recallable_send` (a P2IDE payment the sender can
- * pull back) and `bridged_send` (the Miden/Ethereum bridge).
+ * Only types whose wire name is NOT the clearest human name belong here. The
+ * rest are derived (see `derivedLabel`), because proposal types are defined by
+ * the *applications* building on Miden and the Guardian files every one of them
+ * under the generic `custom` category. Two arrived with testnet v0.16
+ * (`recallable_send`, `bridged_send`) and four more by 2026-10-06
+ * (`earn_deposit`, `b2agg`, `live_send`, `usdcx_v1_*`), so enumerating them is
+ * a treadmill: a type nobody has added yet should read as itself, not as
+ * "Custom".
  */
 const PROPOSAL_TYPE_LABELS: Record<string, string> = {
   p2id: "Asset Transfer",
@@ -35,11 +39,50 @@ const PROPOSAL_TYPE_LABELS: Record<string, string> = {
   change_threshold: "Threshold Changed",
   update_procedure_threshold: "Threshold Changed",
   switch_guardian: "Switch Guardian",
+  // Title-casing this one gives "Midenid Register".
+  midenid_register: "Miden ID Registered",
+  // A genuinely custom script, so the generic word is the honest answer.
+  custom_transaction: "Custom",
 };
 
+/**
+ * Types that are a fixed prefix plus an encoded payload, where the payload must
+ * not reach the label. `usdcx_v1_` is followed by ~1,500 characters of base32
+ * holding a JSON recipe (`{"recipeVersion":1,"action":"set_max_supply",...}`);
+ * 6 of 1,448 fleet deltas on 2026-10-06 were these, carrying `set_max_supply`
+ * and `set_min_burn`. The label names the application, which is as much as can
+ * be said without decoding base32 in the browser.
+ */
+const PROPOSAL_TYPE_PREFIXES: [prefix: string, label: string][] = [["usdcx_v1_", "USDCx"]];
+
+/**
+ * A wire name that looks like a deliberate snake_case token, title-cased.
+ * `earn_deposit` reads "Earn Deposit" without anyone having to ship a release.
+ *
+ * The guard matters: a proposal type is server-supplied and goes straight into
+ * a table cell, and one of the live ones is 1,500 characters of base32. Rather
+ * than truncate that into nonsense, anything that does not look like a short
+ * token is declined here and the caller falls back to the category.
+ */
+const SANE_TOKEN = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
+
+function derivedLabel(proposalType: string): string | undefined {
+  if (proposalType.length > 32 || !SANE_TOKEN.test(proposalType)) return undefined;
+  return proposalType
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 export function activityLabel(category?: string, proposalType?: string): string {
-  const byType = proposalType ? PROPOSAL_TYPE_LABELS[proposalType] : undefined;
-  if (byType) return byType;
+  if (proposalType) {
+    const curated = PROPOSAL_TYPE_LABELS[proposalType];
+    if (curated) return curated;
+    const prefixed = PROPOSAL_TYPE_PREFIXES.find(([prefix]) => proposalType.startsWith(prefix));
+    if (prefixed) return prefixed[1];
+    const derived = derivedLabel(proposalType);
+    if (derived) return derived;
+  }
   if (category) return CATEGORY_LABELS[category] ?? category;
   return "State Change";
 }

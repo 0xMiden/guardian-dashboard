@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { GuardianOperatorHttpError } from "@openzeppelin/guardian-operator-client";
 import { __resetAccountCaches } from "@/lib/account-cache";
 import { headers } from "next/headers";
 import { GET as accountsGET } from "@/app/api/accounts/route";
@@ -8,35 +7,26 @@ import { GET as assetTotalsGET } from "@/app/api/accounts/asset-totals/route";
 import { GET as snapshotsGET } from "@/app/api/accounts/snapshots/route";
 
 /**
- * One Refresh click used to ask asset-totals to refetch every active account's
- * snapshot, which on the OZ Guardian is ~470 requests in one go.
+ * What one Refresh click costs the Guardian.
  *
- * This counts every call the four routes make to the Guardian. What it cannot
- * assert is one universal cap, because the allowance follows the operator's
- * profile: prod is 5000/min, dev is 60/min, and either can be overridden per
- * deployment. A single number would be far too slow for one Guardian or far too
- * fast for the other.
+ * This used to guard a walk: the stat strip and the assets card each paged the
+ * whole account list and then read one vault snapshot per 7-day-active account.
+ * Measured on openzeppelin_devnet 2026-10-06, 270 accounts, that was **202
+ * requests in 251.6 seconds**. The same numbers now come from
+ * `GET /dashboard/stats` in **2 requests and 292 ms**, and on the OZ testnet
+ * Guardian the walk had 23,303 accounts to get through.
  *
- * A cold click now reads every active account in one pass deliberately. The
- * count-based ramp it replaced needed six consecutive passes on the same
- * serverless instance, which the per-instance caches cannot guarantee, so the
- * total could take many minutes to appear or never appear at all. Measured
- * 2026-08-04, the full OZ walk is 1,076 requests in 19.1s against 5000/min.
- *
- * So what is guarded here is the shape: a cold click pays for the walk once and
- * a warm one is nearly free, and a Guardian that pushes back stops the pass
- * rather than being hammered through it.
+ * So the budget is no longer a function of inventory size, and the thing worth
+ * asserting changed with it. What is left is that the aggregates stay O(1) and
+ * that the one input which still scales with something the browser controls,
+ * the `ids` list, stays capped.
  */
 
-const DEV_PROFILE_PER_MIN = 55;
-
 let calls = 0;
-let inventory: Account[] = [];
 
 type Account = { accountId: string; updatedAt: string };
+let inventory: Account[] = [];
 
-// Pages the seeded inventory the way the Guardian does, honouring the requested
-// page size so the test counts the same number of requests production would.
 const mockListAccounts = vi.fn(async ({ cursor, limit = 50 }: { cursor?: string; limit?: number } = {}) => {
   calls++;
   const start = cursor ? Number(cursor) : 0;
@@ -48,16 +38,37 @@ const mockGetAccountSnapshot = vi.fn(async () => {
   calls++;
   return { vault: { fungible: [{ faucetId: "0xf", amount: "10" }] } };
 });
-const mockGetDashboardInfo = vi.fn(async () => {
+const mockGetDashboardStats = vi.fn(async () => {
   calls++;
-  return { totalAccountCount: 1500 };
+  return {
+    asOf: "2026-10-06T16:29:12Z",
+    updatedSince: null,
+    refreshIntervalSeconds: 300,
+    version: 1,
+    accounts: {
+      total: 1500,
+      byLifecycle: { active: 1500, paused: 0, released: 0 },
+      byAuthMethod: { miden_ecdsa: 1500 },
+      byAuthMethodAndSignerCount: [{ authMethod: "miden_ecdsa", authorizedSignerCount: 2, count: 1500 }],
+      updatedWithin7d: 470,
+      updatedWithin30d: 1500,
+    },
+    assets: {
+      eligible: 470,
+      covered: 470,
+      skipped: {},
+      complete: true,
+      fungible: [{ faucetId: "0xf", totalAmount: "4700" }],
+      nonFungible: [],
+    },
+  };
 });
 
 vi.mock("@/lib/guardian-client", () => ({
   getGuardianClient: vi.fn(() => ({
     listAccounts: mockListAccounts,
     getAccountSnapshot: mockGetAccountSnapshot,
-    getDashboardInfo: mockGetDashboardInfo,
+    getDashboardStats: mockGetDashboardStats,
   })),
 }));
 
@@ -73,7 +84,7 @@ function mockHeaders(endpointId: string) {
 
 const DAY = 24 * 60 * 60 * 1000;
 
-/** A Guardian the size of the OZ one: 1,500 accounts, 470 of them active in 7d. */
+/** A Guardian the size of the OZ one was: 1,500 accounts, 470 active in 7d. */
 function seedLargeNode(): Account[] {
   inventory = Array.from({ length: 1500 }, (_, i) => ({
     // Newest-updated first, which is the order the Guardian returns.
@@ -86,8 +97,8 @@ function seedLargeNode(): Account[] {
 /** Everything one Refresh click asks the routes for. */
 async function refreshClick(visible: Account[]) {
   await accountsGET(new Request("http://localhost/api/accounts"));
-  await statsGET(new Request("http://localhost/api/accounts/stats?refresh=1"));
-  await assetTotalsGET(new Request("http://localhost/api/accounts/asset-totals?refresh=1"));
+  await statsGET();
+  await assetTotalsGET();
   const ids = visible.map((a) => encodeURIComponent(`${a.accountId}@${a.updatedAt}`)).join(",");
   await snapshotsGET(new Request(`http://localhost/api/accounts/snapshots?ids=${ids}&refresh=1`));
 }
@@ -99,75 +110,48 @@ beforeEach(() => {
 });
 
 describe("one Refresh click against a 1,500-account Guardian", () => {
-  it("pays for the whole walk once on a cold instance", async () => {
+  it("costs the same on a cold instance as on a warm one", async () => {
     mockHeaders("ep-cold");
     const accounts = seedLargeNode();
 
     await refreshClick(accounts.slice(0, 20));
 
-    // 1 accounts page + 1 dashboard info + 3 inventory pages + 470 active
-    // accounts + 20 on-screen rows. Asserted exactly so a regression shows up as
-    // a number rather than as a still-passing inequality.
-    expect(calls).toBe(1 + 1 + 3 + 470 + 20);
+    // 1 accounts page + 1 stats + 1 asset-totals + 20 on-screen rows. Asserted
+    // exactly so a regression shows up as a number rather than as a
+    // still-passing inequality. There is no cold-start penalty left to pay:
+    // this was 1 + 1 + 3 + 470 + 20 when the aggregates were walked here.
+    expect(calls).toBe(1 + 1 + 1 + 20);
   });
 
-  it("costs almost nothing on a warm instance", async () => {
+  it("does not grow when the Guardian does", async () => {
+    mockHeaders("ep-huge");
+    inventory = Array.from({ length: 50_000 }, (_, i) => ({
+      accountId: `0x${i}`,
+      updatedAt: new Date(Date.now() - DAY).toISOString(),
+    }));
+
+    await statsGET();
+    await assetTotalsGET();
+
+    // One request each, whether the Guardian holds 270 accounts or 50,000.
+    expect(mockGetDashboardStats).toHaveBeenCalledTimes(2);
+    expect(mockListAccounts).not.toHaveBeenCalled();
+    expect(mockGetAccountSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("re-reads the on-screen rows, which a Refresh must never serve stale", async () => {
     mockHeaders("ep-warm");
     const accounts = seedLargeNode();
 
-    // Warm the caches the way the normal polls do.
-    await statsGET(new Request("http://localhost/api/accounts/stats"));
-    await assetTotalsGET(new Request("http://localhost/api/accounts/asset-totals"));
-    calls = 0;
+    // Warm the snapshot cache the way scrolling does.
+    const ids = accounts.slice(0, 20).map((a) => `${a.accountId}@${a.updatedAt}`).join(",");
+    await snapshotsGET(new Request(`http://localhost/api/accounts/snapshots?ids=${ids}`));
     mockGetAccountSnapshot.mockClear();
+    calls = 0;
 
     await refreshClick(accounts.slice(0, 20));
 
-    // No inventory walk and no snapshot re-reads: every active account is held
-    // at its current version. What is left is the accounts page, the dashboard
-    // total, and the 20 on-screen rows, which a Refresh deliberately re-reads
-    // because it must never be the stale answer.
-    expect(calls).toBe(1 + 1 + 20);
     expect(mockGetAccountSnapshot).toHaveBeenCalledTimes(20);
-  });
-
-  // The walk is only unbounded on a Guardian that lets it be. One that pushes
-  // back has to stop the pass, or the dashboard hammers a Guardian that said no.
-  it("stops the pass as soon as the Guardian answers 429", async () => {
-    mockHeaders("ep-limited");
-    seedLargeNode();
-
-    let served = 0;
-    mockGetAccountSnapshot.mockImplementation(async () => {
-      calls++;
-      if (served++ >= DEV_PROFILE_PER_MIN) {
-        throw new GuardianOperatorHttpError(429, "Too Many Requests", "", {
-          message: "Rate limit exceeded",
-          retryAfterSecs: 60,
-          retryable: true,
-        });
-      }
-      return { vault: { fungible: [{ faucetId: "0xf", amount: "10" }] } };
-    });
-
-    await assetTotalsGET(new Request("http://localhost/api/accounts/asset-totals"));
-
-    // Nothing like the 470 active accounts: it gives up within a batch of the
-    // Guardian's limit rather than grinding through the whole set.
-    expect(mockGetAccountSnapshot.mock.calls.length).toBeLessThan(DEV_PROFILE_PER_MIN + 20);
-  });
-
-
-  it("does not re-walk the account list twice for one click", async () => {
-    mockHeaders("ep-walk");
-    const accounts = seedLargeNode();
-
-    await refreshClick(accounts.slice(0, 20));
-
-    // stats walks to 30 days, asset-totals only needs 7. The second caller must
-    // reuse the walk the first one just paid for.
-    // 3 pages of 500 for 1,500 accounts, plus the one /api/accounts page.
-    expect(mockListAccounts.mock.calls.length).toBe(4);
   });
 
   // `ids` arrives from the browser, so this is a trust boundary: 1,500 ids in a
@@ -179,6 +163,6 @@ describe("one Refresh click against a 1,500-account Guardian", () => {
 
     await snapshotsGET(new Request(`http://localhost/api/accounts/snapshots?ids=${ids}`));
 
-    expect(mockGetAccountSnapshot.mock.calls.length).toBeLessThan(DEV_PROFILE_PER_MIN);
+    expect(mockGetAccountSnapshot).toHaveBeenCalledTimes(25);
   });
 });

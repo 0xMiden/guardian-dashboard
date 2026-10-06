@@ -1,6 +1,7 @@
 # Guardian Operator Dashboard API — Raw Response Shapes
 
-All examples are live responses from `guardian-stg.openzeppelin.com` (devnet, v0.1.0).
+All examples are live responses from the OpenZeppelin devnet Guardian (v0.1.0), then
+reachable at `guardian-stg.openzeppelin.com` and now at `guardian-devnet.openzeppelin.com`.
 Raw JSON files are in `docs/api-shapes/`.
 All requests require a session cookie obtained via the auth flow (`GET /auth/challenge` → `POST /auth/verify`).
 

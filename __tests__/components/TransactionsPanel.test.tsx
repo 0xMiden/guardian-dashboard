@@ -66,19 +66,22 @@ describe("TransactionsPanel", () => {
     expect(screen.getByText(/in the entries loaded so far/i)).toBeInTheDocument();
   });
 
+  // The two aggregate keys used to be refreshed with a `fetch(...?refresh=1)`
+  // ahead of the revalidation, because `refresh=1` told the route to re-walk
+  // the account list and a plain revalidation would have been served the route
+  // cache's copy. Neither the walk nor that cache exists now, so all four keys
+  // go through the same `mutate`.
   it("refreshes the feeds and the strip on demand", async () => {
     mockFeeds([delta("0xaaa111", 1)]);
     render(<TransactionsPanel />);
 
     fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    await waitFor(() => expect(vi.mocked(mutate)).toHaveBeenCalled());
 
     const revalidated = vi.mocked(mutate).mock.calls.map((c) => String(c[0]));
     expect(revalidated).toContain("/api/global-deltas");
     expect(revalidated).toContain("/api/global-proposals");
-
-    const refreshed = fetchSpy.mock.calls.map((c: unknown[]) => String(c[0]));
-    expect(refreshed).toContain("/api/accounts/stats?refresh=1");
-    expect(refreshed).toContain("/api/accounts/asset-totals?refresh=1");
+    expect(revalidated).toContain("/api/accounts/stats");
+    expect(revalidated).toContain("/api/accounts/asset-totals");
   });
 });

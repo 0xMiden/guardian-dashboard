@@ -5,6 +5,7 @@ import {
   type PaginationOptions,
   type GlobalDeltasOptions,
   type DeltaDetailOptions,
+  type DashboardStatsOptions,
 } from "@openzeppelin/guardian-operator-client";
 import { signDigest } from "./falcon";
 import { getEndpoint } from "./endpoints";
@@ -187,9 +188,10 @@ export function getGuardianClient(endpointId: string) {
   const state = getState(endpointId);
   return {
     /**
-     * How far apart this Guardian's requests are being spaced, 0 when unpaced. The
-     * asset walk reads it to size a pass that still fits inside the serverless
-     * invocation (see lib/account-cache.ts).
+     * How far apart this Guardian's requests are being spaced, 0 when unpaced.
+     * Read by the per-row snapshot reads to decide whether firing a batch of ten
+     * is worth anything on a Guardian that is serialising them anyway (see
+     * lib/account-cache.ts).
      */
     pacingIntervalMs() {
       return state.pacedIntervalMs;
@@ -212,6 +214,15 @@ export function getGuardianClient(endpointId: string) {
     },
     async getDashboardInfo() {
       return withRetry(state, endpointId, () => state.client.getDashboardInfo());
+    },
+    /**
+     * Cross-account aggregates in one request (Guardian 0.18.0, issue #371).
+     * 404s on an older server and answers `data_unavailable` before its first
+     * publication; lib/dashboard-stats.ts turns both into a stated condition
+     * rather than an error.
+     */
+    async getDashboardStats(options?: DashboardStatsOptions) {
+      return withRetry(state, endpointId, () => state.client.getDashboardStats(options));
     },
     async getAccount(accountId: string) {
       return withRetry(state, endpointId, () => state.client.getAccount(accountId));

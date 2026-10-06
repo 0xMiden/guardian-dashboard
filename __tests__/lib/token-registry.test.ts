@@ -24,4 +24,16 @@ describe("normalizeAmount", () => {
     expect(() => normalizeAmount("0xfaucet", "abc")).toThrow(/Invalid token amount/);
   });
 
+  // `/dashboard/stats` sums one faucet across every account and documents the
+  // result as possibly exceeding Number.MAX_SAFE_INTEGER. Parsed as a Number,
+  // this string becomes 9007199254740992000 and the assertion below fails.
+  it("keeps full precision above Number.MAX_SAFE_INTEGER", () => {
+    expect(normalizeAmount("0xfaucet", "9007199254740993000000")).toBe(9007199254740993);
+  });
+
+  it("throws on a fractional amount string", () => {
+    // Base units are integers. Number() would have accepted "1.5" silently.
+    expect(() => normalizeAmount("0xfaucet", "1.5")).toThrow(/Invalid token amount/);
+  });
+
 });

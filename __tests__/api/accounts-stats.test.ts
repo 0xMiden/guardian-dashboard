@@ -1,16 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { __resetAccountCaches } from "@/lib/account-cache";
+import { GuardianOperatorHttpError } from "@openzeppelin/guardian-operator-client";
 import { headers } from "next/headers";
 import { GET } from "@/app/api/accounts/stats/route";
 
-const mockListAccounts = vi.fn();
-const mockGetDashboardInfo = vi.fn();
+const mockGetDashboardStats = vi.fn();
 
 vi.mock("@/lib/guardian-client", () => ({
-  getGuardianClient: vi.fn(() => ({
-    listAccounts: mockListAccounts,
-    getDashboardInfo: mockGetDashboardInfo,
-  })),
+  getGuardianClient: vi.fn(() => ({ getDashboardStats: mockGetDashboardStats })),
 }));
 
 function mockHeaders(endpointId: string) {
@@ -19,112 +15,150 @@ function mockHeaders(endpointId: string) {
   } as any);
 }
 
-const DAY = 24 * 60 * 60 * 1000;
-const account = (id: string, ageDays: number, over: Record<string, unknown> = {}) => ({
-  accountId: id,
-  updatedAt: new Date(Date.now() - ageDays * DAY).toISOString(),
-  authScheme: "falcon",
-  authorizedSignerCount: 3,
-  ...over,
+/**
+ * A `/dashboard/stats` payload, shaped like the live one from
+ * openzeppelin_devnet (0.18.0) on 2026-10-06.
+ */
+const stats = (over: Record<string, unknown> = {}) => ({
+  asOf: "2026-10-06T16:29:12.837967517+00:00",
+  updatedSince: null,
+  refreshIntervalSeconds: 300,
+  version: 3225,
+  accounts: {
+    total: 270,
+    byLifecycle: { active: 269, paused: 0, released: 1 },
+    byAuthMethod: { miden_ecdsa: 238, miden_falcon: 32 },
+    byAuthMethodAndSignerCount: [
+      { authMethod: "miden_ecdsa", authorizedSignerCount: 1, count: 19 },
+      { authMethod: "miden_ecdsa", authorizedSignerCount: 2, count: 218 },
+      { authMethod: "miden_ecdsa", authorizedSignerCount: 3, count: 1 },
+      { authMethod: "miden_falcon", authorizedSignerCount: 1, count: 4 },
+      { authMethod: "miden_falcon", authorizedSignerCount: 2, count: 21 },
+      { authMethod: "miden_falcon", authorizedSignerCount: 3, count: 7 },
+    ],
+    updatedWithin7d: 201,
+    updatedWithin30d: 270,
+    ...(over.accounts as object),
+  },
+  assets: { eligible: 270, covered: 270, skipped: {}, complete: true, fungible: [], nonFungible: [] },
 });
-const wallet = (id: string, ageDays: number) =>
-  account(id, ageDays, { authScheme: "ecdsa", authorizedSignerCount: 2 });
+
+const notFound = () => new GuardianOperatorHttpError(404, "Not Found", "", {} as never);
+const dataUnavailable = () =>
+  new GuardianOperatorHttpError(503, "Service Unavailable", "", {
+    code: "data_unavailable",
+    message: "Statistics are not yet available. Please try again shortly.",
+    retryable: true,
+  } as never);
 
 beforeEach(() => {
-  __resetAccountCaches();
   vi.clearAllMocks();
   mockHeaders("testnet");
 });
 
 describe("GET /api/accounts/stats", () => {
-  // Counted from the inventory the route already walks, so they cost no extra
-  // Guardian request. Uses `accountState`, so a released-and-paused account counts
-  // once, as released, exactly as the table badges it.
-  it("counts frozen and released accounts", async () => {
-    mockGetDashboardInfo.mockResolvedValue({ totalAccountCount: 5 });
-    mockListAccounts.mockResolvedValue({
-      items: [
-        account("a", 1),
-        account("b", 1, { pausedAt: "2026-07-01T00:00:00Z" }),
-        account("c", 1, { pausedAt: "2026-07-01T00:00:00Z" }),
-        account("d", 1, { releasedAt: "2026-07-02T00:00:00Z" }),
-        account("e", 1, { pausedAt: "2026-07-01T00:00:00Z", releasedAt: "2026-07-02T00:00:00Z" }),
-      ],
-      nextCursor: null,
-    });
-    const res = await GET(new Request("http://localhost/api/accounts/stats"));
-    const body = await res.json();
-    expect(body.frozen).toBe(2);
-    expect(body.released).toBe(2);
+  it("costs exactly one Guardian request", async () => {
+    mockGetDashboardStats.mockResolvedValue(stats());
+    await GET();
+    expect(mockGetDashboardStats).toHaveBeenCalledTimes(1);
   });
 
-  it("counts frozen without spending a request of its own", async () => {
-    mockGetDashboardInfo.mockResolvedValue({ totalAccountCount: 2 });
-    mockListAccounts.mockResolvedValue({
-      items: [account("a", 1), account("b", 1, { pausedAt: "2026-07-01T00:00:00Z" })],
-      nextCursor: null,
-    });
-    await GET(new Request("http://localhost/api/accounts/stats"));
-    // One walk, one page. A `paused: true` query would have made it two.
-    expect(mockListAccounts).toHaveBeenCalledTimes(1);
-    expect(mockListAccounts.mock.calls[0][0]).not.toHaveProperty("paused");
-  });
-
-  it("counts 7d/30d activity and takes total from dashboard info", async () => {
-    mockGetDashboardInfo.mockResolvedValue({ totalAccountCount: 42 });
-    mockListAccounts.mockResolvedValue({
-      items: [account("a", 1), account("b", 10), account("c", 40)],
-      nextCursor: null,
-    });
-    const res = await GET(new Request("http://localhost/api/accounts/stats"));
-    expect(await res.json()).toEqual({
-      total: 42, count7d: 1, count30d: 2, counted: 3, wallet: 0, other: 3, frozen: 0, released: 0,
+  // The whole mapping in one assertion, against the numbers the live devnet
+  // Guardian returned. temp/parity-stats.mjs proved these equal to what the
+  // paged walk this route used to run produced for the same Guardian.
+  it("maps the aggregate onto the fields the stat strip reads", async () => {
+    mockGetDashboardStats.mockResolvedValue(stats());
+    const body = await (await GET()).json();
+    expect(body).toEqual({
+      total: 270,
+      counted: 270,
+      count7d: 201,
+      count30d: 270,
+      wallet: 218,
+      other: 52,
+      frozen: 0,
+      released: 1,
+      asOf: "2026-10-06T16:29:12.837967517+00:00",
     });
   });
 
-  // The 30-day stop was dropped here on purpose: the Accounts table labels its
-  // filters from these counts, so a walk that stopped early would describe a
-  // slice of the Guardian while the chip claimed to describe the Guardian.
-  it("walks the whole list rather than stopping at the 30-day mark", async () => {
-    mockGetDashboardInfo.mockResolvedValue({ totalAccountCount: 3 });
-    mockListAccounts
-      .mockResolvedValueOnce({ items: [account("a", 1)], nextCursor: "page2" })
-      .mockResolvedValueOnce({ items: [account("b", 45)], nextCursor: "page3" })
-      .mockResolvedValueOnce({ items: [account("c", 90)], nextCursor: null });
-    const res = await GET(new Request("http://localhost/api/accounts/stats"));
-    expect(await res.json()).toEqual({
-      total: 3, count7d: 1, count30d: 1, counted: 3, wallet: 0, other: 3, frozen: 0, released: 0,
-    });
-    expect(mockListAccounts).toHaveBeenCalledTimes(3);
+  // A wallet is ECDSA with two signers. Neither a third signer nor a Falcon
+  // account with two may be counted, or the table's filter labels stop matching
+  // the rows the filter actually selects.
+  it("counts only ECDSA accounts with two signers as wallets", async () => {
+    mockGetDashboardStats.mockResolvedValue(
+      stats({
+        accounts: {
+          total: 10,
+          byLifecycle: { active: 10, paused: 0, released: 0 },
+          byAuthMethod: { miden_ecdsa: 7, miden_falcon: 3 },
+          byAuthMethodAndSignerCount: [
+            { authMethod: "miden_ecdsa", authorizedSignerCount: 2, count: 4 },
+            { authMethod: "miden_ecdsa", authorizedSignerCount: 3, count: 3 },
+            { authMethod: "miden_falcon", authorizedSignerCount: 2, count: 3 },
+          ],
+          updatedWithin7d: 10,
+          updatedWithin30d: 10,
+        },
+      }),
+    );
+    const body = await (await GET()).json();
+    expect(body.wallet).toBe(4);
+    expect(body.other).toBe(6);
   });
 
-  it("splits wallet from other across every account, not just recent ones", async () => {
-    mockGetDashboardInfo.mockResolvedValue({ totalAccountCount: 4 });
-    mockListAccounts.mockResolvedValue({
-      items: [wallet("a", 1), wallet("b", 200), account("c", 2), account("d", 300)],
-      nextCursor: null,
-    });
-    const res = await GET(new Request("http://localhost/api/accounts/stats"));
-    const body = await res.json();
-    expect(body).toMatchObject({ counted: 4, wallet: 2, other: 2 });
-    // The chips must always sum to the row they sit next to.
-    expect(body.wallet + body.other).toBe(body.counted);
+  it("reports no wallets when the breakdown is empty rather than guessing", async () => {
+    mockGetDashboardStats.mockResolvedValue(
+      stats({
+        accounts: {
+          total: 5,
+          byLifecycle: { active: 5, paused: 0, released: 0 },
+          byAuthMethod: {},
+          byAuthMethodAndSignerCount: [],
+          updatedWithin7d: 5,
+          updatedWithin30d: 5,
+        },
+      }),
+    );
+    const body = await (await GET()).json();
+    expect(body.wallet).toBe(0);
+    expect(body.other).toBe(5);
   });
 
-  it("returns total null when dashboard info is unavailable (older server)", async () => {
-    mockGetDashboardInfo.mockRejectedValue(new Error("404"));
-    mockListAccounts.mockResolvedValue({ items: [account("a", 1)], nextCursor: null });
-    const res = await GET(new Request("http://localhost/api/accounts/stats"));
-    expect(await res.json()).toEqual({
-      total: null, count7d: 1, count30d: 1, counted: 1, wallet: 0, other: 1, frozen: 0, released: 0,
-    });
+  // openzeppelin (23,303 accounts) and koda were still on 0.17.0 on 2026-10-06.
+  // A 404 here means the server predates the endpoint, which is a different
+  // thing from the Guardian being unreachable, and must not render as one.
+  it("says unsupported on a Guardian older than 0.18.0", async () => {
+    mockGetDashboardStats.mockRejectedValue(notFound());
+    const res = await GET();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ unsupported: true });
   });
 
-  it("returns 503 with the message when the account list fails", async () => {
-    mockGetDashboardInfo.mockResolvedValue({ totalAccountCount: 1 });
-    mockListAccounts.mockRejectedValue(new Error("rate limited"));
-    const res = await GET(new Request("http://localhost/api/accounts/stats"));
-    expect(res.status).toBe(503);
-    expect(await res.json()).toEqual({ error: "rate limited" });
+  it("says warming while a 0.18.0 Guardian has published nothing yet", async () => {
+    mockGetDashboardStats.mockRejectedValue(dataUnavailable());
+    const res = await GET();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ warming: true });
+  });
+
+  // Everything else is a real failure and keeps its status, so ErrorPanel can
+  // name it instead of the page showing a blank strip.
+  it("forwards a genuine Guardian error", async () => {
+    mockGetDashboardStats.mockRejectedValue(
+      new GuardianOperatorHttpError(403, "Forbidden", "", {
+        code: "insufficient_operator_permission",
+        message: "Missing permission.",
+        missingPermissions: ["dashboard:read"],
+      } as never),
+    );
+    const res = await GET();
+    expect(res.status).toBe(403);
+    expect((await res.json()).missingPermissions).toEqual(["dashboard:read"]);
+  });
+
+  it("returns 400 with no endpoint selected", async () => {
+    mockHeaders("");
+    expect((await GET()).status).toBe(400);
   });
 });

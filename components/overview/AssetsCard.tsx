@@ -13,6 +13,9 @@ type AssetTotals = {
   unsupported?: boolean;
   done?: number;
   total?: number;
+  /** Faucets the 7-day-active vaults hold, split by whether anything prices them. */
+  priced?: number;
+  unpriced?: number;
 };
 
 export function AssetsCard() {
@@ -42,6 +45,16 @@ export function AssetsCard() {
             title="This Guardian computes no cross-account totals. The endpoint the dashboard reads them from arrived in Guardian 0.18.0."
           >
             Needs Guardian 0.18.0
+          </p>
+        ) : data?.unpriced && !data.priced ? (
+          // Holdings exist, and none of them has a market. Priced the way the
+          // Miden wallet does (lib/prices.ts): a test mint or an unlisted token
+          // gets no dollar figure rather than an invented one.
+          <p
+            className="text-section text-muted-foreground"
+            title={`Holdings in ${data.unpriced.toLocaleString()} faucet(s) with no price: not on the verified token list, or the price feed is unreachable. The Miden wallet shows the same holdings with no dollar figure.`}
+          >
+            No priced assets
           </p>
         ) : data?.warming ? (
           // A 0.18.0 Guardian that has not finished its first pass, or one whose

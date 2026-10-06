@@ -1,13 +1,13 @@
 import { guardianRoute } from "@/lib/guardian-route";
 import { readStats } from "@/lib/dashboard-stats";
-import { normalizeAmount } from "@/lib/token-registry";
+import { priceBook } from "@/lib/prices";
 
 export const dynamic = "force-dynamic";
 
 const MS_7D = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Vault totals across the accounts active in the last 7 days.
+ * Dollar value of the vaults across the accounts active in the last 7 days.
  *
  * This was the expensive one: a paged walk to find the active set, then one
  * snapshot request per account, bounded by a 45-second deadline and retried
@@ -19,9 +19,13 @@ const MS_7D = 7 * 24 * 60 * 60 * 1000;
  * avoid paying for the walk twice within 60 seconds, and the aggregate it
  * guarded is already a snapshot the server refreshes on its own cadence, so
  * holding a copy of it here would only add a second layer of staleness.
+ *
+ * Pricing follows the Miden wallet (see lib/prices.ts): a faucet the verified
+ * lists do not name has no dollar value, so it is counted in `unpriced` rather
+ * than folded into the sum at some invented rate.
  */
 export function GET() {
-  return guardianRoute(async (client) => {
+  return guardianRoute(async (client, endpoint) => {
     const outcome = await readStats(client, { updatedSince: new Date(Date.now() - MS_7D) });
     if (outcome.kind !== "ok") return { [outcome.kind]: true };
 
@@ -35,13 +39,30 @@ export function GET() {
       return { usd7d: null, computedAt: null, warming: true, done: assets.covered, total: assets.eligible };
     }
 
+    const book = await priceBook(endpoint.network);
+    let usd7d = 0;
+    let priced = 0;
+    let unpriced = 0;
+    // Fungible only, as before. `nonFungible` is a count per faucet, not an
+    // amount, so it has nothing to contribute to a total.
+    for (const f of assets.fungible) {
+      const value = book.usd(f.faucetId, f.totalAmount);
+      if (value === undefined) unpriced++;
+      else {
+        priced++;
+        usd7d += value;
+      }
+    }
+
     return {
-      // Fungible only, as before. `nonFungible` is a count per faucet, not an
-      // amount, so it has nothing to contribute to a total.
-      usd7d: assets.fungible.reduce((sum, f) => sum + normalizeAmount(f.faucetId, f.totalAmount), 0),
+      // Null when every held faucet is unpriced: a zero would claim the
+      // Guardian holds nothing. An empty fleet is a genuine zero.
+      usd7d: priced > 0 || unpriced === 0 ? usd7d : null,
       // The server's walk time, not ours. Reporting `new Date()` here claimed
       // the number was current when it was up to a refresh interval old.
       computedAt: asOf,
+      priced,
+      unpriced,
     };
   });
 }

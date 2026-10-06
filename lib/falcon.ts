@@ -10,7 +10,8 @@ type SDK = typeof import("@miden-sdk/miden-sdk") & {
 
 let _sdk: Promise<SDK> | null = null;
 
-function sdk(): Promise<SDK> {
+/** The SDK with its WASM initialised, shared by everything server-side that needs it. */
+export function loadSdk(): Promise<SDK> {
   if (!_sdk) {
     _sdk = (async () => {
       const mod = (await import("@miden-sdk/miden-sdk/lazy")) as SDK;
@@ -41,13 +42,13 @@ export function hexToBytes(hex: string): Uint8Array {
 }
 
 export async function getPublicKey(privateKeyHex: string): Promise<string> {
-  const { AuthSecretKey } = await sdk();
+  const { AuthSecretKey } = await loadSdk();
   const secretKey = AuthSecretKey.deserialize(hexToBytes(privateKeyHex));
   return "0x" + bytesToHex(secretKey.publicKey().serialize().slice(1));
 }
 
 export async function signDigest(privateKeyHex: string, digestHex: string): Promise<string> {
-  const { AuthSecretKey, Word } = await sdk();
+  const { AuthSecretKey, Word } = await loadSdk();
   const secretKey = AuthSecretKey.deserialize(hexToBytes(privateKeyHex));
   const signature = secretKey.sign(Word.fromHex(digestHex));
   return "0x" + bytesToHex(signature.serialize().slice(1));

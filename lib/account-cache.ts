@@ -1,4 +1,4 @@
-import { normalizeAmount } from "@/lib/token-registry";
+import { priceBook, type PriceBook } from "@/lib/prices";
 
 /**
  * Vault totals for the account rows on screen, with a cache that is exact
@@ -14,6 +14,11 @@ import { normalizeAmount } from "@/lib/token-registry";
  * itself says is still correct, not one that is merely young. A changed account
  * misses and is refetched immediately, which makes this fresher than a TTL
  * would be.
+ *
+ * What is cached is the vault itself, not its dollar value: the value moves
+ * with the price feed every few minutes while the key stands still, so a
+ * cached figure would freeze a price for as long as the account was quiet.
+ * Pricing happens at read time through lib/prices.ts.
  *
  * This file used to also hold the aggregate machinery behind the stat strip and
  * the assets card: a paged walk of the whole inventory, a snapshot per 7-day
@@ -33,7 +38,7 @@ import { normalizeAmount } from "@/lib/token-registry";
  */
 
 // Bounded so a long-lived instance cannot grow without limit. Oldest-first
-// eviction; entries are cheap (a number keyed by a short string).
+// eviction; entries are cheap (a short list of faucet/amount pairs).
 const MAX_SNAPSHOT_ENTRIES = 20_000;
 
 // Measured 60/sec with zero 429s on a prod-profile Guardian. A paced Guardian is
@@ -41,14 +46,16 @@ const MAX_SNAPSHOT_ENTRIES = 20_000;
 // can take it.
 const WALK_CONCURRENCY = 10;
 
-const snapshotCache = new Map<string, number>();
+type Fungible = { faucetId: string; amount: string }[];
+
+const snapshotCache = new Map<string, Fungible>();
 
 /** Cache key for one account's vault value at a specific version. */
 function snapshotKey(endpointId: string, accountId: string, updatedAt: string): string {
   return `${endpointId}|${accountId}@${updatedAt}`;
 }
 
-function rememberSnapshot(key: string, value: number): void {
+function rememberSnapshot(key: string, value: Fungible): void {
   if (snapshotCache.size >= MAX_SNAPSHOT_ENTRIES) {
     // Map iterates in insertion order, so the first key is the oldest.
     const oldest = snapshotCache.keys().next();
@@ -63,13 +70,30 @@ export function __resetAccountCaches(): void {
 }
 
 export type SnapshotReader = {
-  getAccountSnapshot(accountId: string): Promise<{ vault: { fungible: { faucetId: string; amount: string }[] } }>;
+  getAccountSnapshot(accountId: string): Promise<{ vault: { fungible: Fungible } }>;
   /** Present on the real client; 0 or absent when the Guardian is not being paced. */
   pacingIntervalMs?(): number;
 };
 
 /**
- * Vault totals for the given accounts, fetching only those whose `updatedAt`
+ * The dollar value of a vault: the sum of its priced holdings, 0 for an empty
+ * vault, `null` for one holding only tokens nothing prices. The two are
+ * different claims and the table shows them differently.
+ */
+function vaultValue(book: PriceBook, fungible: Fungible): number | null {
+  let total = 0;
+  let priced = false;
+  for (const asset of fungible) {
+    const value = book.usd(asset.faucetId, asset.amount);
+    if (value === undefined) continue;
+    total += value;
+    priced = true;
+  }
+  return priced || fungible.length === 0 ? total : null;
+}
+
+/**
+ * Vault values for the given accounts, fetching only those whose `updatedAt`
  * differs from what we already hold.
  *
  * A snapshot that fails is omitted from the result rather than cached as zero:
@@ -80,15 +104,17 @@ export type SnapshotReader = {
 export async function getSnapshotTotals(
   client: SnapshotReader,
   endpointId: string,
+  network: string,
   accounts: { accountId: string; updatedAt: string }[],
   { concurrency, refresh = false }: { concurrency?: number; refresh?: boolean } = {},
-): Promise<Record<string, number>> {
+): Promise<Record<string, number | null>> {
   // A paced Guardian has its requests serialised by `reserveSlot`, so asking for
   // ten at once only queues ten slot reservations. On a Guardian mid-lockout
   // that means spending ~13s to collect ten 429s instead of one, which delays
   // the recovery it is supposed to protect.
   const batchSize = concurrency ?? (client.pacingIntervalMs?.() ? 1 : WALK_CONCURRENCY);
-  const result: Record<string, number> = {};
+  const book = await priceBook(network);
+  const result: Record<string, number | null> = {};
   const misses: { accountId: string; key: string | null }[] = [];
 
   for (const a of accounts) {
@@ -96,7 +122,7 @@ export async function getSnapshotTotals(
     // row is neither read from nor written to the cache. `key: null` marks it.
     const key = a.updatedAt ? snapshotKey(endpointId, a.accountId, a.updatedAt) : null;
     const hit = key && !refresh ? snapshotCache.get(key) : undefined;
-    if (hit !== undefined) result[a.accountId] = hit;
+    if (hit !== undefined) result[a.accountId] = vaultValue(book, hit);
     else misses.push({ accountId: a.accountId, key });
   }
 
@@ -106,13 +132,10 @@ export async function getSnapshotTotals(
     for (let j = 0; j < settled.length; j++) {
       const r = settled[j];
       if (r.status !== "fulfilled") continue;
-      const total = r.value.vault.fungible.reduce(
-        (sum, asset) => sum + normalizeAmount(asset.faucetId, asset.amount),
-        0,
-      );
-      result[batch[j].accountId] = total;
+      const { fungible } = r.value.vault;
+      result[batch[j].accountId] = vaultValue(book, fungible);
       const key = batch[j].key;
-      if (key) rememberSnapshot(key, total);
+      if (key) rememberSnapshot(key, fungible);
     }
   }
 

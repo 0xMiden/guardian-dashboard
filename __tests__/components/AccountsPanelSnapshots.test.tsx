@@ -214,6 +214,20 @@ describe("AccountsPanel asset totals", () => {
     expect(asked).not.toContain("0xa@");
   });
 
+  // `null` is the route's word for a vault holding only tokens nothing prices.
+  // Printing it through the dollar formatter gave "$null".
+  it("says unpriced for a vault nothing prices, and a dollar figure for one that is", async () => {
+    mockRows([A, B]);
+    fetchSpy.mockResolvedValue(new Response(JSON.stringify({ "0xa": null, "0xb": 2.5 }), { status: 200 }));
+    render(<AccountsPanel />);
+    trigger([...observed]);
+    await settle();
+
+    expect(screen.getByText("unpriced")).toBeInTheDocument();
+    expect(screen.getByText("$2.50")).toBeInTheDocument();
+    expect(screen.queryByText(/null/)).not.toBeInTheDocument();
+  });
+
   it("leaves the column empty rather than showing a wrong number when the fetch fails", async () => {
     mockRows([A]);
     fetchSpy.mockResolvedValue(new Response("nope", { status: 503 }));

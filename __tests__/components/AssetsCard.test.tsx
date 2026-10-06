@@ -39,6 +39,23 @@ describe("AssetsCard", () => {
     expect(screen.queryByText("—")).not.toBeInTheDocument();
   });
 
+  // Priced like the Miden wallet: a test mint has no market. On 2026-10-07
+  // that was every faucet on the fleet. It is a different claim from "the
+  // Guardian holds nothing", which is what a $0.00 would say.
+  it("says so when holdings exist but nothing prices them", () => {
+    mockData({ usd7d: null, computedAt: "2026-10-07T12:00:00Z", priced: 0, unpriced: 104 });
+    render(<AssetsCard />);
+    expect(screen.getByText("No priced assets")).toBeInTheDocument();
+    expect(screen.getByTitle(/104 faucet/)).toBeInTheDocument();
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
+  });
+
+  it("shows a genuine zero for a fleet holding nothing at all", () => {
+    mockData({ usd7d: 0, computedAt: "2026-10-07T12:00:00Z", priced: 0, unpriced: 0 });
+    render(<AssetsCard />);
+    expect(screen.getByText("$0.00")).toBeInTheDocument();
+  });
+
   it("shows a dash rather than a zero when the Guardian did not answer", () => {
     useSWR.mockReturnValue({ data: undefined, error: new Error("Guardian offline") });
     render(<AssetsCard />);

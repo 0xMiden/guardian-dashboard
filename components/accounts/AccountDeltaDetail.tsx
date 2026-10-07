@@ -11,7 +11,7 @@ import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { formatAmount, formatCount, storageSlotLabel } from "@/lib/format";
 import { fetcher } from "@/lib/utils";
-import { CATEGORY_LABELS, deltaStatusBadge } from "@/components/transactions/activity-cells";
+import { activityLabel, deltaStatusBadge } from "@/components/transactions/activity-cells";
 import type {
   DashboardDeltaDetail,
   DashboardDeltaVaultChange,
@@ -151,13 +151,11 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
               <CardTitle className="text-section text-muted-foreground">Transaction #{nonce}</CardTitle>
             </CardHeader>
             <CardContent className="divide-y">
-              <Row label="Status" value={deltaStatusBadge(data!.status)} />
-              {data!.category && (
-                <Row label="Type" value={CATEGORY_LABELS[data!.category] ?? data!.category} />
-              )}
-              {data!.proposal?.proposalType && (
-                <Row label="Action" value={data!.proposal.proposalType.replace(/_/g, " ")} />
-              )}
+              <Row label="Status" value={deltaStatusBadge(data!.status, data!.statusReason)} />
+              {/* The same label the tables show for this row. The raw proposal
+                  type is not for a cell: the live USDCx one is a ~1,500
+                  character payload. */}
+              <Row label="Type" value={activityLabel(data!.category, data!.proposal?.proposalType)} />
               <Row label="Date" value={<Timestamp iso={data!.statusTimestamp} />} />
               {data!.retryCount !== undefined && data!.retryCount > 0 && (
                 <Row label="Retries" value={data!.retryCount} />

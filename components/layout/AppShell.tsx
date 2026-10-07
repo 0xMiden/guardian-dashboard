@@ -86,7 +86,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Image src="/orangerobot.png" alt="Guardian" width={16} height={16} className="shrink-0" />
           <span className="font-heading text-subtitle leading-tight text-foreground">Guardian Dashboard</span>
         </div>
-        <button onClick={() => setConfirmSignOut(true)} className="text-muted-foreground hover:text-foreground transition-colors">
+        <button onClick={() => setConfirmSignOut(true)} className="text-muted-foreground hover:text-foreground transition-colors" title="Sign out" aria-label="Sign out">
           <LogOut className="h-4 w-4" />
         </button>
       </div>

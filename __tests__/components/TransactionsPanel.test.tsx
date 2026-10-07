@@ -45,7 +45,7 @@ describe("TransactionsPanel", () => {
   it("renders the Guardian's inventory strip above the feed", () => {
     mockFeeds([delta("0xaaa111", 1)]);
     render(<TransactionsPanel />);
-    expect(screen.getByText("Total")).toBeInTheDocument();
+    expect(screen.getByText("Accounts")).toBeInTheDocument();
     expect(screen.getByText("42")).toBeInTheDocument();
   });
 

@@ -168,7 +168,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
           {data!.vaultChanges.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-section text-muted-foreground">Balance Changes</CardTitle>
+                <CardTitle className="text-section text-muted-foreground">Balance changes</CardTitle>
               </CardHeader>
               <CardContent className="divide-y">
                 {data!.vaultChanges.map((c, i) => <VaultChangeRow key={i} change={c} />)}
@@ -205,7 +205,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
           {data!.storageChanges.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-section text-muted-foreground">Account State Changes</CardTitle>
+                <CardTitle className="text-section text-muted-foreground">Account state changes</CardTitle>
               </CardHeader>
               <CardContent className="divide-y">
                 {data!.storageChanges.map((s, i) => (

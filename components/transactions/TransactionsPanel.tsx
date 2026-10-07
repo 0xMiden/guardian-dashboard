@@ -32,9 +32,10 @@ type ColumnKey = "account" | "counterparty" | "activity" | "amount" | "status" |
 const HIDEABLE: readonly ColumnKey[] = ["counterparty", "activity", "amount", "status", "date"];
 
 const FILTERS: Array<{ label: string; value: FilterValue }> = [
-  { label: "All", value: "" },
-  { label: "Awaiting Signatures", value: "awaiting" },
-  { label: "Ready to Submit", value: "ready" },
+  // Named as the Accounts chips are: "Any" for the reset, sentence case.
+  { label: "Any status", value: "" },
+  { label: "Awaiting signatures", value: "awaiting" },
+  { label: "Ready to submit", value: "ready" },
   { label: "Submitted", value: "candidate" },
   { label: "Confirmed", value: "canonical" },
   // Guardian 0.16.1 (issue #345). Findable, or six retained deltas on the OZ
@@ -178,11 +179,11 @@ export function TransactionsPanel() {
   // The account is what makes a row identifiable, so it is not offered for
   // hiding. Same arrangement as the accounts table.
   const columns: TableColumn<ActivityRow, ColumnKey>[] = [
-    { key: "account", label: "Account", width: "w-36", cellClass: "text-data", cell: (r) => <CopyableId id={r.accountId} /> },
+    { key: "account", label: "Account ID", width: "w-36", cellClass: "text-data", cell: (r) => <CopyableId id={r.accountId} /> },
     { key: "counterparty", label: "To / From", width: "w-36", cellClass: "text-data", cell: (r) => <CounterpartyCell counterparty={r.counterparty} /> },
     { key: "activity", label: "Activity", width: "w-40", cellClass: "text-data", cell: (r) => r.label },
     // The figure the row exists to show, same rank as Total Assets on accounts.
-    { key: "amount", label: "Amount", width: "w-32", cellClass: "text-figure", cell: (r) => <AmountCell assets={r.assets} /> },
+    { key: "amount", label: "Amount", width: "w-32", align: "right", cellClass: "text-figure", cell: (r) => <AmountCell assets={r.assets} /> },
     { key: "status", label: "Status", width: "w-36", cellClass: "text-data", cell: (r) => r.statusNode },
     {
       key: "date", label: "Date", width: "w-40", cellClass: "text-data text-muted-foreground",

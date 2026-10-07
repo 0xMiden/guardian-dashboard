@@ -111,7 +111,7 @@ describe("accountsToCsv", () => {
 
   it("does not claim an account is a wallet when the auth shape says otherwise", () => {
     const row = accountsToCsv([{ ...account, authScheme: "falcon" }], {}).split("\r\n")[1];
-    expect(row.split(",")[3]).toBe("");
+    expect(row.split(",")[3]).toBe("other");
   });
 
   it("falls back to the hex id when the Guardian returns no bech32 form", () => {

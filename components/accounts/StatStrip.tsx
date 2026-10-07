@@ -66,7 +66,7 @@ export function StatStrip() {
             : "The Guardian is still computing its first aggregate since starting up."
         }
       >
-        {stats.unsupported ? "Account totals need Guardian 0.18.0" : "Computing account totals…"}
+        {stats.unsupported ? "Needs Guardian 0.18.0" : "Calculating…"}
       </p>
     );
   }
@@ -75,7 +75,7 @@ export function StatStrip() {
     <div className="flex flex-wrap gap-8 text-sm">
       {stats.total != null && (
         <span className="text-muted-foreground">
-          Total&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.total.toLocaleString()}</span>
+          Accounts&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.total.toLocaleString()}</span>
         </span>
       )}
       {stats.count7d != null && (
@@ -90,7 +90,7 @@ export function StatStrip() {
       )}
       {assets?.usd7d != null && (
         <span className="text-muted-foreground">
-          Assets (7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">${assets.usd7d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          Assets (updated last 7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">${assets.usd7d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </span>
       )}
     </div>

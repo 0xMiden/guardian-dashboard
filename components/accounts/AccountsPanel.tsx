@@ -13,6 +13,7 @@ import { CopyableId } from "@/components/ui/CopyableId";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
 import { FilterChip } from "@/components/ui/FilterChip";
+import { stateBadge } from "@/components/accounts/StateBadge";
 import { Button } from "@/components/ui/Button";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
@@ -52,18 +53,6 @@ export const ACCOUNTS_KEY = `/api/accounts?limit=${PAGE_SIZE}`;
 const accountsKey = (pausedOnly: boolean) =>
   pausedOnly ? `${ACCOUNTS_KEY}&paused=true` : ACCOUNTS_KEY;
 
-// Frozen moved off orange: orange is the brand accent now, and a badge in it
-// would read as something to click rather than a state the account is in.
-const STATE_TONE: Record<string, string> = {
-  released: "bg-state-released",
-  frozen: "bg-state-frozen",
-  active: "bg-state-active",
-};
-
-function statusBadge(status: string, pausedAt: string | null, releasedAt?: string | null) {
-  const state = accountState(status, pausedAt, releasedAt);
-  return <Badge className={`${STATE_TONE[state] ?? "bg-state-neutral"} text-white`}>{state}</Badge>;
-}
 
 // null sorts last in both directions: a row whose asset total was never fetched
 // is unknown, and ordering it as zero would read as an empty account.
@@ -407,7 +396,7 @@ export function AccountsPanel() {
     },
     {
       key: "status", label: "Status", width: "w-28", sortKey: "status", cellClass: "text-data",
-      cell: (a) => statusBadge(a.stateStatus, a.pausedAt, a.releasedAt),
+      cell: (a) => stateBadge(a.stateStatus, a.pausedAt, a.releasedAt),
     },
     {
       key: "type", label: "Type", width: "w-24", cellClass: "text-data",
@@ -416,7 +405,9 @@ export function AccountsPanel() {
           wallet
         </Badge>
       ) : (
-        <span className="text-muted-foreground text-xs">—</span>
+        // The word the Other chip filters on. A dash would say "unknown",
+        // and this is known: a multisig the wallet did not create.
+        <span className="text-muted-foreground text-xs">other</span>
       ),
     },
     {
@@ -436,7 +427,7 @@ export function AccountsPanel() {
       // The number a row exists to show, so it outranks everything beside it.
       // It used to be 12px and dimmed, which put it below the signer count and
       // level with its own column header.
-      key: "assets", label: "Total Assets", width: "w-32", align: "right", sortKey: "assets",
+      key: "assets", label: "Total assets", width: "w-32", align: "right", sortKey: "assets",
       cellClass: "text-figure",
       cell: (a) => typeof perAccount[a.accountId] === "number"
         ? <span className="tabular-nums text-foreground">${perAccount[a.accountId]!.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
@@ -473,7 +464,7 @@ export function AccountsPanel() {
       </div>
     ) : (
       <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-data text-muted-foreground">
-        No accounts registered on this Guardian server yet.
+        No accounts registered on this Guardian yet.
       </div>
     );
   }

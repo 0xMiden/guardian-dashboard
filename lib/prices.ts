@@ -15,9 +15,19 @@ import { loadSdk } from "@/lib/falcon";
  * - Everything else has no dollar value. Not zero: `usd` says `undefined`, and
  *   a caller that sums must count those separately rather than fold them in.
  *
- * Bread reads one more source, the Agglayer bridge registry on chain, for the
- * faucet that mints bridged ETH. A serverless route has no Miden client to do
- * that read, so `GUARDIAN_PRICED_FAUCETS` carries that one entry by hand.
+ * The chain's native asset is the case that matters on a test network, since
+ * every account holds it. Bread learns its faucet from the node at sync time
+ * and reads its symbol and decimals from the faucet account. A route has no
+ * synced client, so it asks the official faucet service for the network
+ * (`faucet-api.<network>.miden.io/get_metadata`) which account dispenses, then
+ * reads that account's vault on chain: the one asset it holds is the native
+ * faucet. The faucet's own on-chain metadata gives the symbol and decimals,
+ * and a native symbol of USDCX takes Bread's fixed $1. Nothing here is
+ * configured by hand, so a testnet reset needs no change anywhere.
+ *
+ * Not read: the Agglayer bridge registry, which names the faucet minting
+ * bridged ETH. Bread reads it on chain; here that faucet is unpriced until the
+ * verified token list names it.
  *
  * Fetched documents are a trust boundary. A token list with one malformed entry
  * is rejected whole, as Bread does, since a partial list would misprice the
@@ -46,6 +56,9 @@ const BINANCE_URL =
   "https://api.binance.com/api/v3/ticker/price?symbols=" +
   encodeURIComponent(JSON.stringify(Object.values(PAIRS)));
 const RAW = "https://raw.githubusercontent.com/0xMiden";
+// The wallet's per-network endpoints (src/lib/miden-chain/networks-config.ts).
+const RPC_URL = (network: string) => `https://rpc.${network}.miden.io`;
+const FAUCET_API = (network: string) => `https://faucet-api.${network}.miden.io/get_metadata`;
 
 // Bread refreshes prices every five minutes and its config about hourly.
 const PRICE_TTL_MS = 5 * 60_000;
@@ -54,39 +67,12 @@ const FETCH_TIMEOUT_MS = 10_000;
 
 const HEX_ID = /^0x[0-9a-f]{30}$/i;
 
-// Operator-supplied, parsed once like GUARDIAN_ENDPOINTS: a bad value should
-// fail loudly at boot rather than silently price nothing.
-const envFaucets: Allowlist = parseEnvFaucets(process.env.GUARDIAN_PRICED_FAUCETS);
-
-function parseEnvFaucets(raw: string | undefined): Allowlist {
-  if (!raw) return {};
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error("GUARDIAN_PRICED_FAUCETS is not valid JSON — check your environment configuration");
-  }
-  if (!isRecord(parsed)) throw new Error("GUARDIAN_PRICED_FAUCETS must be a JSON object keyed by faucet id");
-  const out: Allowlist = {};
-  for (const [id, entry] of Object.entries(parsed)) {
-    if (!HEX_ID.test(id) || !isPricedFaucet(entry)) {
-      throw new Error(`GUARDIAN_PRICED_FAUCETS: bad entry for "${id}" (want 0x-hex id → { priceSymbol, decimals })`);
-    }
-    out[id.toLowerCase()] = entry;
-  }
-  return out;
-}
-
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
 function isDecimals(v: unknown): v is number {
   return Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 30;
-}
-
-function isPricedFaucet(v: unknown): v is PricedFaucet {
-  return isRecord(v) && typeof v.priceSymbol === "string" && v.priceSymbol in { ...PAIRS, ...FIXED } && isDecimals(v.decimals);
 }
 
 /**
@@ -171,6 +157,40 @@ async function toHexId(id: string): Promise<string> {
   return Address.fromBech32(id).accountId().toString().toLowerCase();
 }
 
+/** The SDK call has no abort signal, so bound it the way the wallet's `withRpcTimeout` does. */
+function withTimeout<T>(promise: Promise<T>, what: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${what}: timed out`)), FETCH_TIMEOUT_MS).unref?.()),
+  ]);
+}
+
+/**
+ * The network's native faucet, priced the way Bread prices it: a native symbol
+ * of USDCX is fixed at $1; any other native symbol has no market and the faucet
+ * is unpriced, like every other token nothing quotes. One entry or none.
+ */
+async function loadNativeFaucet(network: string): Promise<Allowlist> {
+  const meta = await fetchJson(FAUCET_API(network));
+  if (!isRecord(meta) || typeof meta.id !== "string") return {};
+  const dispenser = await toHexId(meta.id);
+  const { RpcClient, Endpoint, AccountId, BasicFungibleFaucetComponent } = await loadSdk();
+  const rpc = new RpcClient(new Endpoint(RPC_URL(network)));
+  const read = async (hex: string) => (await withTimeout(rpc.getAccountDetails(AccountId.fromHex(hex)), `rpc ${hex}`)).account();
+  const vault = (await read(dispenser))?.vault().fungibleAssets() ?? [];
+  // The dispenser holds exactly the token it hands out. Two tokens would be a
+  // different service, and guessing between them is how a wrong price starts.
+  if (vault.length !== 1) return {};
+  const faucetId = vault[0].faucetId().toString().toLowerCase();
+  const faucet = await read(faucetId);
+  if (!faucet) return {};
+  const meta2 = BasicFungibleFaucetComponent.fromAccountStorage(faucet.storage());
+  const symbol = meta2.symbol().toString();
+  const decimals = meta2.decimals();
+  if (!(symbol in FIXED) || !isDecimals(decimals)) return {};
+  return { [faucetId]: { priceSymbol: symbol, decimals } };
+}
+
 async function loadTokenList(network: string): Promise<Allowlist> {
   const body = await fetchJson(`${RAW}/token-list/main/${encodeURIComponent(network)}.json`);
   if (body === null) return {};
@@ -213,13 +233,13 @@ const empty = <T,>(): Record<string, T> => ({});
 
 export async function priceBook(network: string): Promise<PriceBook> {
   const net = repoNetwork(network);
-  const [list, config, prices] = await Promise.all([
+  const [list, config, native, prices] = await Promise.all([
     cached(`list:${net}`, LIST_TTL_MS, () => loadTokenList(net)).catch(empty<PricedFaucet>),
     cached(`config:${net}`, LIST_TTL_MS, () => loadWalletConfig(net)).catch(empty<PricedFaucet>),
+    cached(`native:${net}`, LIST_TTL_MS, () => loadNativeFaucet(net)).catch(empty<PricedFaucet>),
     cached("prices", PRICE_TTL_MS, loadPrices).catch(empty<number>),
   ]);
-  // The env entry is the operator's explicit word, so it wins over a list.
-  const faucets: Allowlist = { ...list, ...config, ...envFaucets };
+  const faucets: Allowlist = { ...list, ...config, ...native };
   return {
     usd(faucetId, rawAmount) {
       const entry = faucets[faucetId.toLowerCase()];

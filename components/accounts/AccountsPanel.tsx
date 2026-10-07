@@ -23,6 +23,7 @@ import { isWalletAccount, matchesAccountId, looksLikeAccountId, accountState, ac
 
 type AccountsPage = PagedResult<DashboardAccountSummary>;
 type AccountKind = "all" | "wallet" | "other";
+type AccountState = "all" | "active" | "frozen" | "released";
 type SnapshotTarget = { accountId: string; updatedAt: string };
 type SortKey = "status" | "signers" | "assets" | "created" | "updated";
 type Sort = { key: SortKey; dir: "asc" | "desc" };
@@ -142,6 +143,7 @@ export function AccountsPanel() {
   const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
   const [loadingMore, setLoadingMore] = useState(false);
   const [kind, setKind] = useState<AccountKind>("all");
+  const [state, setState] = useState<AccountState>("all");
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   // null is the Guardian's own order. Clicking a header cycles desc, asc, back to
@@ -162,9 +164,11 @@ export function AccountsPanel() {
 
   const loaded = [...(data?.items ?? []), ...extraItems];
   const walletCount = loaded.filter(isWalletAccount).length;
+  const stateOf = (a: DashboardAccountSummary) => accountState(a.stateStatus, a.pausedAt, a.releasedAt);
   const filtered = loaded.filter(
     (a) =>
       (kind === "all" || isWalletAccount(a) === (kind === "wallet")) &&
+      (state === "all" || stateOf(a) === state) &&
       matchesAccountId(query, a.accountId, a.accountIdBech32),
   );
   // The ids the table will actually mount. The row observer keys off this, so
@@ -353,9 +357,17 @@ export function AccountsPanel() {
   // "All (173)" beside a single frozen row is a contradiction. The loaded rows
   // *are* the whole frozen set, because that filter is applied server-side, so
   // counting them is both correct and complete here.
+  const byState = (s: AccountState) => loaded.filter((a) => stateOf(a) === s).length;
   const counts = stats?.counted != null && !pausedOnly
-    ? { all: stats.counted, wallet: stats.wallet ?? 0, other: stats.other ?? 0 }
-    : { all: loaded.length, wallet: walletCount, other: loaded.length - walletCount };
+    ? {
+        all: stats.counted, wallet: stats.wallet ?? 0, other: stats.other ?? 0,
+        frozen: stats.frozen ?? 0, released: stats.released ?? 0,
+        active: stats.counted - (stats.frozen ?? 0) - (stats.released ?? 0),
+      }
+    : {
+        all: loaded.length, wallet: walletCount, other: loaded.length - walletCount,
+        active: byState("active"), frozen: byState("frozen"), released: byState("released"),
+      };
 
   // Exports exactly what the table shows: same filter, same sort, same rows.
   // ponytail: loaded rows only, so an export after scrolling three pages holds
@@ -366,7 +378,7 @@ export function AccountsPanel() {
   // for an export that is not what they are looking at, or when the row count
   // makes scrolling to collect it absurd; at 7,198 accounts it nearly is.
   function exportCsv() {
-    posthog.capture("accounts_exported", { row_count: items.length, filter: kind, sorted: !!sort });
+    posthog.capture("accounts_exported", { row_count: items.length, filter: kind, state, sorted: !!sort });
     const url = URL.createObjectURL(
       new Blob([accountsToCsv(items, perAccount)], { type: "text/csv;charset=utf-8" }),
     );
@@ -512,6 +524,20 @@ export function AccountsPanel() {
             {label}
           </FilterChip>
         ))}
+        {/* Lifecycle state, orthogonal to kind. An account whose owner switched
+            Guardian stays listed as released beside the active ones, and the
+            Overview's frozen count has its own server-side route in. */}
+        <span aria-hidden className="mx-1 h-4 w-px bg-border" />
+        {([
+          ["all", "Any state"],
+          ["active", `Active (${counts.active.toLocaleString()})`],
+          ["frozen", `Frozen (${counts.frozen.toLocaleString()})`],
+          ["released", `Released (${counts.released.toLocaleString()})`],
+        ] as const).map(([value, label]) => (
+          <FilterChip key={value} active={state === value} onClick={() => setState(value)}>
+            {label}
+          </FilterChip>
+        ))}
         <div className="ml-auto flex items-center gap-2">
           <Button onClick={exportCsv} disabled={!items.length} title="Download the rows currently shown as CSV" size="sm">
             <Download className="h-3 w-3" />
@@ -579,7 +605,7 @@ export function AccountsPanel() {
               <p>
                 {query
                   ? `No account matching "${query.trim()}" among the ${loaded.length} loaded so far`
-                  : `No ${kind} accounts among the ${loaded.length} loaded so far`}
+                  : `No ${[state, kind].filter((f) => f !== "all").join(" ")} accounts among the ${loaded.length} loaded so far`}
                 {hasMore ? ", keep scrolling to load more." : "."}
               </p>
               {/* The filter can only see rows that have been paged in. A full ID

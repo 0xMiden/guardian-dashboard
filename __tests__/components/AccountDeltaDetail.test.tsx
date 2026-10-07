@@ -90,3 +90,25 @@ describe("AccountDeltaDetail P2IDE and visibility fields", () => {
     expect(screen.queryByText("private")).toBeNull();
   });
 });
+
+/**
+ * The detail page printed the raw proposal type with underscores replaced,
+ * where the tables go through `activityLabel`. The live USDCx type is
+ * `usdcx_v1_` + ~1,500 characters of base32, which the table code guards
+ * against and this page dumped on screen. It also dropped the status reason.
+ */
+describe("AccountDeltaDetail labels, as the table labels them", () => {
+  it("names the application behind an encoded payload type without printing it", () => {
+    const encoded = "usdcx_v1_" + "pmrhezldnfygkvtfojzws33oei5dclbcmfrxi2lp".repeat(40);
+    mockDetail({ category: "custom", proposal: { proposalType: encoded, status: "executed" } });
+    render(<AccountDeltaDetail accountId="0xabc123" nonce={7} />);
+    expect(screen.getByText("USDCx")).toBeInTheDocument();
+    expect(screen.queryByText(/pmrhezld/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the status reason the Guardian gave", () => {
+    mockDetail({ status: "retained", statusReason: "retry_exhausted" });
+    render(<AccountDeltaDetail accountId="0xabc123" nonce={7} />);
+    expect(screen.getByTitle(/ran out of retries/)).toBeInTheDocument();
+  });
+});

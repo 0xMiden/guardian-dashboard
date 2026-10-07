@@ -120,7 +120,7 @@ export function TransactionsPanel() {
     : `/api/global-deltas${deltaStatus ? `?status=${deltaStatus}` : ""}`;
 
   const { data: deltasData, error: deltasError } = useSWR<GlobalDeltasPage>(deltaUrl, fetcher, { refreshInterval: 30_000 });
-  const { data: proposalsData } = useSWR<GlobalProposalsPage>("/api/global-proposals", fetcher, { refreshInterval: 30_000 });
+  const { data: proposalsData, error: proposalsError } = useSWR<GlobalProposalsPage>("/api/global-proposals", fetcher, { refreshInterval: 30_000 });
 
   const initialCursor = deltasData?.nextCursor ?? null;
   const hasMoreDeltas = nextCursor === undefined ? initialCursor !== null : nextCursor !== null;
@@ -171,9 +171,13 @@ export function TransactionsPanel() {
   const allProposals = proposalsData?.items ?? [];
   const rows = toRows(allDeltas, allProposals, filter).filter((r) => matchesAccountId(query, r.accountId));
 
-  const loading = (!deltasData && !deltasError && !proposalsOnly) || (!proposalsData && (filter === "" || proposalsOnly));
+  // A feed that failed has settled, so it must not hold the skeleton up: the
+  // proposals feed failing used to leave the page on skeletons for good.
+  const loading =
+    (!deltasData && !deltasError && !proposalsOnly) ||
+    (!proposalsData && !proposalsError && (filter === "" || proposalsOnly));
   // Keep showing cached rows on a failed revalidation — SWR retries in the background
-  const unavailable = deltasError && !deltasData;
+  const unavailable = proposalsOnly ? proposalsError && !proposalsData : deltasError && !deltasData;
 
   // The account is what makes a row identifiable, so it is not offered for
   // hiding. Same arrangement as the accounts table.
@@ -222,7 +226,7 @@ export function TransactionsPanel() {
         </div>
       ) : unavailable ? (
         <div className="rounded-lg border border-dashed">
-          <ErrorPanel error={deltasError} onRetry={refresh} />
+          <ErrorPanel error={proposalsOnly ? proposalsError : deltasError} onRetry={refresh} />
         </div>
       ) : rows.length === 0 ? (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed px-4 text-center text-sm text-muted-foreground">

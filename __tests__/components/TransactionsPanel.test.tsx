@@ -59,6 +59,31 @@ describe("TransactionsPanel", () => {
     expect(screen.queryByText("0xbbb222")).not.toBeInTheDocument();
   });
 
+  // A failed proposals fetch used to count as "still loading", so the skeleton
+  // never cleared even though the deltas had arrived.
+  it("still lists the deltas when the proposals feed fails", () => {
+    useSWR.mockImplementation((key: string) => {
+      if (typeof key === "string" && key.startsWith("/api/global-deltas")) {
+        return { data: { items: [delta("0xaaa111", 1)], nextCursor: null }, error: undefined };
+      }
+      if (key === "/api/global-proposals") return { data: undefined, error: new Error("proposals down") };
+      return { data: undefined, error: undefined };
+    });
+    const { container } = render(<TransactionsPanel />);
+    expect(container.querySelectorAll("[data-slot='skeleton']")).toHaveLength(0);
+    expect(screen.getByText("0xaaa111")).toBeInTheDocument();
+  });
+
+  it("names the failure when only proposals were asked for and they failed", () => {
+    useSWR.mockImplementation((key: string) => {
+      if (key === "/api/global-proposals") return { data: undefined, error: new Error("proposals down") };
+      return { data: undefined, error: undefined };
+    });
+    render(<TransactionsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /awaiting signatures/i }));
+    expect(screen.getByText(/proposals down/)).toBeInTheDocument();
+  });
+
   it("says the filter only covers the entries loaded so far", () => {
     mockFeeds([delta("0xaaa111", 1)]);
     render(<TransactionsPanel />);

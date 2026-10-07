@@ -38,7 +38,7 @@ export function AccountTransactions({ accountId }: Props) {
     fetcher,
     { refreshInterval: 30_000 }
   );
-  const { data: proposalsData } = useSWR<ProposalsPage>(
+  const { data: proposalsData, error: proposalsError } = useSWR<ProposalsPage>(
     `/api/accounts/${encoded}/proposals`,
     fetcher,
     { refreshInterval: 30_000 }
@@ -96,7 +96,8 @@ export function AccountTransactions({ accountId }: Props) {
     })),
   ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-  const loading = (!deltasData && !deltasError) || !proposalsData;
+  // A feed that failed has settled, so it must not hold the skeleton up.
+  const loading = (!deltasData && !deltasError) || (!proposalsData && !proposalsError);
 
   return (
     <div className="flex flex-col gap-4">

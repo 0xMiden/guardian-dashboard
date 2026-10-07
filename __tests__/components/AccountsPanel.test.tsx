@@ -200,6 +200,40 @@ describe("AccountsPanel", () => {
     expect(screen.queryByText("0xwallet")).not.toBeInTheDocument();
   });
 
+  // Switching an account's Guardian leaves the old one with a released row
+  // beside its active ones (2026-10-07, Gateway). The state chips act on the
+  // loaded rows like the kind chips, so they combine with them.
+  it("filters on lifecycle state, combined with the kind chips", () => {
+    const now = new Date().toISOString();
+    useSWR.mockImplementation((key: string) => {
+      if (key === ACCOUNTS_KEY) return { data: { items: [
+        { accountId: "0xactive", stateStatus: "available", authScheme: "ecdsa", authorizedSignerCount: 2,
+          hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: now },
+        { accountId: "0xfrozen", stateStatus: "available", authScheme: "falcon", authorizedSignerCount: 3,
+          hasPendingCandidate: false, pausedAt: now, pausedReason: "review", updatedAt: now },
+        { accountId: "0xreleased", stateStatus: "available", authScheme: "ecdsa", authorizedSignerCount: 2,
+          hasPendingCandidate: false, pausedAt: null, pausedReason: null, releasedAt: now, updatedAt: now },
+      ], nextCursor: null }, error: undefined };
+      return { data: undefined, error: undefined };
+    });
+    render(<AccountsPanel />);
+    expect(screen.getByText("Active (1)")).toBeInTheDocument();
+    expect(screen.getByText("Frozen (1)")).toBeInTheDocument();
+    expect(screen.getByText("Released (1)")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Released (1)"));
+    expect(screen.getByText("0xreleased")).toBeInTheDocument();
+    expect(screen.queryByText("0xactive")).not.toBeInTheDocument();
+    expect(screen.queryByText("0xfrozen")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Other (1)"));
+    expect(screen.queryByText("0xreleased")).not.toBeInTheDocument();
+    expect(screen.getByText(/no released other accounts among the 3 loaded so far/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Any state"));
+    expect(screen.getByText("0xfrozen")).toBeInTheDocument();
+  });
+
   it("says so when a filter matches nothing in the loaded rows", () => {
     useSWR.mockImplementation((key: string) => {
       if (key === ACCOUNTS_KEY) return { data: { items: [
@@ -391,12 +425,16 @@ describe("AccountsPanel kind counts", () => {
   it("counts what the Guardian holds, not the page that has been loaded", () => {
     mock({
       items: [row("0xa"), row("0xb")],
-      stats: { total: 1418, count7d: 0, count30d: 0, counted: 1418, wallet: 1410, other: 8 },
+      stats: { total: 1418, count7d: 0, count30d: 0, counted: 1418, wallet: 1410, other: 8, frozen: 12, released: 6 },
     });
     render(<AccountsPanel />);
     expect(screen.getByText("All (1,418)")).toBeInTheDocument();
     expect(screen.getByText("Wallet (1,410)")).toBeInTheDocument();
     expect(screen.getByText("Other (8)")).toBeInTheDocument();
+    // Active is what the aggregate leaves once frozen and released are taken out.
+    expect(screen.getByText("Active (1,400)")).toBeInTheDocument();
+    expect(screen.getByText("Frozen (12)")).toBeInTheDocument();
+    expect(screen.getByText("Released (6)")).toBeInTheDocument();
   });
 
   // Below the table rather than beside the chips: sitting in the chip row it

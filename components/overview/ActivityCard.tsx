@@ -37,7 +37,7 @@ export function ActivityCard() {
       <CardContent className="pt-4 pb-3">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Transactions</p>
+            <p className="text-xs text-muted-foreground mb-1">Activity</p>
             {loading ? (
               <Skeleton className="h-8 w-12 mt-1" />
             ) : (
@@ -53,6 +53,8 @@ export function ActivityCard() {
             <button
               onClick={() => setExpanded((v) => !v)}
               className="text-muted-foreground hover:text-foreground transition-colors mt-1"
+              title={expanded ? "Collapse" : "Expand"}
+              aria-label={expanded ? "Collapse" : "Expand"}
             >
               {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
@@ -66,7 +68,7 @@ export function ActivityCard() {
               accent="text-state-active"
             />
             <Row
-              label="In progress"
+              label="Submitted"
               value={data.deltaStatusCounts.candidate}
               accent={data.deltaStatusCounts.candidate > 0 ? "text-state-pending" : undefined}
             />

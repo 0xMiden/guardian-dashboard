@@ -49,6 +49,8 @@ export function AccountsCard() {
             <button
               onClick={() => setExpanded((v) => !v)}
               className="text-muted-foreground hover:text-foreground transition-colors mt-1"
+              title={expanded ? "Collapse" : "Expand"}
+              aria-label={expanded ? "Collapse" : "Expand"}
             >
               {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>

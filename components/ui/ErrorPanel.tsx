@@ -73,7 +73,7 @@ function describe(error: FetchError): ErrorShape {
     return {
       icon: <SearchX className="h-4 w-4" />,
       title: "Not found on this Guardian",
-      detail: "This guardian does not hold the record you asked for. It may belong to a different endpoint.",
+      detail: "This Guardian does not hold the record you asked for. It may belong to a different endpoint.",
       retryable: false,
     };
   }

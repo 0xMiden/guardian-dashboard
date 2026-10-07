@@ -227,7 +227,7 @@ export function GuardianStatusCard() {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-section text-muted-foreground">Guardian Server</CardTitle>
+        <CardTitle className="text-section text-muted-foreground">Guardian status</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -266,14 +266,14 @@ export function GuardianStatusCard() {
                   <>
                     <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-state-active" />
                     <p className="text-label text-muted-foreground">
-                      Server reports itself healthy
+                      The Guardian reports itself healthy
                     </p>
                   </>
                 ) : cappedOnly ? (
                   <>
                     <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     <p className="text-label text-muted-foreground">
-                      Server reports itself degraded: {describeDegraded(degradedAggregates)}{" "}
+                      The Guardian reports itself degraded: {describeDegraded(degradedAggregates)}{" "}
                       stops computing above 1000 accounts (aggregation service is WIP).
                     </p>
                   </>
@@ -281,7 +281,7 @@ export function GuardianStatusCard() {
                   <>
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-state-frozen" />
                     <p className="text-label text-state-frozen">
-                      Server reports itself degraded
+                      The Guardian reports itself degraded
                       {degradedAggregates.length
                         ? `: it cannot compute ${describeDegraded(degradedAggregates)}.`
                         : "."}
@@ -346,7 +346,7 @@ export function GuardianStatusCard() {
                   <Row
                     label="Version"
                     value={<span className="text-muted-foreground font-mono text-xs">{build.version}</span>}
-                    info="Guardian server software version."
+                    info="Guardian software version."
                   />
                 )}
 

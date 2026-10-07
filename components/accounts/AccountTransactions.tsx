@@ -1,12 +1,18 @@
 "use client";
 import { useState, useCallback } from "react";
-import useSWR from "swr";
+import useSWR, { mutate } from "swr";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Timestamp } from "@/components/ui/Timestamp";
+import { RefreshButton } from "@/components/ui/RefreshButton";
+import { ErrorPanel } from "@/components/ui/ErrorPanel";
+import { DataTable } from "@/components/ui/DataTable";
+import { TableControls, useTablePrefs, LoadMoreSentinel, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
 import { fetcher } from "@/lib/utils";
+import { formatCount } from "@/lib/format";
 import { activityLabel, deltaStatusBadge, proposalStatusBadge, AmountCell, CounterpartyCell } from "@/components/transactions/activity-cells";
 import type { DashboardDeltaEntry, DashboardProposalEntry, PagedResult } from "@openzeppelin/guardian-operator-client";
 
@@ -15,7 +21,6 @@ type ProposalsPage = PagedResult<DashboardProposalEntry>;
 
 type ActivityRow = {
   key: string;
-  seq: number | string;
   label: string;
   statusNode: React.ReactNode;
   assets: DashboardDeltaEntry["assets"];
@@ -25,28 +30,35 @@ type ActivityRow = {
   nonce: number;
 };
 
+type ColumnKey = "nonce" | "counterparty" | "activity" | "amount" | "status" | "date";
+// The nonce is what makes a row identifiable here, so it is not offered for
+// hiding. Same arrangement as the other two tables.
+const HIDEABLE: readonly ColumnKey[] = ["counterparty", "activity", "amount", "status", "date"];
+
 interface Props {
   accountId: string;
 }
 
+/**
+ * One account's activity. Same table, controls and paging as the global
+ * Activity table; what differs is the nonce column in place of the account
+ * column and the absence of status chips, since one account rarely has more
+ * than a screen of rows.
+ */
 export function AccountTransactions({ accountId }: Props) {
   const router = useRouter();
   const encoded = encodeURIComponent(accountId);
+  const deltasKey = `/api/accounts/${encoded}/deltas`;
+  const proposalsKey = `/api/accounts/${encoded}/proposals`;
 
-  const { data: deltasData, error: deltasError } = useSWR<DeltasPage>(
-    `/api/accounts/${encoded}/deltas`,
-    fetcher,
-    { refreshInterval: 30_000 }
-  );
-  const { data: proposalsData, error: proposalsError } = useSWR<ProposalsPage>(
-    `/api/accounts/${encoded}/proposals`,
-    fetcher,
-    { refreshInterval: 30_000 }
-  );
+  const { data: deltasData, error: deltasError } = useSWR<DeltasPage>(deltasKey, fetcher, { refreshInterval: 30_000 });
+  const { data: proposalsData, error: proposalsError } = useSWR<ProposalsPage>(proposalsKey, fetcher, { refreshInterval: 30_000 });
 
   const [extraDeltas, setExtraDeltas] = useState<DashboardDeltaEntry[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const { density, hidden, setDensity, toggleColumn } = useTablePrefs<ColumnKey>("account-activity", HIDEABLE);
 
   const initialCursor = deltasData?.nextCursor ?? null;
   const hasMore = nextCursor === undefined ? initialCursor !== null : nextCursor !== null;
@@ -56,7 +68,7 @@ export function AccountTransactions({ accountId }: Props) {
     if (!cursor) return;
     setLoadingMore(true);
     try {
-      const res = await fetch(`/api/accounts/${encoded}/deltas?cursor=${encodeURIComponent(cursor)}`);
+      const res = await fetch(`${deltasKey}?cursor=${encodeURIComponent(cursor)}`);
       if (!res.ok) return; // keep cursor untouched so the next attempt can retry
       const page: DeltasPage = await res.json();
       setExtraDeltas((prev) => [...prev, ...(page.items ?? [])]);
@@ -66,7 +78,20 @@ export function AccountTransactions({ accountId }: Props) {
     } finally {
       setLoadingMore(false);
     }
-  }, [encoded, nextCursor, initialCursor]);
+  }, [deltasKey, nextCursor, initialCursor]);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    // Paged-in entries are dropped: the first page comes back with whatever is
+    // newest, and keeping the old tail would list some entries twice.
+    setExtraDeltas([]);
+    setNextCursor(undefined);
+    try {
+      await Promise.all([mutate(deltasKey), mutate(proposalsKey)]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [deltasKey, proposalsKey]);
 
   const allDeltas = [...(deltasData?.items ?? []), ...extraDeltas];
   const allProposals = proposalsData?.items ?? [];
@@ -74,7 +99,6 @@ export function AccountTransactions({ accountId }: Props) {
   const rows: ActivityRow[] = [
     ...allProposals.map((p) => ({
       key: `proposal-${p.nonce}`,
-      seq: p.nonce,
       label: activityLabel(undefined, p.proposalType),
       statusNode: proposalStatusBadge(p.signaturesCollected, p.signaturesRequired),
       assets: undefined,
@@ -85,7 +109,6 @@ export function AccountTransactions({ accountId }: Props) {
     })),
     ...allDeltas.map((d) => ({
       key: `delta-${d.nonce}`,
-      seq: d.nonce,
       label: activityLabel(d.category, d.proposalType),
       statusNode: deltaStatusBadge(d.status, d.statusReason),
       assets: d.assets,
@@ -98,83 +121,77 @@ export function AccountTransactions({ accountId }: Props) {
 
   // A feed that failed has settled, so it must not hold the skeleton up.
   const loading = (!deltasData && !deltasError) || (!proposalsData && !proposalsError);
+  // Keep showing cached rows on a failed revalidation — SWR retries in the background
+  const unavailable = deltasError && !deltasData;
+
+  const columns: TableColumn<ActivityRow, ColumnKey>[] = [
+    { key: "nonce", label: "Nonce", width: "w-20", align: "right", cellClass: "text-data text-muted-foreground tabular-nums", cell: (r) => r.nonce },
+    { key: "counterparty", label: "To / From", width: "w-36", cellClass: "text-data", cell: (r) => <CounterpartyCell counterparty={r.counterparty} /> },
+    { key: "activity", label: "Activity", width: "w-40", cellClass: "text-data", cell: (r) => r.label },
+    { key: "amount", label: "Amount", width: "w-32", align: "right", cellClass: "text-figure", cell: (r) => <AmountCell assets={r.assets} /> },
+    { key: "status", label: "Status", width: "w-36", cellClass: "text-data", cell: (r) => r.statusNode },
+    { key: "date", label: "Date", width: "w-40", cellClass: "text-data text-muted-foreground", cell: (r) => <Timestamp iso={r.timestamp} /> },
+  ];
+  const shownColumns = columns.filter((c) => !hidden.has(c.key));
+  const pad = CELL_PADDING[density];
 
   return (
     <div className="flex flex-col gap-4">
-      <button
-        onClick={() => router.back()}
+      {/* A link rather than history.back(): this URL gets shared, and for a
+          reader who arrived from elsewhere "back" is not the account. */}
+      <Link
+        href={`/accounts/${encoded}`}
         className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors w-fit"
       >
         <ArrowLeft className="h-4 w-4" /> Back to account
-      </button>
+      </Link>
 
-      <p className="text-xs text-muted-foreground font-mono truncate">{accountId}</p>
+      <div className="flex items-center gap-2 flex-wrap text-xs">
+        <p className="text-muted-foreground font-mono truncate">{accountId}</p>
+        <div className="ml-auto flex items-center gap-2">
+          <TableControls
+            density={density}
+            onDensityChange={setDensity}
+            columns={columns.filter((c) => HIDEABLE.includes(c.key))}
+            hidden={hidden}
+            onToggleColumn={toggleColumn}
+          />
+          <RefreshButton onClick={refresh} busy={refreshing} />
+        </div>
+      </div>
 
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
         </div>
-      ) : deltasError && !deltasData ? (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-          {deltasError.message || "Guardian unavailable"}
+      ) : unavailable ? (
+        <div className="rounded-lg border border-dashed">
+          <ErrorPanel error={deltasError} onRetry={refresh} />
         </div>
       ) : rows.length === 0 ? (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-data text-muted-foreground">
           No activity recorded for this account yet.
         </div>
       ) : (
-        <>
-          <Card>
-            <CardContent className="p-0 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-xs text-muted-foreground">
-                    <th className="px-4 py-3 text-left font-medium">#</th>
-                    <th className="px-4 py-3 text-left font-medium">To / From</th>
-                    <th className="px-4 py-3 text-left font-medium">Activity</th>
-                    <th className="px-4 py-3 text-right font-medium">Amount</th>
-                    <th className="px-4 py-3 text-left font-medium">Status</th>
-                    <th className="px-4 py-3 text-left font-medium">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr
-                      key={row.key}
-                      className={`border-b last:border-0 transition-colors ${
-                        row.isDelta ? "cursor-pointer hover:bg-muted/40" : ""
-                      }`}
-                      onClick={() => {
-                        if (row.isDelta) {
-                          router.push(`/accounts/${encoded}/transactions/${row.nonce}`);
-                        }
-                      }}
-                    >
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{row.seq}</td>
-                      <td className="px-4 py-3"><CounterpartyCell counterparty={row.counterparty} /></td>
-                      <td className="px-4 py-3 text-sm">{row.label}</td>
-                      <td className="px-4 py-3 text-right"><AmountCell assets={row.assets} /></td>
-                      <td className="px-4 py-3">{row.statusNode}</td>
-                      <td className="px-4 py-3 text-muted-foreground text-xs">
-                        <Timestamp iso={row.timestamp} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-          {hasMore && (
-            <button
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="self-center text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-            >
-              {loadingMore ? "Loading…" : "Load more"}
-            </button>
-          )}
-        </>
+        <Card>
+          <CardContent className="p-0 overflow-x-auto">
+            <DataTable
+              columns={shownColumns}
+              rows={rows}
+              rowKey={(r) => r.key}
+              padding={pad}
+              clickable={(r) => r.isDelta}
+              onRowClick={(r) => { if (r.isDelta) router.push(`/accounts/${encoded}/transactions/${r.nonce}`); }}
+            />
+          </CardContent>
+        </Card>
       )}
+      {hasMore && rows.length > 0 && (
+        <p className="text-center text-label text-muted-foreground" title="Columns cover the entries loaded so far.">
+          Showing the latest {formatCount(allDeltas.length + allProposals.length)}
+        </p>
+      )}
+      <LoadMoreSentinel hasMore={hasMore} loading={loadingMore} onLoadMore={loadMore} />
     </div>
   );
 }

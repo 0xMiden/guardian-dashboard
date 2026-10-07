@@ -91,6 +91,16 @@ describe("AccountsPanel", () => {
     expect(screen.getByText("Guardian offline")).toBeInTheDocument();
   });
 
+  // The panel used to return early on error, taking the toolbar with it, so
+  // the Refresh that is the way out of that state was gone. Activity kept its
+  // toolbar; now both do.
+  it("keeps the toolbar up when the Guardian did not answer", () => {
+    useSWR.mockReturnValue({ data: undefined, error: new FetchError("Guardian offline", 503) });
+    render(<AccountsPanel />);
+    expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
+    expect(screen.getByText("Any status")).toBeInTheDocument();
+  });
+
   it("names the missing permission rather than the status code", () => {
     useSWR.mockReturnValue({
       data: undefined,

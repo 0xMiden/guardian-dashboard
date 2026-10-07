@@ -3,9 +3,10 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import useSWR, { mutate } from "swr";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronUp, ChevronDown, ChevronsUpDown, Download, Snowflake } from "lucide-react";
+import { Download, Snowflake } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { DataTable } from "@/components/ui/DataTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardAccountSummary, PagedResult } from "@openzeppelin/guardian-operator-client";
 import posthog from "posthog-js";
@@ -17,7 +18,7 @@ import { stateBadge } from "@/components/accounts/StateBadge";
 import { Button } from "@/components/ui/Button";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
-import { TableControls, useTablePrefs, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
+import { TableControls, useTablePrefs, useSort, sortRows, LoadMoreSentinel, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
 import { StatStrip, refreshStatStrip, STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
 import { fetcher } from "@/lib/utils";
 import { isWalletAccount, matchesAccountId, looksLikeAccountId, accountState, accountsToCsv, formatCount } from "@/lib/format";
@@ -27,7 +28,6 @@ type AccountKind = "all" | "wallet" | "other";
 type AccountState = "all" | "active" | "frozen" | "released";
 type SnapshotTarget = { accountId: string; updatedAt: string };
 type SortKey = "status" | "signers" | "assets" | "created" | "updated";
-type Sort = { key: SortKey; dir: "asc" | "desc" };
 type ColumnKey = "index" | "id" | "status" | "type" | "signers" | "pending" | "assets" | "created" | "updated";
 
 // The row number and the account id are what make a row identifiable, so they
@@ -70,46 +70,7 @@ function sortValue(a: DashboardAccountSummary, key: SortKey, assets: Record<stri
 // carry. `ListAccountsOptions` is limit/cursor/paused with no ordering, so a
 // full-inventory sort would mean paging the whole Guardian first. Upgrade path is an
 // order parameter on the Guardian's list endpoints.
-function sortAccounts(items: DashboardAccountSummary[], sort: Sort, assets: Record<string, number | null>) {
-  return [...items].sort((a, b) => {
-    const av = sortValue(a, sort.key, assets);
-    const bv = sortValue(b, sort.key, assets);
-    if (av === null || bv === null) return av === bv ? 0 : av === null ? 1 : -1;
-    const cmp = typeof av === "string" ? av.localeCompare(bv as string) : av - (bv as number);
-    return sort.dir === "asc" ? cmp : -cmp;
-  });
-}
-
-function SortableHeader({
-  label, sortKey, sort, onSort, align = "left", padding = "px-4 py-3",
-}: {
-  label: string;
-  sortKey: SortKey;
-  sort: Sort | null;
-  onSort: (key: SortKey) => void;
-  align?: "left" | "right";
-  padding?: string;
-}) {
-  const active = sort?.key === sortKey;
-  return (
-    <th
-      className={`${padding} text-label ${align === "right" ? "text-right" : "text-left"}`}
-      aria-sort={active ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"}
-    >
-      <button
-        onClick={() => onSort(sortKey)}
-        className={`inline-flex items-center gap-1 rounded-lg transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "text-foreground" : ""}`}
-      >
-        {label}
-        {active
-          ? (sort!.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)
-          : <ChevronsUpDown className="h-3 w-3 opacity-40" />}
-      </button>
-    </th>
-  );
-}
-
-type Column = TableColumn<DashboardAccountSummary, ColumnKey> & { sortKey?: SortKey };
+type Column = TableColumn<DashboardAccountSummary, ColumnKey, SortKey>;
 
 export function AccountsPanel() {
   const pausedOnly = useSearchParams().get("paused") === "true";
@@ -135,15 +96,8 @@ export function AccountsPanel() {
   const [state, setState] = useState<AccountState>("all");
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-  // null is the Guardian's own order. Clicking a header cycles desc, asc, back to
-  // null, so there is a way back to the order the rows arrived in.
-  const [sort, setSort] = useState<Sort | null>(null);
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const { sort, toggleSort } = useSort<SortKey>();
   const { density, hidden, setDensity, toggleColumn } = useTablePrefs<ColumnKey>("accounts", HIDEABLE);
-
-  const toggleSort = useCallback((key: SortKey) => {
-    setSort((s) => (s?.key !== key ? { key, dir: "desc" } : s.dir === "desc" ? { key, dir: "asc" } : null));
-  }, []);
 
   const initialCursor = data?.nextCursor ?? null;
   // undefined → haven't paginated yet, check initialCursor from SWR
@@ -263,28 +217,6 @@ export function AccountsPanel() {
     }
   }, [data, extraItems, listKey]);
 
-  // Keep a stable ref to loadMore so the observer never needs to be rebuilt on cursor changes
-  const loadMoreRef = useRef(loadMore);
-  useEffect(() => { loadMoreRef.current = loadMore; }, [loadMore]);
-
-  // Infinite scroll — rebuilt only when the sentinel appears/disappears (hasMore flips)
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    let busy = false;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !busy) {
-          busy = true;
-          loadMoreRef.current().finally(() => { busy = false; });
-        }
-      },
-      { rootMargin: "200px" }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [hasMore]);
-
   // A row entering view queues its asset total. Rows stay observed rather than
   // being unobserved after first sight: the queue key includes `updatedAt`, so
   // an account that changes re-queues on its own the next time it is on screen.
@@ -316,24 +248,7 @@ export function AccountsPanel() {
     return () => observer.disconnect();
   }, [renderedKey, queueSnapshot]);
 
-  if (!data && !error) {
-    return (
-      <div className="space-y-2">
-        {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
-      </div>
-    );
-  }
-
-  // Keep showing cached rows on a failed revalidation — SWR retries in the background
-  if (error && !data) {
-    return (
-      <div className="rounded-lg border border-dashed">
-        <ErrorPanel error={error} onRetry={() => revalidate()} />
-      </div>
-    );
-  }
-
-  const items = sort ? sortAccounts(filtered, sort, perAccount) : filtered;
+  const items = sortRows(filtered, sort, (a, key) => sortValue(a, key, perAccount));
 
   // What the Guardian holds, from the same aggregate that feeds the stat strip,
   // for the "showing N of M" note below the table. Under the frozen filter the
@@ -451,23 +366,11 @@ export function AccountsPanel() {
   const shownColumns = columns.filter((c) => !hidden.has(c.key));
   const pad = CELL_PADDING[density];
 
-  if (!loaded.length) {
-    // An empty *filtered* list is not an empty Guardian. Saying "no accounts
-    // registered" to someone who arrived from the frozen count would be flatly
-    // untrue, and would strand them with no way back.
-    return pausedOnly ? (
-      <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-lg border border-dashed text-data text-muted-foreground">
-        <p>No accounts are frozen.</p>
-        <Link href="/accounts" className="underline-offset-4 hover:text-foreground hover:underline">
-          Show all accounts
-        </Link>
-      </div>
-    ) : (
-      <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-data text-muted-foreground">
-        No accounts registered on this Guardian yet.
-      </div>
-    );
-  }
+  // Keep showing cached rows on a failed revalidation — SWR retries in the background.
+  // The toolbar stays up in every state, as it does on Activity: Refresh is the
+  // way out of the error state, so it cannot leave with the rows.
+  const loading = !data && !error;
+  const unavailable = error && !data;
 
   return (
     <div className="flex flex-col gap-4">
@@ -528,53 +431,41 @@ export function AccountsPanel() {
           <RefreshButton onClick={refresh} busy={refreshing} />
         </div>
       </div>
+      {loading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+        </div>
+      ) : unavailable ? (
+        <div className="rounded-lg border border-dashed">
+          <ErrorPanel error={error} onRetry={() => revalidate()} />
+        </div>
+      ) : !loaded.length ? (
+        // An empty *filtered* list is not an empty Guardian. Saying "no accounts
+        // registered" to someone who arrived from the frozen count would be flatly
+        // untrue. The banner above carries the way back.
+        pausedOnly ? (
+          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-data text-muted-foreground">
+            No accounts are frozen.
+          </div>
+        ) : (
+          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-data text-muted-foreground">
+            No accounts registered on this Guardian yet.
+          </div>
+        )
+      ) : (
       <Card>
         <CardContent className="p-0 overflow-x-auto">
-          {/* table-fixed + colgroup so the columns keep their widths when a
-              filter changes which rows are mounted. Auto layout re-measured the
-              content on every switch, and the whole table jumped. Same pattern
-              as the Activity table. */}
-          <table className="w-full table-fixed">
-            <colgroup>
-              {shownColumns.map((c) => <col key={c.key} className={c.width} />)}
-            </colgroup>
-            <thead>
-              <tr className="border-b text-muted-foreground">
-                {shownColumns.map((c) => c.sortKey ? (
-                  <SortableHeader
-                    key={c.key}
-                    label={c.label}
-                    sortKey={c.sortKey}
-                    sort={sort}
-                    onSort={toggleSort}
-                    align={c.align}
-                    padding={pad}
-                  />
-                ) : (
-                  <th key={c.key} className={`${pad} text-label ${c.align === "right" ? "text-right" : "text-left"}`}>
-                    {c.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody ref={tbodyRef}>
-              {items.map((a, i) => (
-                <tr
-                  key={a.accountId}
-                  data-account-id={a.accountId}
-                  data-updated-at={a.updatedAt}
-                  className="border-b last:border-0 cursor-pointer hover:bg-muted/40 transition-colors"
-                  onClick={() => { openAccount(a); router.push(`/accounts/${a.accountId}`); }}
-                >
-                  {shownColumns.map((c) => (
-                    <td key={c.key} className={`${pad} ${c.align === "right" ? "text-right" : ""} ${c.cellClass}`}>
-                      {c.cell(a, i)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            columns={shownColumns}
+            rows={items}
+            rowKey={(a) => a.accountId}
+            padding={pad}
+            sort={sort}
+            onSort={toggleSort}
+            onRowClick={(a) => { openAccount(a); router.push(`/accounts/${a.accountId}`); }}
+            rowProps={(a) => ({ "data-account-id": a.accountId, "data-updated-at": a.updatedAt })}
+            tbodyRef={tbodyRef}
+          />
           {!items.length && (
             <div className="px-4 py-6 text-center text-xs text-muted-foreground">
               <p>
@@ -594,6 +485,7 @@ export function AccountsPanel() {
           )}
         </CardContent>
       </Card>
+      )}
       {total > loaded.length && (
         <p
           className="text-center text-label text-muted-foreground"
@@ -602,16 +494,7 @@ export function AccountsPanel() {
           Showing {formatCount(loaded.length)} of {formatCount(total)}
         </p>
       )}
-      {hasMore && (
-        <>
-          <div ref={sentinelRef} className="h-1" />
-          {loadingMore && (
-            <div className="space-y-2">
-              {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
-            </div>
-          )}
-        </>
-      )}
+      <LoadMoreSentinel hasMore={hasMore} loading={loadingMore} onLoadMore={loadMore} />
     </div>
   );
 }

@@ -99,22 +99,29 @@ export function statusReasonText(reason?: string): string | undefined {
   return STATUS_REASONS[reason] ?? reason.replace(/_/g, " ");
 }
 
+/**
+ * The word the badge shows for a delta status, also what the CSV exports.
+ * `retained` arrived in Guardian 0.16.1 (issue #345): the Guardian gave up
+ * verifying this candidate but keeps it for background reconciliation, so it
+ * may still recover. "recovering" says that; the raw word does not.
+ */
+export function deltaStatusLabel(status: string): string {
+  if (status === "canonical") return "confirmed";
+  if (status === "candidate") return "submitted";
+  if (status === "retained") return "recovering";
+  return status;
+}
+
+export function proposalStatusLabel(collected: number, required: number): string {
+  return `${collected}/${required} signed`;
+}
+
 export function deltaStatusBadge(status: string, statusReason?: string) {
-  if (status === "canonical") return <Badge className="bg-state-active text-white">confirmed</Badge>;
-  if (status === "candidate") return <Badge className="bg-state-pending text-white">submitted</Badge>;
-  // `retained` arrived in Guardian 0.16.1 (issue #345): the Guardian gave up
-  // verifying this candidate but keeps it for background reconciliation, so it
-  // may still recover. "recovering" says that; the raw word does not.
-  if (status === "retained") {
-    return (
-      <Badge className="bg-state-pending text-white" title={statusReasonText(statusReason)}>
-        recovering
-      </Badge>
-    );
-  }
+  if (status === "canonical") return <Badge className="bg-state-active text-white">{deltaStatusLabel(status)}</Badge>;
+  const tone = status === "candidate" || status === "retained" ? "bg-state-pending" : "bg-state-neutral";
   return (
-    <Badge className="bg-state-neutral text-white" title={statusReasonText(statusReason)}>
-      {status}
+    <Badge className={`${tone} text-white`} title={statusReasonText(statusReason)}>
+      {deltaStatusLabel(status)}
     </Badge>
   );
 }
@@ -126,7 +133,7 @@ export function proposalStatusBadge(collected: number, required: number) {
       variant="outline"
       className={full ? "border-state-active text-state-active" : "border-state-pending text-state-pending"}
     >
-      {collected}/{required} signed
+      {proposalStatusLabel(collected, required)}
     </Badge>
   );
 }

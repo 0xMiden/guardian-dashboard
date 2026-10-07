@@ -88,7 +88,48 @@ describe("TransactionsPanel", () => {
     mockFeeds([delta("0xaaa111", 1)]);
     render(<TransactionsPanel />);
     fireEvent.change(screen.getByLabelText("Filter by account ID"), { target: { value: "0xnothere" } });
-    expect(screen.getByText(/in the entries loaded so far/i)).toBeInTheDocument();
+    expect(screen.getByText(/among the 1 loaded so far/i)).toBeInTheDocument();
+  });
+
+  // Same controls as Accounts: sort by header, export what is shown, and the
+  // next page arrives by scrolling rather than a button only this table had.
+  it("sorts by date when the header is clicked, and returns to feed order", () => {
+    const older = { ...delta("0xold", 1), statusTimestamp: "2026-01-01T00:00:00Z" };
+    const newer = { ...delta("0xnew", 2), statusTimestamp: "2026-02-01T00:00:00Z" };
+    mockFeeds([older, newer]);
+    const { container } = render(<TransactionsPanel />);
+    const ids = () => [...container.querySelectorAll("tbody tr")].map((r) => r.textContent?.slice(0, 5));
+    expect(ids()).toEqual(["0xnew", "0xold"]);
+    const header = screen.getByRole("button", { name: /^date/i });
+    fireEvent.click(header);
+    fireEvent.click(header);
+    expect(header.closest("th")).toHaveAttribute("aria-sort", "ascending");
+    expect(ids()).toEqual(["0xold", "0xnew"]);
+    fireEvent.click(header);
+    expect(ids()).toEqual(["0xnew", "0xold"]);
+  });
+
+  it("exports the rows shown, and nothing when there are none", () => {
+    mockFeeds([delta("0xaaa111", 1)]);
+    render(<TransactionsPanel />);
+    const button = screen.getByRole("button", { name: /export csv/i });
+    expect(button).not.toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Filter by account ID"), { target: { value: "0xnothere" } });
+    expect(button).toBeDisabled();
+  });
+
+  it("pages by scrolling, like Accounts, and says how deep the table goes", () => {
+    useSWR.mockImplementation((key: string) => {
+      if (typeof key === "string" && key.startsWith("/api/global-deltas")) {
+        return { data: { items: [delta("0xaaa111", 1)], nextCursor: "page2" }, error: undefined };
+      }
+      if (key === "/api/global-proposals") return { data: { items: [], nextCursor: null }, error: undefined };
+      return { data: undefined, error: undefined };
+    });
+    render(<TransactionsPanel />);
+    expect(screen.queryByRole("button", { name: /load more/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId("load-more-sentinel")).toBeInTheDocument();
+    expect(screen.getByText(/Showing the latest 1/)).toBeInTheDocument();
   });
 
   // The two aggregate keys used to be refreshed with a `fetch(...?refresh=1)`

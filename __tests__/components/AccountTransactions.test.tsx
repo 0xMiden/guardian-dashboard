@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { AccountTransactions } from "@/components/accounts/AccountTransactions";
+import { FetchError } from "@/lib/utils";
 
 vi.mock("swr", () => ({ default: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: vi.fn(() => ({ push: vi.fn(), back: vi.fn() })) }));
@@ -21,6 +22,27 @@ function mockFeeds(deltas: { data?: unknown; error?: Error }, proposals: { data?
 }
 
 beforeEach(() => vi.clearAllMocks());
+
+// Rebuilt on the same pieces as the global Activity table: it polls, so it
+// gets a Refresh; it has columns, so it gets the column controls; "#" meant
+// the row number on Accounts and the nonce here, so the column says which.
+describe("AccountTransactions controls", () => {
+  it("carries the same toolbar as the global Activity table", () => {
+    mockFeeds({ data: { items: [delta(3)], nextCursor: null } }, { data: { items: [], nextCursor: null } });
+    render(<AccountTransactions accountId="0xabc123" />);
+    expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /columns/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Nonce" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /load more/i })).not.toBeInTheDocument();
+  });
+
+  it("names the failure the way every other table does", () => {
+    mockFeeds({ error: new FetchError("Guardian offline", 503) }, { data: { items: [], nextCursor: null } });
+    render(<AccountTransactions accountId="0xabc123" />);
+    expect(screen.getByText("Guardian unavailable")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
+  });
+});
 
 // A failed proposals fetch used to count as "still loading", so the skeleton
 // never cleared and the deltas that had arrived were never shown.

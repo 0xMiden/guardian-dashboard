@@ -132,7 +132,7 @@ export function AccountTransactions({ accountId }: Props) {
                     <th className="px-4 py-3 text-left font-medium">#</th>
                     <th className="px-4 py-3 text-left font-medium">To / From</th>
                     <th className="px-4 py-3 text-left font-medium">Activity</th>
-                    <th className="px-4 py-3 text-left font-medium">Amount</th>
+                    <th className="px-4 py-3 text-right font-medium">Amount</th>
                     <th className="px-4 py-3 text-left font-medium">Status</th>
                     <th className="px-4 py-3 text-left font-medium">Date</th>
                   </tr>
@@ -153,7 +153,7 @@ export function AccountTransactions({ accountId }: Props) {
                       <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{row.seq}</td>
                       <td className="px-4 py-3"><CounterpartyCell counterparty={row.counterparty} /></td>
                       <td className="px-4 py-3 text-sm">{row.label}</td>
-                      <td className="px-4 py-3"><AmountCell assets={row.assets} /></td>
+                      <td className="px-4 py-3 text-right"><AmountCell assets={row.assets} /></td>
                       <td className="px-4 py-3">{row.statusNode}</td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
                         <Timestamp iso={row.timestamp} />

@@ -13,6 +13,7 @@ import { CopyableId } from "@/components/ui/CopyableId";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
 import { FilterChip } from "@/components/ui/FilterChip";
+import { stateBadge } from "@/components/accounts/StateBadge";
 import { Button } from "@/components/ui/Button";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
@@ -52,18 +53,6 @@ export const ACCOUNTS_KEY = `/api/accounts?limit=${PAGE_SIZE}`;
 const accountsKey = (pausedOnly: boolean) =>
   pausedOnly ? `${ACCOUNTS_KEY}&paused=true` : ACCOUNTS_KEY;
 
-// Frozen moved off orange: orange is the brand accent now, and a badge in it
-// would read as something to click rather than a state the account is in.
-const STATE_TONE: Record<string, string> = {
-  released: "bg-state-released",
-  frozen: "bg-state-frozen",
-  active: "bg-state-active",
-};
-
-function statusBadge(status: string, pausedAt: string | null, releasedAt?: string | null) {
-  const state = accountState(status, pausedAt, releasedAt);
-  return <Badge className={`${STATE_TONE[state] ?? "bg-state-neutral"} text-white`}>{state}</Badge>;
-}
 
 // null sorts last in both directions: a row whose asset total was never fetched
 // is unknown, and ordering it as zero would read as an empty account.
@@ -163,7 +152,6 @@ export function AccountsPanel() {
   const hasMore = nextCursor === undefined ? initialCursor !== null : nextCursor !== null;
 
   const loaded = [...(data?.items ?? []), ...extraItems];
-  const walletCount = loaded.filter(isWalletAccount).length;
   const stateOf = (a: DashboardAccountSummary) => accountState(a.stateStatus, a.pausedAt, a.releasedAt);
   const filtered = loaded.filter(
     (a) =>
@@ -347,27 +335,10 @@ export function AccountsPanel() {
 
   const items = sort ? sortAccounts(filtered, sort, perAccount) : filtered;
 
-  // The chips count what the Guardian holds, from the same paged walk that feeds
-  // the stat strip above, so they no longer read as a total while showing one
-  // page. Until that answers, they fall back to the loaded rows, which is what
-  // they always were. The filters themselves still act on loaded rows, hence
-  // the "of" line beside them.
-  //
-  // Under the frozen filter the Guardian counts describe the wrong population:
-  // "All (173)" beside a single frozen row is a contradiction. The loaded rows
-  // *are* the whole frozen set, because that filter is applied server-side, so
-  // counting them is both correct and complete here.
-  const byState = (s: AccountState) => loaded.filter((a) => stateOf(a) === s).length;
-  const counts = stats?.counted != null && !pausedOnly
-    ? {
-        all: stats.counted, wallet: stats.wallet ?? 0, other: stats.other ?? 0,
-        frozen: stats.frozen ?? 0, released: stats.released ?? 0,
-        active: stats.counted - (stats.frozen ?? 0) - (stats.released ?? 0),
-      }
-    : {
-        all: loaded.length, wallet: walletCount, other: loaded.length - walletCount,
-        active: byState("active"), frozen: byState("frozen"), released: byState("released"),
-      };
+  // What the Guardian holds, from the same aggregate that feeds the stat strip,
+  // for the "showing N of M" note below the table. Under the frozen filter the
+  // loaded rows *are* the whole set, because that filter is applied server-side.
+  const total = stats?.counted != null && !pausedOnly ? stats.counted : loaded.length;
 
   // Exports exactly what the table shows: same filter, same sort, same rows.
   // ponytail: loaded rows only, so an export after scrolling three pages holds
@@ -425,7 +396,7 @@ export function AccountsPanel() {
     },
     {
       key: "status", label: "Status", width: "w-28", sortKey: "status", cellClass: "text-data",
-      cell: (a) => statusBadge(a.stateStatus, a.pausedAt, a.releasedAt),
+      cell: (a) => stateBadge(a.stateStatus, a.pausedAt, a.releasedAt),
     },
     {
       key: "type", label: "Type", width: "w-24", cellClass: "text-data",
@@ -434,7 +405,9 @@ export function AccountsPanel() {
           wallet
         </Badge>
       ) : (
-        <span className="text-muted-foreground text-xs">—</span>
+        // The word the Other chip filters on. A dash would say "unknown",
+        // and this is known: a multisig the wallet did not create.
+        <span className="text-muted-foreground text-xs">other</span>
       ),
     },
     {
@@ -454,7 +427,7 @@ export function AccountsPanel() {
       // The number a row exists to show, so it outranks everything beside it.
       // It used to be 12px and dimmed, which put it below the signer count and
       // level with its own column header.
-      key: "assets", label: "Total Assets", width: "w-32", align: "right", sortKey: "assets",
+      key: "assets", label: "Total assets", width: "w-32", align: "right", sortKey: "assets",
       cellClass: "text-figure",
       cell: (a) => typeof perAccount[a.accountId] === "number"
         ? <span className="tabular-nums text-foreground">${perAccount[a.accountId]!.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
@@ -491,7 +464,7 @@ export function AccountsPanel() {
       </div>
     ) : (
       <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-data text-muted-foreground">
-        No accounts registered on this Guardian server yet.
+        No accounts registered on this Guardian yet.
       </div>
     );
   }
@@ -515,24 +488,26 @@ export function AccountsPanel() {
       )}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <AccountIdFilter value={query} onChange={setQuery} />
+        {/* One chip group per column it filters, named after the column. No
+            counts: the Status group had none the aggregate could fill under
+            every filter, and a row where one group counts and the other does
+            not reads as two different controls. The "showing N of M" note
+            below the table carries the total. */}
         {([
-          ["all", `All (${counts.all.toLocaleString()})`],
-          ["wallet", `Wallet (${counts.wallet.toLocaleString()})`],
-          ["other", `Other (${counts.other.toLocaleString()})`],
+          ["all", "Any type"],
+          ["wallet", "Wallet"],
+          ["other", "Other"],
         ] as const).map(([value, label]) => (
           <FilterChip key={value} active={kind === value} onClick={() => setKind(value)}>
             {label}
           </FilterChip>
         ))}
-        {/* Lifecycle state, orthogonal to kind. An account whose owner switched
-            Guardian stays listed as released beside the active ones, and the
-            Overview's frozen count has its own server-side route in. */}
         <span aria-hidden className="mx-1 h-4 w-px bg-border" />
         {([
-          ["all", "Any state"],
-          ["active", `Active (${counts.active.toLocaleString()})`],
-          ["frozen", `Frozen (${counts.frozen.toLocaleString()})`],
-          ["released", `Released (${counts.released.toLocaleString()})`],
+          ["all", "Any status"],
+          ["active", "Active"],
+          ["frozen", "Frozen"],
+          ["released", "Released"],
         ] as const).map(([value, label]) => (
           <FilterChip key={value} active={state === value} onClick={() => setState(value)}>
             {label}
@@ -619,12 +594,12 @@ export function AccountsPanel() {
           )}
         </CardContent>
       </Card>
-      {counts.all > loaded.length && (
+      {total > loaded.length && (
         <p
           className="text-center text-label text-muted-foreground"
           title="Filters, sort and export cover the rows loaded so far."
         >
-          Showing {formatCount(loaded.length)} of {formatCount(counts.all)}
+          Showing {formatCount(loaded.length)} of {formatCount(total)}
         </p>
       )}
       {hasMore && (

@@ -154,14 +154,14 @@ export default function AdminPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-title">User Management</h1>
+      <h1 className="text-title">Admin</h1>
 
       {editing && <EditModal user={editing} onClose={() => setEditing(null)} />}
 
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-section text-muted-foreground">
-            Registered Users
+            Registered users
             <span className="ml-2 text-xs font-normal text-muted-foreground">Manage endpoint access and roles</span>
           </CardTitle>
         </CardHeader>

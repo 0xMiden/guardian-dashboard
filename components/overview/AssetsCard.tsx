@@ -29,7 +29,7 @@ export function AssetsCard() {
   return (
     <Card>
       <CardContent className="pt-4 pb-3">
-        <p className="text-xs text-muted-foreground mb-1">Assets (7d active)</p>
+        <p className="text-xs text-muted-foreground mb-1">Assets (updated last 7d)</p>
         {!data && !error ? (
           <Skeleton className="h-8 w-20 mt-1" />
         ) : data?.usd7d != null ? (
@@ -54,7 +54,7 @@ export function AssetsCard() {
             className="text-section text-muted-foreground"
             title={`Holdings in ${data.unpriced.toLocaleString()} faucet(s) with no price: not on the verified token list, or the price feed is unreachable. The Miden wallet shows the same holdings with no dollar figure.`}
           >
-            No priced assets
+            Unpriced
           </p>
         ) : data?.warming ? (
           // A 0.18.0 Guardian that has not finished its first pass, or one whose
@@ -74,7 +74,7 @@ export function AssetsCard() {
         ) : (
           <p
             className="text-stat text-muted-foreground"
-            title={error ? "The guardian server did not answer." : "Not computed yet."}
+            title={error ? "The Guardian did not answer." : "Not computed yet."}
           >
             —
           </p>

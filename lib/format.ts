@@ -128,7 +128,7 @@ export function accountsToCsv(
       a.accountIdBech32 ?? a.accountId,
       a.accountId,
       accountState(a.stateStatus, a.pausedAt, a.releasedAt),
-      isWalletAccount(a) ? "wallet" : "",
+      isWalletAccount(a) ? "wallet" : "other",
       a.authorizedSignerCount,
       a.hasPendingCandidate ? "pending" : "",
       // Blank rather than 0 when the row's total was never fetched, or when it

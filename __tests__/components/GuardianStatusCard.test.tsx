@@ -205,7 +205,7 @@ describe("GuardianStatusCard service status", () => {
     render(<GuardianStatusCard />);
     const line = screen.getByText(/stops computing above 1000 accounts/);
     expect(line).toHaveTextContent(
-      "Server reports itself degraded: the account breakdown by auth method stops " +
+      "The Guardian reports itself degraded: the account breakdown by auth method stops " +
         "computing above 1000 accounts (aggregation service is WIP).",
     );
     // The amber treatment is what said "something is wrong here".

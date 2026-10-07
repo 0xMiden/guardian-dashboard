@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { Button } from "@/components/ui/Button";
+import { stateBadge } from "@/components/accounts/StateBadge";
 import { ErrorPanel, describeError } from "@/components/ui/ErrorPanel";
 import Link from "next/link";
 import { ArrowLeft, Snowflake, Sun, ArrowLeftRight, ChevronDown, ChevronRight } from "lucide-react";
@@ -44,7 +45,7 @@ type SnapshotResponse = AccountSnapshot;
 const PAUSE_MODAL_COPY = {
   freeze: {
     endpoint: "pause",
-    title: "Freeze Account",
+    title: "Freeze account",
     description: "The account will be frozen immediately. All pending operations will be blocked until it is unfrozen.",
     event: "account_frozen",
     failure: "Failed to freeze account",
@@ -203,16 +204,16 @@ export function AccountDetail({ accountId }: Props) {
           </Button>
           {data && (
             isPaused ? (
-              <button
+              <Button
                 onClick={() => {
                   posthog.capture("account_unfreeze_clicked", { account_id: accountId });
                   setModal("unfreeze");
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-state-active text-state-active hover:bg-state-active/10 transition-colors"
+                className="text-label border-state-active text-state-active hover:bg-state-active/10"
               >
                 <Sun className="h-3.5 w-3.5" />
-                Unfreeze Account
-              </button>
+                Unfreeze account
+              </Button>
             ) : (
               <Button
                 onClick={() => {
@@ -222,7 +223,7 @@ export function AccountDetail({ accountId }: Props) {
                 className="text-label"
               >
                 <Snowflake className="h-3.5 w-3.5" />
-                Freeze Account
+                Freeze account
               </Button>
             )
           )}
@@ -248,22 +249,14 @@ export function AccountDetail({ accountId }: Props) {
             <CardContent className="divide-y">
               <Row
                 label="Status"
-                value={
-                  data!.releasedAt
-                    ? <Badge className="bg-state-released text-white">Released</Badge>
-                    : data!.pausedAt
-                    ? <Badge className="bg-state-frozen text-white">Frozen</Badge>
-                    : <Badge className={data!.stateStatus === "available" ? "bg-state-active text-white" : "bg-state-neutral text-white"}>
-                        {data!.stateStatus === "available" ? "Active" : data!.stateStatus}
-                      </Badge>
-                }
+                value={stateBadge(data!.stateStatus, data!.pausedAt, data!.releasedAt)}
               />
               {data!.releasedAt && (
                 <Row
                   label="Released"
                   value={
                     <span className="text-state-released text-xs">
-                      Switched to another guardian <Timestamp iso={data!.releasedAt} />
+                      Switched to another Guardian <Timestamp iso={data!.releasedAt} />
                     </span>
                   }
                 />
@@ -284,9 +277,10 @@ export function AccountDetail({ accountId }: Props) {
               <Row label="Auth" value={data!.authScheme === "falcon" ? "Falcon (post-quantum)" : data!.authScheme.toUpperCase()} />
               <Row
                 label="Pending update"
+                // Same words as the table's Pending column.
                 value={data!.hasPendingCandidate
-                  ? <Badge variant="outline" className="border-state-pending text-state-pending">Yes</Badge>
-                  : "No"}
+                  ? <Badge variant="outline" className="border-state-pending text-state-pending">pending</Badge>
+                  : <span className="text-muted-foreground">—</span>}
               />
               <Row label="Signers" value={data!.authorizedSignerIds.length} />
               <Row label="Created" value={<Timestamp iso={data!.createdAt} />} />

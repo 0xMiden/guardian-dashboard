@@ -45,7 +45,7 @@ describe("AssetsCard", () => {
   it("says so when holdings exist but nothing prices them", () => {
     mockData({ usd7d: null, computedAt: "2026-10-07T12:00:00Z", priced: 0, unpriced: 104 });
     render(<AssetsCard />);
-    expect(screen.getByText("No priced assets")).toBeInTheDocument();
+    expect(screen.getByText("Unpriced")).toBeInTheDocument();
     expect(screen.getByTitle(/104 faucet/)).toBeInTheDocument();
     expect(screen.queryByText("—")).not.toBeInTheDocument();
   });

@@ -117,8 +117,9 @@ export function proposalStatusLabel(collected: number, required: number): string
 }
 
 export function deltaStatusBadge(status: string, statusReason?: string) {
-  if (status === "canonical") return <Badge className="bg-state-active text-white">{deltaStatusLabel(status)}</Badge>;
-  const tone = status === "candidate" || status === "retained" ? "bg-state-pending" : "bg-state-neutral";
+  const tone = status === "canonical" ? "bg-state-active"
+    : status === "candidate" || status === "retained" ? "bg-state-pending"
+    : "bg-state-neutral";
   return (
     <Badge className={`${tone} text-white`} title={statusReasonText(statusReason)}>
       {deltaStatusLabel(status)}

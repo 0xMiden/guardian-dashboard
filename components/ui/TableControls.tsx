@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Rows2, Rows3, Columns3, Check, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { Rows2, Rows3, Columns3, Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -196,35 +196,6 @@ export function sortRows<T, S extends string>(
   });
 }
 
-export function SortableHeader<S extends string>({
-  label, sortKey, sort, onSort, align = "left", padding,
-}: {
-  label: string;
-  sortKey: S;
-  sort: Sort<S> | null;
-  onSort: (key: S) => void;
-  align?: "left" | "right";
-  padding: string;
-}) {
-  const active = sort?.key === sortKey;
-  return (
-    <th
-      className={`${padding} text-label ${align === "right" ? "text-right" : "text-left"}`}
-      aria-sort={active ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"}
-    >
-      <button
-        onClick={() => onSort(sortKey)}
-        className={`inline-flex items-center gap-1 rounded-lg transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "text-foreground" : ""}`}
-      >
-        {label}
-        {active
-          ? (sort!.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)
-          : <ChevronsUpDown className="h-3 w-3 opacity-40" />}
-      </button>
-    </th>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Paging, shared so every table loads the same way: the next page arrives as
 // this sentinel scrolls into view. Accounts had this and both Activity tables
@@ -242,7 +213,11 @@ export function LoadMoreSentinel({
   const loadMoreRef = useRef(onLoadMore);
   useEffect(() => { loadMoreRef.current = onLoadMore; }, [onLoadMore]);
 
-  // Rebuilt only when the sentinel appears or disappears (hasMore flips).
+  // Re-armed when a page lands as well as when hasMore flips: the observer only
+  // fires on a visibility change, and a sentinel still on screen after a page
+  // of rows that all fell to a client-side filter would otherwise never ask
+  // for the next one. ponytail: a search matching nothing then pages through
+  // the whole feed, one request per page, which is what "keep scrolling" says.
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof IntersectionObserver === "undefined") return; // jsdom, older browsers
@@ -258,7 +233,7 @@ export function LoadMoreSentinel({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasMore]);
+  }, [hasMore, loading]);
 
   if (!hasMore) return null;
   return (

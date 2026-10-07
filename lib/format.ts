@@ -105,17 +105,17 @@ export function toCsv(rows: unknown[][]): string {
   return rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
 }
 
-/** One row of either activity table, in the words the table shows. */
-export type ActivityCsvRow = {
-  accountId: string;
-  counterparty?: { accountId: string; direction: string };
-  label: string;
-  assets?: { amount?: string }[];
-  status: string;
-  timestamp: string;
-};
-
-export function activityToCsv(rows: ActivityCsvRow[]): string {
+/** The activity table's rows, in the words the table shows. */
+export function activityToCsv(
+  rows: {
+    accountId: string;
+    counterparty?: { accountId: string; direction: string };
+    label: string;
+    assets?: { amount?: string }[];
+    status: string;
+    timestamp: string;
+  }[],
+): string {
   return toCsv([
     ["Account ID", "To / From", "Direction", "Activity", "Amount", "Status", "Date"],
     ...rows.map((r) => [

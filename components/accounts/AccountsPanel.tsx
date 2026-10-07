@@ -18,7 +18,7 @@ import { stateBadge } from "@/components/accounts/StateBadge";
 import { Button } from "@/components/ui/Button";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
-import { TableControls, useTablePrefs, useSort, sortRows, LoadMoreSentinel, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
+import { TableControls, useTablePrefs, useSort, sortRows, LoadMoreSentinel, type TableColumn } from "@/components/ui/TableControls";
 import { StatStrip, refreshStatStrip, STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
 import { fetcher, downloadCsv } from "@/lib/utils";
 import { isWalletAccount, matchesAccountId, looksLikeAccountId, accountState, accountsToCsv, formatCount } from "@/lib/format";
@@ -53,7 +53,6 @@ export const ACCOUNTS_KEY = `/api/accounts?limit=${PAGE_SIZE}`;
 const accountsKey = (pausedOnly: boolean) =>
   pausedOnly ? `${ACCOUNTS_KEY}&paused=true` : ACCOUNTS_KEY;
 
-
 // null sorts last in both directions: a row whose asset total was never fetched
 // is unknown, and ordering it as zero would read as an empty account.
 function sortValue(a: DashboardAccountSummary, key: SortKey, assets: Record<string, number | null>): string | number | null {
@@ -66,16 +65,10 @@ function sortValue(a: DashboardAccountSummary, key: SortKey, assets: Record<stri
   }
 }
 
-// ponytail: sorts the rows already paged in, the same ceiling the filters above
-// carry. `ListAccountsOptions` is limit/cursor/paused with no ordering, so a
-// full-inventory sort would mean paging the whole Guardian first. Upgrade path is an
-// order parameter on the Guardian's list endpoints.
-type Column = TableColumn<DashboardAccountSummary, ColumnKey, SortKey>;
-
 export function AccountsPanel() {
   const pausedOnly = useSearchParams().get("paused") === "true";
   const listKey = accountsKey(pausedOnly);
-  const { data, error, mutate: revalidate } = useSWR<AccountsPage>(listKey, fetcher, { refreshInterval: 30_000 });
+  const { data, error } = useSWR<AccountsPage>(listKey, fetcher, { refreshInterval: 30_000 });
   // Same key StatStrip already polls, so SWR serves both from one request.
   const { data: stats } = useSWR<AccountStats>(STATS_KEY, fetcher);
   const router = useRouter();
@@ -248,6 +241,10 @@ export function AccountsPanel() {
     return () => observer.disconnect();
   }, [renderedKey, queueSnapshot]);
 
+  // ponytail: sorts the rows already paged in, the same ceiling the filters above
+  // carry. `ListAccountsOptions` is limit/cursor/paused with no ordering, so a
+  // full-inventory sort would mean paging the whole Guardian first. Upgrade path is an
+  // order parameter on the Guardian's list endpoints.
   const items = sortRows(filtered, sort, (a, key) => sortValue(a, key, perAccount));
 
   // What the Guardian holds, from the same aggregate that feeds the stat strip,
@@ -280,7 +277,7 @@ export function AccountsPanel() {
   // hiding a column cannot leave the three lists out of step. Built here rather
   // than at module scope because the cells read the asset totals and the
   // in-flight set, which change as rows scroll into view.
-  const columns: Column[] = [
+  const columns: TableColumn<DashboardAccountSummary, ColumnKey, SortKey>[] = [
     {
       key: "index", label: "#", width: "w-12", align: "right",
       cellClass: "text-data text-muted-foreground tabular-nums",
@@ -351,7 +348,6 @@ export function AccountsPanel() {
     },
   ];
   const shownColumns = columns.filter((c) => !hidden.has(c.key));
-  const pad = CELL_PADDING[density];
 
   // Keep showing cached rows on a failed revalidation — SWR retries in the background.
   // The toolbar stays up in every state, as it does on Activity: Refresh is the
@@ -424,53 +420,47 @@ export function AccountsPanel() {
         </div>
       ) : unavailable ? (
         <div className="rounded-lg border border-dashed">
-          <ErrorPanel error={error} onRetry={() => revalidate()} />
+          <ErrorPanel error={error} onRetry={refresh} />
         </div>
       ) : !loaded.length ? (
         // An empty *filtered* list is not an empty Guardian. Saying "no accounts
         // registered" to someone who arrived from the frozen count would be flatly
         // untrue. The banner above carries the way back.
-        pausedOnly ? (
-          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-data text-muted-foreground">
-            No accounts are frozen.
-          </div>
-        ) : (
-          <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-data text-muted-foreground">
-            No accounts registered on this Guardian yet.
-          </div>
-        )
+        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-data text-muted-foreground">
+          {pausedOnly ? "No accounts are frozen." : "No accounts registered on this Guardian yet."}
+        </div>
       ) : (
-      <Card>
-        <CardContent ref={tableRef} className="p-0 overflow-x-auto">
-          <DataTable
-            columns={shownColumns}
-            rows={items}
-            rowKey={(a) => a.accountId}
-            padding={pad}
-            sort={sort}
-            onSort={toggleSort}
-            onRowClick={(a) => { openAccount(a); router.push(`/accounts/${a.accountId}`); }}
-            rowProps={(a) => ({ "data-account-id": a.accountId, "data-updated-at": a.updatedAt })}
-          />
-          {!items.length && (
-            <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-              <p>
-                {query
-                  ? `No account matching "${query.trim()}" among the ${loaded.length} loaded so far`
-                  : `No ${[state, kind].filter((f) => f !== "all").join(" ")} accounts among the ${loaded.length} loaded so far`}
-                {hasMore ? ", keep scrolling to load more." : "."}
-              </p>
-              {/* The filter can only see rows that have been paged in. A full ID
-                  needs no search endpoint to open, so offer that directly. */}
-              {looksLikeAccountId(query) && (
-                <Button onClick={() => router.push(`/accounts/${encodeURIComponent(query.trim())}`)} size="sm" className="mt-2">
-                  Open this account directly
-                </Button>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        <Card>
+          <CardContent ref={tableRef} className="p-0 overflow-x-auto">
+            <DataTable
+              columns={shownColumns}
+              rows={items}
+              rowKey={(a) => a.accountId}
+              density={density}
+              sort={sort}
+              onSort={toggleSort}
+              onRowClick={(a) => { openAccount(a); router.push(`/accounts/${a.accountId}`); }}
+              rowProps={(a) => ({ "data-account-id": a.accountId, "data-updated-at": a.updatedAt })}
+            />
+            {!items.length && (
+              <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+                <p>
+                  {query
+                    ? `No account matching "${query.trim()}" among the ${formatCount(loaded.length)} loaded so far`
+                    : `No ${[state, kind].filter((f) => f !== "all").join(" ")} accounts among the ${formatCount(loaded.length)} loaded so far`}
+                  {hasMore ? ", keep scrolling to load more." : "."}
+                </p>
+                {/* The filter can only see rows that have been paged in. A full ID
+                    needs no search endpoint to open, so offer that directly. */}
+                {looksLikeAccountId(query) && (
+                  <Button onClick={() => router.push(`/accounts/${encodeURIComponent(query.trim())}`)} size="sm" className="mt-2">
+                    Open this account directly
+                  </Button>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
       {total > loaded.length && (
         <p

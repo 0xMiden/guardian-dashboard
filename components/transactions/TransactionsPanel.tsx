@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { DataTable } from "@/components/ui/DataTable";
-import { TableControls, useTablePrefs, useSort, sortRows, LoadMoreSentinel, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
+import { TableControls, useTablePrefs, useSort, sortRows, LoadMoreSentinel, type TableColumn } from "@/components/ui/TableControls";
 import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
 import { FilterChip } from "@/components/ui/FilterChip";
 import { StatStrip, refreshStatStrip } from "@/components/accounts/StatStrip";
@@ -192,12 +192,8 @@ export function TransactionsPanel() {
 
   const allDeltas = [...(deltasData?.items ?? []), ...extraDeltas];
   const allProposals = proposalsData?.items ?? [];
-  const loadedCount = allDeltas.length + (filter === "" || proposalsOnly ? allProposals.length : 0);
-  const rows = sortRows(
-    toRows(allDeltas, allProposals, filter).filter((r) => matchesAccountId(query, r.accountId)),
-    sort,
-    sortValue,
-  );
+  const loaded = toRows(allDeltas, allProposals, filter);
+  const rows = sortRows(loaded.filter((r) => matchesAccountId(query, r.accountId)), sort, sortValue);
 
   // A feed that failed has settled, so it must not hold the skeleton up: the
   // proposals feed failing used to leave the page on skeletons for good.
@@ -229,8 +225,6 @@ export function TransactionsPanel() {
     },
   ];
   const shownColumns = columns.filter((c) => !hidden.has(c.key));
-  const pad = CELL_PADDING[density];
-  const activeFilter = FILTERS.find((f) => f.value === filter && f.value !== "");
 
   return (
     <div className="flex flex-col gap-4">
@@ -262,7 +256,7 @@ export function TransactionsPanel() {
 
       {loading ? (
         <div className="space-y-2">
-          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
         </div>
       ) : unavailable ? (
         <div className="rounded-lg border border-dashed">
@@ -270,12 +264,11 @@ export function TransactionsPanel() {
         </div>
       ) : rows.length === 0 ? (
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed px-4 text-center text-data text-muted-foreground">
-          {/* Same sentence as Accounts. The search sees the entries loaded so
-              far: the Guardian's activity feeds take a cursor and a status, so
-              there is nothing to search with. */}
+          {/* The search sees the entries loaded so far: the Guardian's activity
+              feeds take a cursor and a status, so there is nothing to search with. */}
           {query
-            ? `No activity for an account matching "${query.trim()}" among the ${formatCount(loadedCount)} loaded so far${hasMoreDeltas && !proposalsOnly ? ", keep scrolling to load more." : "."}`
-            : `No ${activeFilter ? activeFilter.label.toLowerCase() + " " : ""}activity recorded on this Guardian yet.`}
+            ? `No activity for an account matching "${query.trim()}" among the ${formatCount(loaded.length)} loaded so far${hasMoreDeltas ? ", keep scrolling to load more." : "."}`
+            : "No activity found."}
         </div>
       ) : (
         <Card>
@@ -284,30 +277,26 @@ export function TransactionsPanel() {
               columns={shownColumns}
               rows={rows}
               rowKey={(r) => r.key}
-              padding={pad}
+              density={density}
               sort={sort}
               onSort={toggleSort}
-              onRowClick={(row) => {
-                if (!row.isPending) {
-                  router.push(`/accounts/${encodeURIComponent(row.accountId)}/transactions/${row.nonce}`);
-                } else {
-                  router.push(`/accounts/${encodeURIComponent(row.accountId)}`);
-                }
-              }}
+              onRowClick={(row) => router.push(
+                `/accounts/${encodeURIComponent(row.accountId)}${row.isPending ? "" : `/transactions/${row.nonce}`}`,
+              )}
             />
           </CardContent>
         </Card>
       )}
       {/* The feeds carry no total, so the note says how deep the table goes. */}
-      {hasMoreDeltas && !proposalsOnly && rows.length > 0 && (
+      {hasMoreDeltas && rows.length > 0 && (
         <p
           className="text-center text-label text-muted-foreground"
           title="Filters, sort and export cover the entries loaded so far."
         >
-          Showing the latest {formatCount(loadedCount)}
+          Showing the latest {formatCount(loaded.length)}
         </p>
       )}
-      <LoadMoreSentinel hasMore={hasMoreDeltas && !proposalsOnly} loading={loadingMore} onLoadMore={loadMore} />
+      <LoadMoreSentinel hasMore={hasMoreDeltas} loading={loadingMore} onLoadMore={loadMore} />
     </div>
   );
 }

@@ -10,7 +10,7 @@ import { Timestamp } from "@/components/ui/Timestamp";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { DataTable } from "@/components/ui/DataTable";
-import { TableControls, useTablePrefs, LoadMoreSentinel, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
+import { TableControls, useTablePrefs, LoadMoreSentinel, type TableColumn } from "@/components/ui/TableControls";
 import { fetcher } from "@/lib/utils";
 import { activityLabel, deltaStatusBadge, proposalStatusBadge, AmountCell, CounterpartyCell } from "@/components/transactions/activity-cells";
 import type { DashboardDeltaEntry, DashboardProposalEntry, PagedResult } from "@openzeppelin/guardian-operator-client";
@@ -39,10 +39,9 @@ interface Props {
 }
 
 /**
- * One account's activity. Same table, controls and paging as the global
- * Activity table; what differs is the nonce column in place of the account
- * column and the absence of status chips, since one account rarely has more
- * than a screen of rows.
+ * One account's activity, on the same table, controls and paging as the global
+ * Activity table. No chips, sort or export: one account rarely has more than
+ * a screen of rows, and the nonce column stands in for the account column.
  */
 export function AccountTransactions({ accountId }: Props) {
   const router = useRouter();
@@ -132,7 +131,6 @@ export function AccountTransactions({ accountId }: Props) {
     { key: "date", label: "Date", width: "w-40", cellClass: "text-data text-muted-foreground", cell: (r) => <Timestamp iso={r.timestamp} /> },
   ];
   const shownColumns = columns.filter((c) => !hidden.has(c.key));
-  const pad = CELL_PADDING[density];
 
   return (
     <div className="flex flex-col gap-4">
@@ -178,9 +176,9 @@ export function AccountTransactions({ accountId }: Props) {
               columns={shownColumns}
               rows={rows}
               rowKey={(r) => r.key}
-              padding={pad}
-              clickable={(r) => r.isDelta}
-              onRowClick={(r) => { if (r.isDelta) router.push(`/accounts/${encoded}/transactions/${r.nonce}`); }}
+              density={density}
+              // A proposal has no delta page yet; its row opens the account, as on Activity.
+              onRowClick={(r) => router.push(`/accounts/${encoded}${r.isDelta ? `/transactions/${r.nonce}` : ""}`)}
             />
           </CardContent>
         </Card>

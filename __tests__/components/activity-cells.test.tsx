@@ -85,14 +85,54 @@ describe("activityLabel", () => {
     expect(activityLabel(undefined, "switch_guardian")).toBe("Switch Guardian");
   });
 
-  // A type this build has never heard of must fall back to the category rather
-  // than to "State Change", which would throw away what the Guardian did say.
-  it("falls back to the category for an unknown proposal type", () => {
-    expect(activityLabel("custom", "custom_transaction")).toBe("Custom");
-    expect(activityLabel("some_new_category", "some_new_type")).toBe("some_new_category");
+  // A category this build has never heard of is still passed through rather
+  // than replaced by "State Change", which would throw away what the Guardian
+  // did say. Reached only when the proposal type cannot name itself; a type
+  // that can now wins, which is what "title-cases a type nobody has curated
+  // yet" below asserts.
+  it("passes an unknown category through as a last resort", () => {
+    expect(activityLabel("some_new_category", "Payload_Shaped")).toBe("some_new_category");
+    expect(activityLabel("some_new_category", undefined)).toBe("some_new_category");
   });
 
   it("has a last resort when the Guardian gives neither", () => {
     expect(activityLabel()).toBe("State Change");
+  });
+
+  // Proposal types are defined by the applications on Miden, not by the
+  // Guardian, and every one of them arrives under the `custom` category. Four
+  // new ones appeared between 2026-09-10 and 2026-10-06, so an unlisted type
+  // has to read as itself rather than as "Custom".
+  it("title-cases a type nobody has curated yet", () => {
+    expect(activityLabel("custom", "earn_deposit")).toBe("Earn Deposit");
+    expect(activityLabel("custom", "live_send")).toBe("Live Send");
+    expect(activityLabel("custom", "b2agg")).toBe("B2agg");
+  });
+
+  it("prefers a curated label over the derived one", () => {
+    // Title-casing these would give "P2id" and "Midenid Register".
+    expect(activityLabel("asset_transfer", "p2id")).toBe("Asset Transfer");
+    expect(activityLabel("custom", "midenid_register")).toBe("Miden ID Registered");
+  });
+
+  // `custom_transaction` really is an arbitrary script, so the generic word is
+  // the honest label and must survive the derived path.
+  it("keeps custom_transaction generic", () => {
+    expect(activityLabel("custom", "custom_transaction")).toBe("Custom");
+  });
+
+  // The live one is `usdcx_v1_` + ~1,500 characters of base32 holding a JSON
+  // recipe. That payload must never reach a table cell.
+  it("names the application behind an encoded payload without printing it", () => {
+    const encoded = "usdcx_v1_" + "pmrhezldnfygkvtfojzws33oei5dclbcmfrxi2lp".repeat(40);
+    expect(activityLabel("custom", encoded)).toBe("USDCx");
+  });
+
+  // Anything that does not look like a short deliberate token falls back to the
+  // category instead of being truncated into nonsense.
+  it("declines to derive a label from a payload-shaped type", () => {
+    expect(activityLabel("custom", "x".repeat(400))).toBe("Custom");
+    expect(activityLabel("custom", "Not_A_Wire_Token")).toBe("Custom");
+    expect(activityLabel(undefined, "y".repeat(400))).toBe("State Change");
   });
 });

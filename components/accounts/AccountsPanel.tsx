@@ -66,7 +66,7 @@ function statusBadge(status: string, pausedAt: string | null, releasedAt?: strin
 
 // null sorts last in both directions: a row whose asset total was never fetched
 // is unknown, and ordering it as zero would read as an empty account.
-function sortValue(a: DashboardAccountSummary, key: SortKey, assets: Record<string, number>): string | number | null {
+function sortValue(a: DashboardAccountSummary, key: SortKey, assets: Record<string, number | null>): string | number | null {
   switch (key) {
     case "status": return accountState(a.stateStatus, a.pausedAt, a.releasedAt);
     case "signers": return a.authorizedSignerCount;
@@ -80,7 +80,7 @@ function sortValue(a: DashboardAccountSummary, key: SortKey, assets: Record<stri
 // carry. `ListAccountsOptions` is limit/cursor/paused with no ordering, so a
 // full-inventory sort would mean paging the whole Guardian first. Upgrade path is an
 // order parameter on the Guardian's list endpoints.
-function sortAccounts(items: DashboardAccountSummary[], sort: Sort, assets: Record<string, number>) {
+function sortAccounts(items: DashboardAccountSummary[], sort: Sort, assets: Record<string, number | null>) {
   return [...items].sort((a, b) => {
     const av = sortValue(a, sort.key, assets);
     const bv = sortValue(b, sort.key, assets);
@@ -128,7 +128,9 @@ export function AccountsPanel() {
   // Same key StatStrip already polls, so SWR serves both from one request.
   const { data: stats } = useSWR<AccountStats>(STATS_KEY, fetcher);
   const router = useRouter();
-  const [perAccount, setPerAccount] = useState<Record<string, number>>({});
+  // A number is a dollar value, `null` a vault holding only tokens nothing
+  // prices (see lib/prices.ts), absent means not fetched.
+  const [perAccount, setPerAccount] = useState<Record<string, number | null>>({});
   // Which rows have a request out right now. One global "loading" flag put a
   // spinner on every row without a value, including rows that were never
   // requested and rows whose fetch had already failed.
@@ -182,7 +184,7 @@ export function AccountsPanel() {
       const query = rows.map((r) => encodeURIComponent(`${r.accountId}@${r.updatedAt}`)).join(",");
       const res = await fetch(`/api/accounts/snapshots?ids=${query}${refresh ? "&refresh=1" : ""}`);
       if (!res.ok) throw new Error(`snapshots ${res.status}`);
-      const data: Record<string, number> = await res.json();
+      const data: Record<string, number | null> = await res.json();
       setPerAccount((prev) => ({ ...prev, ...data }));
     } catch {
       // snapshots are best-effort — leave column as "—" on failure
@@ -442,8 +444,10 @@ export function AccountsPanel() {
       // level with its own column header.
       key: "assets", label: "Total Assets", width: "w-32", align: "right", sortKey: "assets",
       cellClass: "text-figure",
-      cell: (a) => perAccount[a.accountId] !== undefined
-        ? <span className="tabular-nums text-foreground">${perAccount[a.accountId].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+      cell: (a) => typeof perAccount[a.accountId] === "number"
+        ? <span className="tabular-nums text-foreground">${perAccount[a.accountId]!.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        : perAccount[a.accountId] === null
+        ? <span className="text-muted-foreground" title="Holds only tokens with no price: not on the verified token list, or the price feed is unreachable.">unpriced</span>
         : inFlight.has(a.accountId)
         ? <Skeleton className="ml-auto h-3 w-16" data-testid={`assets-loading-${a.accountId}`} />
         : <span className="text-muted-foreground" title="Not fetched yet. Totals load for rows as they scroll into view.">—</span>,

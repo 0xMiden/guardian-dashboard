@@ -4,33 +4,26 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetcher } from "@/lib/utils";
 
-type AssetTotals = { usd7d?: number; computedAt?: string; warming?: boolean; done?: number; total?: number };
-
-const SETTLED_POLL_MS = 60_000;
-// A cold server publishes no total until it has walked every active account,
-// and it only walks while someone asks, so a warming answer is asked for more
-// often than a settled one.
-const WARMING_POLL_MS = 20_000;
-
-// MUST be module scope, not an inline arrow. SWR keeps `refreshInterval` in its
-// polling effect's dependency array, and the cleanup does `clearTimeout`:
-//
-//   useIsomorphicLayoutEffect(() => { ... next(); return () => clearTimeout(timer) },
-//     [refreshInterval, refreshWhenHidden, refreshWhenOffline, key])
-//
-// A new function identity on every render therefore tears the timer down and
-// schedules
-// a fresh FULL-length one, discarding the elapsed time. A card that re-renders
-// more often than the interval then never polls at all, which is exactly how
-// this card came to sit on "Calculating…" until you visited another tab and
-// came back. StatStrip subscribes to the same key with a literal 60_000, so its
-// timer is stable, which is why the Accounts page kept the walk moving.
-const pollInterval = (latest: AssetTotals | undefined) =>
-  latest?.warming ? WARMING_POLL_MS : SETTLED_POLL_MS;
+type AssetTotals = {
+  usd7d?: number | null;
+  computedAt?: string | null;
+  /** The Guardian has not published its first aggregate since starting up. */
+  warming?: boolean;
+  /** The Guardian predates `GET /dashboard/stats`, which shipped in 0.18.0. */
+  unsupported?: boolean;
+  done?: number;
+  total?: number;
+  /** Faucets the 7-day-active vaults hold, split by whether anything prices them. */
+  priced?: number;
+  unpriced?: number;
+};
 
 export function AssetsCard() {
+  // One request to the Guardian per poll, answered from an aggregate it
+  // refreshes on its own cadence. This used to chase a walk, polling three
+  // times faster while it was incomplete; there is no walk left to chase.
   const { data, error } = useSWR<AssetTotals>("/api/accounts/asset-totals", fetcher, {
-    refreshInterval: pollInterval,
+    refreshInterval: 60_000,
   });
 
   return (
@@ -43,11 +36,34 @@ export function AssetsCard() {
           <p className="text-stat text-foreground">
             ${data.usd7d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
+        ) : data?.unsupported ? (
+          // Names the reason rather than showing the same dash a dead Guardian
+          // would. Nothing here will change until this Guardian's operator
+          // upgrades, so there is no progress to report.
+          <p
+            className="text-section text-muted-foreground"
+            title="This Guardian computes no cross-account totals. The endpoint the dashboard reads them from arrived in Guardian 0.18.0."
+          >
+            Needs Guardian 0.18.0
+          </p>
+        ) : data?.unpriced && !data.priced ? (
+          // Holdings exist, and none of them has a market. Priced the way the
+          // Miden wallet does (lib/prices.ts): a test mint or an unlisted token
+          // gets no dollar figure rather than an invented one.
+          <p
+            className="text-section text-muted-foreground"
+            title={`Holdings in ${data.unpriced.toLocaleString()} faucet(s) with no price: not on the verified token list, or the price feed is unreachable. The Miden wallet shows the same holdings with no dollar figure.`}
+          >
+            No priced assets
+          </p>
         ) : data?.warming ? (
-          // Says so rather than showing the same dash a dead Guardian would. The
-          // walk is paced against the Guardian's rate limit, so on a cold start
-          // this is minutes, not seconds, which is why it counts out loud.
-          <p className="text-section text-muted-foreground" title="Walking the account inventory. This takes a few minutes after a restart.">
+          // A 0.18.0 Guardian that has not finished its first pass, or one whose
+          // pass could not decode every vault. It says how far it got, and the
+          // number climbing is the only evidence that waiting will end.
+          <p
+            className="text-section text-muted-foreground"
+            title="The Guardian is still computing its first asset aggregate. This clears within one refresh interval."
+          >
             Calculating…
             {data.done != null && data.total != null && (
               <span className="ml-1 text-data">

@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { guardianRoute } from "@/lib/guardian-route";
 import { getSnapshotTotals } from "@/lib/account-cache";
 
@@ -35,8 +34,7 @@ export function GET(req: Request) {
         : { accountId: entry.slice(0, at), updatedAt: entry.slice(at + 1) };
     });
 
-  return guardianRoute(async (client) => {
-    const endpointId = (await headers()).get("x-guardian-endpoint-id") ?? "";
-    return getSnapshotTotals(client, endpointId, accounts, { refresh });
-  });
+  return guardianRoute((client, endpoint) =>
+    getSnapshotTotals(client, endpoint.id, endpoint.network, accounts, { refresh }),
+  );
 }

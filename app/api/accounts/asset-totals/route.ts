@@ -1,69 +1,68 @@
-import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { guardianRoute } from "@/lib/guardian-route";
-import { getInventory, getSnapshotTotalsChecked, INVENTORY_TTL_MS } from "@/lib/account-cache";
+import { readStats } from "@/lib/dashboard-stats";
+import { priceBook } from "@/lib/prices";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
 
 const MS_7D = 7 * 24 * 60 * 60 * 1000;
 
-type AssetTotals = { usd7d: number; computedAt: string };
-// ponytail: per-serverless-instance cache, so cold instances recompute. The
-// ceiling was written as "while account counts stay small" at 1,573 accounts;
-// the OZ Guardian holds 7,198 (2026-08-21) and one cold walk now takes 36s.
-// Upgrade path is KV or CDN caching, shared with the two other per-instance
-// caches that defer to the same thing (lib/account-cache.ts,
-// lib/guardian-client.ts). Revisit when a cold walk stops fitting in one
-// invocation, which tasks/live-pacing-check.live.ts measures.
-const cache = new Map<string, AssetTotals>();
+/**
+ * Dollar value of the vaults across the accounts active in the last 7 days.
+ *
+ * This was the expensive one: a paged walk to find the active set, then one
+ * snapshot request per account, bounded by a 45-second deadline and retried
+ * across invocations until a pass happened to cover everything. The Guardian
+ * now sums the vaults itself; `updatedSince` applies the same 7-day window
+ * server-side.
+ *
+ * The route-level cache that used to sit here is gone with it. It existed to
+ * avoid paying for the walk twice within 60 seconds, and the aggregate it
+ * guarded is already a snapshot the server refreshes on its own cadence, so
+ * holding a copy of it here would only add a second layer of staleness.
+ *
+ * Pricing follows the Miden wallet (see lib/prices.ts): a faucet the verified
+ * lists do not name has no dollar value, so it is counted in `unpriced` rather
+ * than folded into the sum at some invented rate.
+ */
+export function GET() {
+  return guardianRoute(async (client, endpoint) => {
+    const outcome = await readStats(client, { updatedSince: new Date(Date.now() - MS_7D) });
+    if (outcome.kind !== "ok") return { [outcome.kind]: true };
 
-export async function GET(req: Request) {
-  const refresh = new URL(req.url).searchParams.get("refresh") === "1";
-  const h = await headers();
-  const endpointId = h.get("x-guardian-endpoint-id") ?? "";
-  const cached = cache.get(endpointId);
-  // TTL stays at 60s: it was cut from 5 min deliberately (566be23) because
-  // users saw stale totals. The request saving comes from the snapshot cache,
-  // not from holding this answer for longer.
-  if (!refresh && cached && Date.now() - new Date(cached.computedAt).getTime() < INVENTORY_TTL_MS) {
-    return NextResponse.json(cached);
-  }
+    const { assets, asOf } = outcome.stats;
 
-  return guardianRoute(async (client) => {
-    const now = Date.now();
-    const accounts = await getInventory(client, endpointId, MS_7D, now, { refresh });
-    const active7d = accounts.filter((a) => now - new Date(a.updatedAt).getTime() <= MS_7D);
-
-    // How many snapshots one pass may fetch is the cache layer's business, not
-    // this route's: Guardians differ by more than an order of magnitude in what they
-    // tolerate, so the ceiling is learned per endpoint rather than guessed here.
-    //
-    // `refresh` is deliberately NOT forwarded. Snapshots are keyed by
-    // `accountId@updatedAt`, so a cache hit is a value the Guardian itself says
-    // cannot have changed: re-reading it buys nothing and spends a request. What
-    // a refresh does buy is the re-walked inventory above, which surfaces the
-    // accounts whose version moved, and those miss the cache on their own.
-    const { totals, complete } = await getSnapshotTotalsChecked(client, endpointId, active7d);
-
-    // Publishing a partial sum would show a confidently wrong number. Until the
-    // pass covers every active account, keep serving the last complete answer.
-    // With no such answer yet, say how far along the walk is: the counts are
-    // already in hand, and a number that climbs is the only evidence the user
-    // has that waiting will end.
-    if (!complete) {
-      return cached ?? {
-        usd7d: null,
-        computedAt: null,
-        warming: true,
-        done: Object.keys(totals).length,
-        total: active7d.length,
-      };
+    // Publishing a partial sum would show a confidently wrong number, which is
+    // the bug the old `complete` flag existed to prevent. The server now states
+    // it directly, and names the accounts it could not decode in `skipped`.
+    // `covered`/`eligible` keep the progress line in AssetsCard meaningful.
+    if (!assets.complete) {
+      return { usd7d: null, computedAt: null, warming: true, done: assets.covered, total: assets.eligible };
     }
 
-    const usd7d = Object.values(totals).reduce((sum, value) => sum + value, 0);
-    const result = { usd7d, computedAt: new Date().toISOString() };
-    cache.set(endpointId, result);
-    return result;
+    const book = await priceBook(endpoint.network);
+    let usd7d = 0;
+    let priced = 0;
+    let unpriced = 0;
+    // Fungible only, as before. `nonFungible` is a count per faucet, not an
+    // amount, so it has nothing to contribute to a total.
+    for (const f of assets.fungible) {
+      const value = book.usd(f.faucetId, f.totalAmount);
+      if (value === undefined) unpriced++;
+      else {
+        priced++;
+        usd7d += value;
+      }
+    }
+
+    return {
+      // Null when every held faucet is unpriced: a zero would claim the
+      // Guardian holds nothing. An empty fleet is a genuine zero.
+      usd7d: priced > 0 || unpriced === 0 ? usd7d : null,
+      // The server's walk time, not ours. Reporting `new Date()` here claimed
+      // the number was current when it was up to a refresh interval old.
+      computedAt: asOf,
+      priced,
+      unpriced,
+    };
   });
 }

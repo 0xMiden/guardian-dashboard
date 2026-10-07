@@ -35,6 +35,8 @@ vi.stubGlobal("IntersectionObserver", StubObserver);
 const trigger = (els: Element[]) => instances.forEach((o) => o.deliver(els, true));
 const hide = (els: Element[]) => instances.forEach((o) => o.deliver(els, false));
 
+const { mutate } = await import("swr");
+
 vi.mock("swr", async () => {
   const actual = await vi.importActual<typeof import("swr")>("swr");
   return { ...actual, default: vi.fn(), mutate: vi.fn(async () => undefined) };
@@ -137,9 +139,15 @@ describe("AccountsPanel asset totals", () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
     await settle();
 
+    // The aggregates are revalidated, not re-fetched with `?refresh=1`: there
+    // is no walk left for that flag to retrigger and no route cache to bypass.
+    const revalidated = vi.mocked(mutate).mock.calls.map((c) => String(c[0]));
+    expect(revalidated).toContain("/api/accounts/stats");
+    expect(revalidated).toContain("/api/accounts/asset-totals");
+
+    // The on-screen rows still are: a Refresh must never hand back a cached
+    // per-row total, and those are keyed by a version the Guardian may have moved.
     const urls: string[] = fetchSpy.mock.calls.map((c: unknown[]) => String(c[0]));
-    expect(urls.some((u: string) => u.includes("/api/accounts/stats?refresh=1"))).toBe(true);
-    expect(urls.some((u: string) => u.includes("/api/accounts/asset-totals?refresh=1"))).toBe(true);
     expect(urls.some((u: string) => u.includes("/api/accounts/snapshots") && u.includes("refresh=1"))).toBe(true);
   });
 
@@ -204,6 +212,20 @@ describe("AccountsPanel asset totals", () => {
 
     const asked = decodeURIComponent(snapshotCalls().join("|"));
     expect(asked).not.toContain("0xa@");
+  });
+
+  // `null` is the route's word for a vault holding only tokens nothing prices.
+  // Printing it through the dollar formatter gave "$null".
+  it("says unpriced for a vault nothing prices, and a dollar figure for one that is", async () => {
+    mockRows([A, B]);
+    fetchSpy.mockResolvedValue(new Response(JSON.stringify({ "0xa": null, "0xb": 2.5 }), { status: 200 }));
+    render(<AccountsPanel />);
+    trigger([...observed]);
+    await settle();
+
+    expect(screen.getByText("unpriced")).toBeInTheDocument();
+    expect(screen.getByText("$2.50")).toBeInTheDocument();
+    expect(screen.queryByText(/null/)).not.toBeInTheDocument();
   });
 
   it("leaves the column empty rather than showing a wrong number when the fetch fails", async () => {

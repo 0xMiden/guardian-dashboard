@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { GuardianOperatorHttpError } from "@openzeppelin/guardian-operator-client";
 import { getGuardianClient } from "./guardian-client";
+import { getEndpoint } from "./endpoints";
 
 // Shared wrapper for the guardian-proxy routes: resolves the endpoint header
 // set by the middleware, and maps thrown errors into a body the UI can act on.
@@ -13,15 +14,18 @@ import { getGuardianClient } from "./guardian-client";
 // sends a `meta` envelope the 0.16.0 client parses onto `err.data`; forwarding
 // it alongside the real status is what lets `ErrorPanel` name the problem.
 //
-// Callbacks may return a NextResponse for non-default statuses.
+// Callbacks may return a NextResponse for non-default statuses. The second
+// argument names the endpoint for routes that need more than a client: the
+// network decides which token list prices its faucets.
 export async function guardianRoute(
-  fn: (client: ReturnType<typeof getGuardianClient>) => Promise<unknown>,
+  fn: (client: ReturnType<typeof getGuardianClient>, endpoint: { id: string; network: string }) => Promise<unknown>,
 ): Promise<NextResponse> {
   const h = await headers();
   const endpointId = h.get("x-guardian-endpoint-id") ?? "";
   if (!endpointId) return NextResponse.json({ error: "No endpoint selected" }, { status: 400 });
   try {
-    const data = await fn(getGuardianClient(endpointId));
+    const network = getEndpoint(endpointId)?.network ?? "";
+    const data = await fn(getGuardianClient(endpointId), { id: endpointId, network });
     return data instanceof NextResponse ? data : NextResponse.json(data);
   } catch (err) {
     if (err instanceof GuardianOperatorHttpError) {

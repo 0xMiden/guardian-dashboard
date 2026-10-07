@@ -8,8 +8,8 @@ vi.mock("@/lib/guardian-client", () => ({
   getGuardianClient: vi.fn(() => ({ getAccountSnapshot: mockGetAccountSnapshot })),
 }));
 
-vi.mock("@/lib/token-registry", () => ({
-  normalizeAmount: (_faucetId: string, amount: string) => Number(amount),
+vi.mock("@/lib/prices", () => ({
+  priceBook: async () => ({ usd: (_faucetId: string, amount: string) => Number(amount) }),
 }));
 
 function mockHeaders(endpointId: string) {

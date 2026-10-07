@@ -124,11 +124,6 @@ function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<
   return promise;
 }
 
-/** Test seam. */
-export function __resetPriceCaches(): void {
-  cache.clear();
-}
-
 /** The document, or `null` on 404: a network with no list is not an error. */
 async function fetchJson(url: string): Promise<unknown> {
   const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });

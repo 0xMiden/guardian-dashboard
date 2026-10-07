@@ -203,6 +203,17 @@ describe("priceBook", () => {
     expect((await priceBook("MidenTestnet")).usd("0x2222222222222222222222222222bb", "1000000")).toBeUndefined();
   });
 
+  // A node that is down must not take the whole book with it: the listed
+  // tokens keep their quotes and only the native faucet goes unpriced.
+  it("keeps pricing listed tokens when the chain read fails", async () => {
+    // The dispenser is unknown to the fake chain, so the RPC read throws.
+    mockFetch({ ...defaultRoutes(), "faucet-api.testnet.miden.io/get_metadata": { id: DISPENSER } });
+    const { priceBook } = await freshModule();
+    const book = await priceBook("MidenTestnet");
+    expect(book.usd(NATIVE_HEX, "9867")).toBeUndefined();
+    expect(book.usd(IETH_HEX, "100000000")).toBeCloseTo(2693.61, 6);
+  });
+
   it("asks the faucet service and the chain once per network, not per call", async () => {
     chain[DISPENSER_HEX] = { vault: [NATIVE_HEX] };
     chain[NATIVE_HEX] = { faucet: { symbol: "USDCX", decimals: 6 } };

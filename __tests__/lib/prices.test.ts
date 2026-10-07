@@ -25,6 +25,44 @@ const TICKER = [
   { symbol: "ETHUSD", price: "2693.61000000" },
 ];
 
+/**
+ * The chain reads go through the SDK the real module loads. Everything else in
+ * the SDK stays real (the bech32 conversion below depends on it); only the RPC
+ * client and the faucet-component decoder are replaced, keyed by account id.
+ */
+const chain: Record<string, { vault?: string[]; faucet?: { symbol: string; decimals: number } }> = {};
+vi.mock("@/lib/falcon", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/falcon")>();
+  class FakeRpcClient {
+    async getAccountDetails(id: { toString(): string }) {
+      const entry = chain[id.toString().toLowerCase()];
+      if (!entry) throw new Error(`account ${id} not found`);
+      return {
+        account: () => ({
+          vault: () => ({ fungibleAssets: () => (entry.vault ?? []).map((f) => ({ faucetId: () => ({ toString: () => f }) })) }),
+          storage: () => entry,
+        }),
+      };
+    }
+  }
+  const FakeFaucet = {
+    fromAccountStorage: (entry: { faucet?: { symbol: string; decimals: number } }) => {
+      if (!entry.faucet) throw new Error("not a faucet");
+      return { symbol: () => ({ toString: () => entry.faucet!.symbol }), decimals: () => entry.faucet!.decimals };
+    },
+  };
+  return {
+    ...real,
+    loadSdk: async () => ({ ...(await real.loadSdk()), RpcClient: FakeRpcClient, Endpoint: class {}, BasicFungibleFaucetComponent: FakeFaucet }),
+  };
+});
+
+// The testnet faucet service's dispenser and the native USDCx faucet it hands
+// out, as read live on 2026-10-07.
+const DISPENSER = "mtst1ap8xldq06tm2252qmuky9ha4kunjzkhn";
+const DISPENSER_HEX = "0x4e6fb40fd2f6a55140df2c42dfb5b7";
+const NATIVE_HEX = "0x4cbdcaffe75f0a317482224dae6436";
+
 type Routes = Record<string, unknown | (() => unknown)>;
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
@@ -55,11 +93,10 @@ async function freshModule() {
 }
 
 beforeEach(() => {
-  vi.stubEnv("GUARDIAN_PRICED_FAUCETS", "");
+  for (const k of Object.keys(chain)) delete chain[k];
 });
 afterEach(() => {
   vi.unstubAllGlobals();
-  vi.unstubAllEnvs();
 });
 
 describe("priceBook", () => {
@@ -125,19 +162,66 @@ describe("priceBook", () => {
     expect(book.usd(IETH_HEX, "100000000")).toBeUndefined();
   });
 
-  it("takes an env entry for a faucet no list names, such as bridged ETH", async () => {
-    vi.stubEnv("GUARDIAN_PRICED_FAUCETS", JSON.stringify({ "0x0B372F2735E33E91216D995BF29B91": { priceSymbol: "ETH", decimals: 8 } }));
-    mockFetch(defaultRoutes());
+  // The post-reset testnet: every account holds the native USDCx, which no
+  // list names yet. Bread prices it from the chain, and so does this.
+  it("prices the native faucet at a fixed $1 when the chain says it is USDCX", async () => {
+    chain[DISPENSER_HEX] = { vault: [NATIVE_HEX] };
+    chain[NATIVE_HEX] = { faucet: { symbol: "USDCX", decimals: 6 } };
+    mockFetch({ ...defaultRoutes(), "faucet-api.testnet.miden.io/get_metadata": { id: DISPENSER, decimals: 6 } });
     const { priceBook } = await freshModule();
     const book = await priceBook("MidenTestnet");
-    // 0.6 ETH, the Gateway wallet's deposit in the Sep 22 extract.
-    expect(book.usd("0x0b372f2735e33e91216d995bf29b91", "60000000")).toBeCloseTo(0.6 * 2693.61, 6);
+    // Gaylord's Gateway account on 2026-10-07: 9,867 units, $0.0099 in Bread.
+    expect(book.usd(NATIVE_HEX, "9867")).toBeCloseTo(0.009867, 9);
   });
 
-  it("rejects a malformed env entry at load", async () => {
-    vi.stubEnv("GUARDIAN_PRICED_FAUCETS", JSON.stringify({ "0x0b372f2735e33e91216d995bf29b91": { priceSymbol: "DOGE", decimals: 8 } }));
-    mockFetch(defaultRoutes());
-    await expect(freshModule()).rejects.toThrow(/GUARDIAN_PRICED_FAUCETS/);
+  it("leaves a native token with any other symbol unpriced", async () => {
+    chain[DISPENSER_HEX] = { vault: [NATIVE_HEX] };
+    chain[NATIVE_HEX] = { faucet: { symbol: "MIDEN", decimals: 6 } };
+    mockFetch({ ...defaultRoutes(), "faucet-api.testnet.miden.io/get_metadata": { id: DISPENSER } });
+    const { priceBook } = await freshModule();
+    expect((await priceBook("MidenTestnet")).usd(NATIVE_HEX, "9867")).toBeUndefined();
+  });
+
+  // A dispenser holding two tokens is some other service. Guessing which one is
+  // native is how a wrong price starts, so neither is priced.
+  it("declines to guess when the dispenser holds more than one token", async () => {
+    chain[DISPENSER_HEX] = { vault: [NATIVE_HEX, IETH_HEX] };
+    chain[NATIVE_HEX] = { faucet: { symbol: "USDCX", decimals: 6 } };
+    mockFetch({ ...defaultRoutes(), "faucet-api.testnet.miden.io/get_metadata": { id: DISPENSER } });
+    const { priceBook } = await freshModule();
+    expect((await priceBook("MidenTestnet")).usd(NATIVE_HEX, "9867")).toBeUndefined();
+  });
+
+  // A faucet calling itself USDCX is not the native one. Bread's fixed quote is
+  // for the chain's fee asset only (#1131: anyone can mint a symbol).
+  it("does not price a non-native faucet that merely calls itself USDCX", async () => {
+    chain[DISPENSER_HEX] = { vault: [NATIVE_HEX] };
+    chain[NATIVE_HEX] = { faucet: { symbol: "USDCX", decimals: 6 } };
+    chain["0x2222222222222222222222222222bb"] = { faucet: { symbol: "USDCX", decimals: 6 } };
+    mockFetch({ ...defaultRoutes(), "faucet-api.testnet.miden.io/get_metadata": { id: DISPENSER } });
+    const { priceBook } = await freshModule();
+    expect((await priceBook("MidenTestnet")).usd("0x2222222222222222222222222222bb", "1000000")).toBeUndefined();
+  });
+
+  // A node that is down must not take the whole book with it: the listed
+  // tokens keep their quotes and only the native faucet goes unpriced.
+  it("keeps pricing listed tokens when the chain read fails", async () => {
+    // The dispenser is unknown to the fake chain, so the RPC read throws.
+    mockFetch({ ...defaultRoutes(), "faucet-api.testnet.miden.io/get_metadata": { id: DISPENSER } });
+    const { priceBook } = await freshModule();
+    const book = await priceBook("MidenTestnet");
+    expect(book.usd(NATIVE_HEX, "9867")).toBeUndefined();
+    expect(book.usd(IETH_HEX, "100000000")).toBeCloseTo(2693.61, 6);
+  });
+
+  it("asks the faucet service and the chain once per network, not per call", async () => {
+    chain[DISPENSER_HEX] = { vault: [NATIVE_HEX] };
+    chain[NATIVE_HEX] = { faucet: { symbol: "USDCX", decimals: 6 } };
+    const fetch = mockFetch({ ...defaultRoutes(), "faucet-api.testnet.miden.io/get_metadata": { id: DISPENSER } });
+    const { priceBook } = await freshModule();
+    await priceBook("MidenTestnet");
+    await priceBook("MidenTestnet");
+    expect(fetch.mock.calls.filter((c) => String(c[0]).includes("faucet-api"))).toHaveLength(1);
   });
 
   // Bread's parseTokenList rule: one bad token rejects the document, since a
@@ -162,6 +246,8 @@ describe("priceBook", () => {
     const asked = fetch.mock.calls.map((c) => String(c[0]));
     expect(asked.some((u) => u.endsWith("/token-list/main/devnet.json"))).toBe(true);
     expect(asked.some((u) => u.endsWith("/wallet-config/main/devnet.json"))).toBe(true);
+    // Mainnet has no faucet service; a 404 there is "no native price", not an error.
+    expect(asked.some((u) => u.includes("faucet-api.devnet.miden.io"))).toBe(true);
   });
 
   it("keeps the last good prices when a refresh fails", async () => {

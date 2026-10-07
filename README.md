@@ -57,7 +57,8 @@ NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
 Optional extras:
 
 - `GUARDIAN_PRIVATE_KEY_{ID}` (e.g. `GUARDIAN_PRIVATE_KEY_TESTNET`) — supply an endpoint's `privateKey` separately to keep `GUARDIAN_ENDPOINTS` under Vercel's 4KB env var limit
-- `GUARDIAN_PRICED_FAUCETS` — JSON map of faucet id (hex) → `{ "priceSymbol": "ETH" | "BTC" | "USDC" | "USDCX", "decimals": n }` for a faucet the verified lists do not name yet, such as the Agglayer-bridged ETH faucet after a testnet reset. Dollar values otherwise follow the Miden wallet: Binance spot prices for faucets on `0xMiden/token-list` and `0xMiden/wallet-config`, no figure for anything else (see `lib/prices.ts`)
+
+Dollar values follow the Miden wallet (see `lib/prices.ts`): Binance spot prices for the faucets named by `0xMiden/token-list` and `0xMiden/wallet-config`, the network's native asset read from chain (fixed at $1 when it is USDCX), and no figure for anything else. Nothing about tokens is configured here.
 
 ### 3. User access
 

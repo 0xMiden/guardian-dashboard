@@ -17,7 +17,6 @@ export type TableColumn<T, K extends string, S extends string = string> = {
   label: string;
   width: string;
   align?: "left" | "right";
-  /** Present on a column the table can be sorted by. */
   sortKey?: S;
   /** Required: the cell's size role. Without it a column renders at the
    *  browser default, which is how a table ends up with no hierarchy. */
@@ -208,46 +207,38 @@ export function usePaging<T>(
   fetchPage: (cursor: string) => Promise<PagedResult<T>>,
   rowKey: (row: T) => string,
 ) {
-  const [extra, setExtra] = useState<T[]>([]);
-  // undefined = nothing paged yet, the first page's cursor applies; null = exhausted
-  const [next, setNext] = useState<string | null | undefined>(undefined);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const clear = () => { setExtra([]); setNext(undefined); setLoadingMore(false); setFailed(false); };
-  // Cleared from the key during render, the React way to follow a prop change.
-  const [forKey, setForKey] = useState(key);
-  if (forKey !== key) { setForKey(key); clear(); }
-  // What a landing page compares itself against: the key and reset count at the time it was asked for.
-  const generation = useRef(0);
-  const current = useRef(key);
-  useEffect(() => { current.current = key; }, [key]);
-  const reset = () => { generation.current++; clear(); };
+  // One record for the tail and what it belongs to. A landing page compares
+  // itself against the record as it is then, inside the state update, so a
+  // page asked for under an earlier key or before a reset is dropped.
+  type Tail = { key: string | null; gen: number; extra: T[]; next: string | null | undefined; loadingMore: boolean; failed: boolean };
+  const fresh = (gen: number): Tail => ({ key, gen, extra: [], next: undefined, loadingMore: false, failed: false });
+  const [stored, setTail] = useState<Tail>(() => fresh(0));
+  // A new key starts over, set during render as React documents for state that follows a prop.
+  if (stored.key !== key) setTail(fresh(stored.gen + 1));
+  const tail = stored.key === key ? stored : fresh(stored.gen + 1);
+  const patch = (gen: number, p: (prev: Tail) => Partial<Tail>) =>
+    setTail((prev) => (prev.key === key && prev.gen === gen ? { ...prev, ...p(prev) } : prev));
 
-  const cursor = next === undefined ? firstPage?.nextCursor ?? null : next;
+  // undefined = nothing paged yet, the first page's cursor applies; null = exhausted
+  const cursor = tail.next === undefined ? firstPage?.nextCursor ?? null : tail.next;
   const seen = new Set<string>();
-  const items = [...(firstPage?.items ?? []), ...extra].filter((row) => !seen.has(rowKey(row)) && !!seen.add(rowKey(row)));
+  const items = [...(firstPage?.items ?? []), ...tail.extra].filter((row) => !seen.has(rowKey(row)) && !!seen.add(rowKey(row)));
   return {
     items,
     hasMore: cursor !== null,
-    loadingMore,
-    failed,
-    reset,
+    loadingMore: tail.loadingMore,
+    failed: tail.failed,
+    reset() { setTail((prev) => fresh(prev.gen + 1)); },
     async loadMore() {
       if (!cursor) return;
-      const mine = generation.current;
-      const live = () => mine === generation.current && key === current.current;
-      setLoadingMore(true);
-      setFailed(false);
+      const { gen } = tail;
+      patch(gen, () => ({ loadingMore: true, failed: false }));
       try {
         const page = await fetchPage(cursor);
-        if (!live()) return;
-        setExtra((prev) => [...prev, ...page.items]);
-        setNext(page.nextCursor);
+        patch(gen, (prev) => ({ extra: [...prev.extra, ...page.items], next: page.nextCursor, loadingMore: false }));
       } catch {
         // The cursor is untouched, so a retry asks for the same page.
-        if (live()) setFailed(true);
-      } finally {
-        if (live()) setLoadingMore(false);
+        patch(gen, () => ({ failed: true, loadingMore: false }));
       }
     },
   };

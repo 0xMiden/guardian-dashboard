@@ -158,7 +158,8 @@ export function AccountTransactions({ accountId }: Props) {
           </CardContent>
         </Card>
       )}
-      <LoadMoreSentinel {...paging} />
+      {/* Not while the skeletons are up: the deltas may have landed before the proposals. */}
+      <LoadMoreSentinel {...paging} hasMore={paging.hasMore && !loading} />
     </div>
   );
 }

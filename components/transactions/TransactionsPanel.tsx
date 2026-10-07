@@ -198,6 +198,8 @@ export function TransactionsPanel() {
     },
   ];
   const shownColumns = columns.filter((c) => !hidden.has(c.key));
+  // Not while the skeletons are up: the deltas may have landed before the proposals.
+  const more = paging.hasMore && !loading;
 
   return (
     <div className="flex flex-col gap-4">
@@ -240,7 +242,7 @@ export function TransactionsPanel() {
           {/* The search sees the entries loaded so far: the Guardian's activity
               feeds take a cursor and a status, so there is nothing to search with. */}
           {query
-            ? `No activity for an account matching "${query.trim()}" among the ${formatCount(loaded.length)} loaded so far${paging.hasMore ? ", keep scrolling to load more." : "."}`
+            ? `No activity for an account matching "${query.trim()}" among the ${formatCount(loaded.length)} loaded so far${more ? ", more are loading." : "."}`
             : "No activity found."}
         </div>
       ) : (
@@ -261,7 +263,7 @@ export function TransactionsPanel() {
         </Card>
       )}
       {/* The feeds carry no total, so the note says how deep the table goes. */}
-      {paging.hasMore && rows.length > 0 && (
+      {more && rows.length > 0 && (
         <p
           className="text-center text-label text-muted-foreground"
           title="Filters, sort and export cover the entries loaded so far."
@@ -269,8 +271,7 @@ export function TransactionsPanel() {
           Showing the latest {formatCount(loaded.length)}
         </p>
       )}
-      {/* Not while the skeletons are up: the deltas may have landed before the proposals. */}
-      <LoadMoreSentinel {...paging} hasMore={paging.hasMore && !loading} />
+      <LoadMoreSentinel {...paging} hasMore={more} />
     </div>
   );
 }

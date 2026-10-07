@@ -161,7 +161,7 @@ export function AccountsPanel() {
   // recompute cannot fit in one click: ~470 active accounts against a budget of
   // 60 requests a minute is minutes of paced fetching, and attempting it as a
   // burst is what earns the 429s that leave the page with no numbers at all.
-  const refresh = useCallback(async () => {
+  const refresh = async () => {
     setRefreshing(true);
     try {
       // The account list comes first and the rest waits for it: a row's
@@ -183,7 +183,7 @@ export function AccountsPanel() {
     } finally {
       setRefreshing(false);
     }
-  }, [loaded, listKey]);
+  };
 
   // A row entering view queues its asset total. Rows stay observed rather than
   // being unobserved after first sight: the queue key includes `updatedAt`, so
@@ -423,7 +423,7 @@ export function AccountsPanel() {
                   {query
                     ? `No account matching "${query.trim()}" among the ${formatCount(loaded.length)} loaded so far`
                     : `No ${[state, kind].filter((f) => f !== "all").join(" ")} accounts among the ${formatCount(loaded.length)} loaded so far`}
-                  {paging.hasMore ? ", keep scrolling to load more." : "."}
+                  {paging.hasMore ? ", more are loading." : "."}
                 </p>
                 {/* The filter can only see rows that have been paged in. A full ID
                     needs no search endpoint to open, so offer that directly. */}

@@ -219,7 +219,21 @@ describe("LoadMoreSentinel", () => {
 
 describe("usePaging", () => {
   const page = (items: string[], nextCursor: string | null) => ({ items, nextCursor });
+  type Page = ReturnType<typeof page>;
   const id = (s: string) => s;
+  const deferred = () => {
+    let resolve!: (p: Page) => void;
+    const fetchPage = vi.fn(() => new Promise<Page>((r) => { resolve = r; }));
+    return { fetchPage, resolve: (p: Page) => resolve(p) };
+  };
+  // Started in a synchronous act: an async act held open across rerenders
+  // batches them into one render with the final props, so a key that changed
+  // and changed back would never be seen to change at all.
+  const start = (loadMore: () => Promise<void>) => {
+    let inFlight!: Promise<void>;
+    act(() => { inFlight = loadMore(); });
+    return inFlight;
+  };
 
   it("lists every page loaded so far and stops at the last cursor", async () => {
     const fetchPage = vi.fn(async (cursor: string) => (cursor === "p2" ? page(["b"], "p3") : page(["c"], null)));
@@ -247,30 +261,48 @@ describe("usePaging", () => {
   // A filter change resets the list while a page for the old filter may still
   // be on its way. That page must not land under the new filter.
   it("drops a page that was in flight when reset was called", async () => {
-    let resolve!: (p: { items: string[]; nextCursor: string | null }) => void;
-    const fetchPage = vi.fn(() => new Promise<{ items: string[]; nextCursor: string | null }>((r) => { resolve = r; }));
+    const { fetchPage, resolve } = deferred();
     const { result } = renderHook(() => usePaging("k", page(["a"], "p2"), fetchPage, id));
-    const inFlight = act(() => result.current.loadMore());
+    const inFlight = start(result.current.loadMore);
     act(() => result.current.reset());
     resolve(page(["stale"], "p3"));
-    await inFlight;
+    await act(() => inFlight);
     expect(result.current.items).toEqual(["a"]);
     expect(result.current.loadingMore).toBe(false);
   });
 
   it("starts over when the key changes, dropping a page in flight for the old one", async () => {
-    let resolve!: (p: { items: string[]; nextCursor: string | null }) => void;
-    const fetchPage = vi.fn(() => new Promise<{ items: string[]; nextCursor: string | null }>((r) => { resolve = r; }));
+    const { fetchPage, resolve } = deferred();
     const { result, rerender } = renderHook(
       ({ key, first }) => usePaging(key, first, fetchPage, id),
       { initialProps: { key: "all", first: page(["a"], "p2") } },
     );
-    const inFlight = act(() => result.current.loadMore());
+    const inFlight = start(result.current.loadMore);
     rerender({ key: "frozen", first: page(["f"], null) });
+    expect(result.current.loadingMore).toBe(false);
+    expect(result.current.failed).toBe(false);
     resolve(page(["stale"], "p3"));
-    await inFlight;
+    await act(() => inFlight);
     expect(result.current.items).toEqual(["f"]);
     expect(result.current.hasMore).toBe(false);
+  });
+
+  // Back to the same key is a new run of it: a page from the first run would
+  // otherwise land in the second, skipping the pages between.
+  it("drops a page from an earlier run of the same key", async () => {
+    const { fetchPage, resolve } = deferred();
+    const first = page(["a"], "p2");
+    const { result, rerender } = renderHook(
+      ({ key }) => usePaging(key, first, fetchPage, id),
+      { initialProps: { key: "all" } },
+    );
+    const inFlight = start(result.current.loadMore);
+    rerender({ key: "frozen" });
+    rerender({ key: "all" });
+    resolve(page(["p3 rows"], "p4"));
+    await act(() => inFlight);
+    expect(result.current.items).toEqual(["a"]);
+    expect(result.current.loadingMore).toBe(false);
   });
 
   // SWR polls the first page while the tail continues from where it was, so a

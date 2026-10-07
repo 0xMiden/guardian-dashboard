@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { PagedResult } from "@openzeppelin/guardian-operator-client";
 import { Rows2, Rows3, Columns3, Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,15 +23,6 @@ export type TableColumn<T, K extends string, S extends string = string> = {
    *  browser default, which is how a table ends up with no hierarchy. */
   cellClass: string;
   cell: (item: T, index: number) => React.ReactNode;
-};
-
-/**
- * Row padding for the chosen density. One place, so the header and the body
- * cells cannot drift apart.
- */
-export const CELL_PADDING: Record<Density, string> = {
-  compact: "px-3 py-1.5",
-  comfortable: "px-4 py-3",
 };
 
 /**
@@ -171,9 +163,8 @@ export type Sort<S extends string> = { key: S; dir: "asc" | "desc" };
  */
 export function useSort<S extends string>() {
   const [sort, setSort] = useState<Sort<S> | null>(null);
-  const toggleSort = useCallback((key: S) => {
+  const toggleSort = (key: S) =>
     setSort((s) => (s?.key !== key ? { key, dir: "desc" } : s.dir === "desc" ? { key, dir: "asc" } : null));
-  }, []);
   return { sort, toggleSort };
 }
 
@@ -197,10 +188,42 @@ export function sortRows<T, S extends string>(
 }
 
 // ---------------------------------------------------------------------------
-// Paging, shared so every table loads the same way: the next page arrives as
-// this sentinel scrolls into view. Accounts had this and both Activity tables
-// had a "Load more" button, which is two answers to one question.
+// Paging, shared so every table loads the same way.
 
+/**
+ * Cursor paging past the first page SWR holds: the entries fetched since, and
+ * whether there is another page. A failed fetch leaves the cursor where it
+ * was, so the next attempt retries the same page.
+ */
+export function usePaging<T>(firstPage: PagedResult<T> | undefined, fetchPage: (cursor: string) => Promise<PagedResult<T>>) {
+  const [extra, setExtra] = useState<T[]>([]);
+  // undefined = nothing paged yet, the first page's cursor applies; null = exhausted
+  const [next, setNext] = useState<string | null | undefined>(undefined);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const cursor = next === undefined ? firstPage?.nextCursor ?? null : next;
+  return {
+    extra,
+    hasMore: cursor !== null,
+    loadingMore,
+    async loadMore() {
+      if (!cursor) return;
+      setLoadingMore(true);
+      try {
+        const page = await fetchPage(cursor);
+        setExtra((prev) => [...prev, ...(page.items ?? [])]);
+        setNext(page.nextCursor ?? null);
+      } catch {
+        // cursor untouched, see above
+      } finally {
+        setLoadingMore(false);
+      }
+    },
+    /** Drop what was paged in: after a filter change or refresh the first page comes back fresh, and keeping the tail would list entries twice. */
+    reset() { setExtra([]); setNext(undefined); },
+  };
+}
+
+/** The next page arrives as this scrolls into view. */
 export function LoadMoreSentinel({
   hasMore, loading, onLoadMore,
 }: {
@@ -209,26 +232,23 @@ export function LoadMoreSentinel({
   onLoadMore: () => Promise<void>;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  // Stable ref so the observer never needs rebuilding on cursor changes.
+  // Read through a ref so a caller's per-render function does not rebuild the observer every render.
   const loadMoreRef = useRef(onLoadMore);
   useEffect(() => { loadMoreRef.current = onLoadMore; }, [onLoadMore]);
 
-  // Re-armed when a page lands as well as when hasMore flips: the observer only
+  // Rebuilt when a page lands as well as when hasMore flips: the observer only
   // fires on a visibility change, and a sentinel still on screen after a page
   // of rows that all fell to a client-side filter would otherwise never ask
-  // for the next one. ponytail: a search matching nothing then pages through
-  // the whole feed, one request per page, which is what "keep scrolling" says.
+  // for the next one. A browser also fires a fresh observer at once for an
+  // element already in view, so the one built while a page is loading must
+  // stay quiet or the same cursor is fetched twice. ponytail: a search
+  // matching nothing then pages through the whole feed, one request per page,
+  // which is what "keep scrolling" says.
   useEffect(() => {
     const el = ref.current;
-    if (!el || typeof IntersectionObserver === "undefined") return; // jsdom, older browsers
-    let busy = false;
+    if (!el || loading || typeof IntersectionObserver === "undefined") return; // jsdom, older browsers
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !busy) {
-          busy = true;
-          loadMoreRef.current().finally(() => { busy = false; });
-        }
-      },
+      ([entry]) => { if (entry.isIntersecting) loadMoreRef.current(); },
       { rootMargin: "200px" },
     );
     observer.observe(el);
@@ -238,7 +258,7 @@ export function LoadMoreSentinel({
   if (!hasMore) return null;
   return (
     <>
-      <div ref={ref} data-testid="load-more-sentinel" className="h-1" />
+      <div ref={ref} className="h-1" />
       {loading && (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}

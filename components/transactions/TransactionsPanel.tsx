@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import useSWR, { mutate } from "swr";
 import { useRouter } from "next/navigation";
 import { Download } from "lucide-react";
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { DataTable } from "@/components/ui/DataTable";
-import { TableControls, useTablePrefs, useSort, sortRows, LoadMoreSentinel, type TableColumn } from "@/components/ui/TableControls";
+import { TableControls, useTablePrefs, useSort, sortRows, usePaging, LoadMoreSentinel, type TableColumn } from "@/components/ui/TableControls";
 import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
 import { FilterChip } from "@/components/ui/FilterChip";
 import { StatStrip, refreshStatStrip } from "@/components/accounts/StatStrip";
@@ -128,9 +128,6 @@ function sortValue(r: ActivityRow, key: SortKey): string | number {
 export function TransactionsPanel() {
   const router = useRouter();
   const [filter, setFilter] = useState<FilterValue>("");
-  const [extraDeltas, setExtraDeltas] = useState<DashboardGlobalDeltaEntry[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const { density, hidden, setDensity, toggleColumn } = useTablePrefs<ColumnKey>("transactions", HIDEABLE);
@@ -145,40 +142,17 @@ export function TransactionsPanel() {
   const { data: deltasData, error: deltasError } = useSWR<GlobalDeltasPage>(deltaUrl, fetcher, { refreshInterval: 30_000 });
   const { data: proposalsData, error: proposalsError } = useSWR<GlobalProposalsPage>("/api/global-proposals", fetcher, { refreshInterval: 30_000 });
 
-  const initialCursor = deltasData?.nextCursor ?? null;
-  const hasMoreDeltas = nextCursor === undefined ? initialCursor !== null : nextCursor !== null;
-
-  const loadMore = useCallback(async () => {
-    const cursor = nextCursor !== undefined ? nextCursor : initialCursor;
-    if (!cursor) return;
-    setLoadingMore(true);
-    try {
-      const params = new URLSearchParams({ cursor });
-      if (deltaStatus) params.set("status", deltaStatus);
-      const res = await fetch(`/api/global-deltas?${params}`);
-      if (!res.ok) return; // keep cursor untouched so the next attempt can retry
-      const page: GlobalDeltasPage = await res.json();
-      setExtraDeltas((prev) => [...prev, ...(page.items ?? [])]);
-      setNextCursor(page.nextCursor ?? null);
-    } catch {
-      // network error — leave cursor untouched so the next attempt can retry
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [nextCursor, initialCursor, deltaStatus]);
+  const { extra: extraDeltas, hasMore: hasMoreDeltas, loadingMore, loadMore, reset } = usePaging(deltasData, (cursor) =>
+    fetcher(`/api/global-deltas?${new URLSearchParams(deltaStatus ? { cursor, status: deltaStatus } : { cursor })}`));
 
   const handleFilterChange = (value: FilterValue) => {
     setFilter(value);
-    setExtraDeltas([]);
-    setNextCursor(undefined);
+    reset();
   };
 
-  const refresh = useCallback(async () => {
+  const refresh = async () => {
     setRefreshing(true);
-    // Paged-in entries are dropped: the first page comes back with whatever is
-    // newest, and keeping the old tail would list some entries twice.
-    setExtraDeltas([]);
-    setNextCursor(undefined);
+    reset();
     try {
       await Promise.all([
         deltaUrl ? mutate(deltaUrl) : Promise.resolve(),
@@ -188,7 +162,7 @@ export function TransactionsPanel() {
     } finally {
       setRefreshing(false);
     }
-  }, [deltaUrl]);
+  };
 
   const allDeltas = [...(deltasData?.items ?? []), ...extraDeltas];
   const allProposals = proposalsData?.items ?? [];

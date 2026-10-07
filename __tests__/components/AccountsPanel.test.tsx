@@ -341,6 +341,26 @@ describe("AccountsPanel", () => {
     });
     expect(mockPush).toHaveBeenCalledWith("/accounts/0xabc123");
   });
+
+  // A row that only answers to a mouse leaves the detail page unreachable
+  // from the keyboard. Enter on the focused row opens it; Enter on a link
+  // inside the row is that link's own business.
+  it("opens the account on Enter when the row itself has focus", () => {
+    const mockPush = vi.fn();
+    vi.mocked(useRouter).mockReturnValue({ push: mockPush } as any);
+    useSWR.mockImplementation((key: string) => {
+      if (key === ACCOUNTS_KEY) return { data: { items: [{
+        accountId: "0xabc123", stateStatus: "available", authScheme: "falcon", authorizedSignerCount: 1,
+        hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: new Date().toISOString(),
+      }], nextCursor: null }, error: undefined };
+      return { data: undefined, error: undefined };
+    });
+    render(<AccountsPanel />);
+    const tr = screen.getByText("0xabc123").closest("tr")!;
+    expect(tr).toHaveAttribute("tabindex", "0");
+    fireEvent.keyDown(tr, { key: "Enter" });
+    expect(mockPush).toHaveBeenCalledWith("/accounts/0xabc123");
+  });
 });
 
 describe("AccountsPanel sorting and export", () => {

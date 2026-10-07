@@ -118,7 +118,7 @@ describe("TransactionsPanel", () => {
     expect(button).toBeDisabled();
   });
 
-  it("pages by scrolling, like Accounts, and says how deep the table goes", () => {
+  it("says how deep the table goes while there is more to page in", () => {
     useSWR.mockImplementation((key: string) => {
       if (typeof key === "string" && key.startsWith("/api/global-deltas")) {
         return { data: { items: [delta("0xaaa111", 1)], nextCursor: "page2" }, error: undefined };
@@ -127,8 +127,6 @@ describe("TransactionsPanel", () => {
       return { data: undefined, error: undefined };
     });
     render(<TransactionsPanel />);
-    expect(screen.queryByRole("button", { name: /load more/i })).not.toBeInTheDocument();
-    expect(screen.getByTestId("load-more-sentinel")).toBeInTheDocument();
     expect(screen.getByText(/Showing the latest 1/)).toBeInTheDocument();
   });
 

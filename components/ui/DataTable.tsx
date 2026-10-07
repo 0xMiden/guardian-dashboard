@@ -1,6 +1,6 @@
 "use client";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
-import { CELL_PADDING, type Density, type Sort, type TableColumn } from "@/components/ui/TableControls";
+import type { Density, Sort, TableColumn } from "@/components/ui/TableControls";
 
 /**
  * The one table markup, so the three tables cannot drift apart again. Fixed
@@ -19,7 +19,7 @@ export function DataTable<T, K extends string, S extends string = string>({
   onRowClick: (row: T) => void;
   rowProps?: (row: T) => Record<`data-${string}`, string | undefined>;
 }) {
-  const pad = CELL_PADDING[density];
+  const pad = density === "compact" ? "px-3 py-1.5" : "px-4 py-3";
   return (
     <table className="w-full table-fixed">
       <colgroup>
@@ -28,21 +28,22 @@ export function DataTable<T, K extends string, S extends string = string>({
       <thead>
         <tr className="border-b text-muted-foreground">
           {columns.map((c) => {
-            const active = !!c.sortKey && sort?.key === c.sortKey;
+            const sortKey = onSort && c.sortKey;
+            const dir = sortKey && sort?.key === sortKey ? sort.dir : null;
             return (
               <th
                 key={c.key}
                 className={`${pad} text-label ${c.align === "right" ? "text-right" : "text-left"}`}
-                aria-sort={c.sortKey && onSort ? (active ? (sort!.dir === "asc" ? "ascending" : "descending") : "none") : undefined}
+                aria-sort={sortKey ? (dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none") : undefined}
               >
-                {c.sortKey && onSort ? (
+                {sortKey ? (
                   <button
-                    onClick={() => onSort(c.sortKey!)}
-                    className={`inline-flex items-center gap-1 rounded-lg transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "text-foreground" : ""}`}
+                    onClick={() => onSort(sortKey)}
+                    className={`inline-flex items-center gap-1 rounded-lg transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${dir ? "text-foreground" : ""}`}
                   >
                     {c.label}
-                    {active
-                      ? (sort!.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)
+                    {dir === "asc" ? <ChevronUp className="h-3 w-3" />
+                      : dir === "desc" ? <ChevronDown className="h-3 w-3" />
                       : <ChevronsUpDown className="h-3 w-3 opacity-40" />}
                   </button>
                 ) : c.label}
@@ -53,11 +54,15 @@ export function DataTable<T, K extends string, S extends string = string>({
       </thead>
       <tbody>
         {rows.map((row, i) => (
+          // Focusable, and Enter opens it: a row that only answers to a mouse
+          // leaves the detail pages unreachable from the keyboard.
           <tr
             key={rowKey(row)}
             {...rowProps?.(row)}
-            className="border-b last:border-0 cursor-pointer hover:bg-muted/40 transition-colors"
+            tabIndex={0}
+            className="border-b last:border-0 cursor-pointer hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:bg-muted/40"
             onClick={() => onRowClick(row)}
+            onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) onRowClick(row); }}
           >
             {columns.map((c) => (
               <td key={c.key} className={`${pad} ${c.align === "right" ? "text-right" : ""} ${c.cellClass}`}>

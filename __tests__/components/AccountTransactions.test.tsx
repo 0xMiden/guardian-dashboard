@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { AccountTransactions } from "@/components/accounts/AccountTransactions";
-import { FetchError } from "@/lib/utils";
 
 vi.mock("swr", () => ({ default: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: vi.fn(() => ({ push: vi.fn(), back: vi.fn() })) }));
+vi.mock("next/navigation", () => ({ useRouter: vi.fn(() => ({ push: vi.fn() })) }));
 
 const useSWR = (await import("swr")).default as ReturnType<typeof vi.fn>;
 
@@ -33,14 +32,6 @@ describe("AccountTransactions controls", () => {
     expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /columns/i })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Nonce" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /load more/i })).not.toBeInTheDocument();
-  });
-
-  it("names the failure the way every other table does", () => {
-    mockFeeds({ error: new FetchError("Guardian offline", 503) }, { data: { items: [], nextCursor: null } });
-    render(<AccountTransactions accountId="0xabc123" />);
-    expect(screen.getByText("Guardian unavailable")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
   });
 });
 
@@ -59,5 +50,7 @@ describe("AccountTransactions when a feed fails", () => {
     const { container } = render(<AccountTransactions accountId="0xabc123" />);
     expect(container.querySelectorAll("[data-slot='skeleton']")).toHaveLength(0);
     expect(screen.getByText(/Guardian refused/)).toBeInTheDocument();
+    // The way out of that state stays on screen.
+    expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
   });
 });

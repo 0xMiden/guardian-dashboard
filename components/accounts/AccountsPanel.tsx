@@ -18,7 +18,7 @@ import { stateBadge } from "@/components/accounts/StateBadge";
 import { Button } from "@/components/ui/Button";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
-import { TableControls, useTablePrefs, useSort, sortRows, LoadMoreSentinel, type TableColumn } from "@/components/ui/TableControls";
+import { TableControls, useTablePrefs, useSort, sortRows, usePaging, LoadMoreSentinel, type TableColumn } from "@/components/ui/TableControls";
 import { StatStrip, refreshStatStrip, STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
 import { fetcher, downloadCsv } from "@/lib/utils";
 import { isWalletAccount, matchesAccountId, looksLikeAccountId, accountState, accountsToCsv, formatCount } from "@/lib/format";
@@ -79,24 +79,14 @@ export function AccountsPanel() {
   // spinner on every row without a value, including rows that were never
   // requested and rows whose fetch had already failed.
   const [inFlight, setInFlight] = useState<Set<string>>(new Set());
-  const [extraItems, setExtraItems] = useState<DashboardAccountSummary[]>([]);
-  // undefined = haven't paginated yet (fall through to initialCursor)
-  // null      = last page loaded, no more pages
-  // string    = cursor for the next page
-  const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const { extra: extraItems, hasMore, loadingMore, loadMore } = usePaging(data, (cursor) =>
+    fetcher(`${listKey}&cursor=${encodeURIComponent(cursor)}`));
   const [kind, setKind] = useState<AccountKind>("all");
   const [state, setState] = useState<AccountState>("all");
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const { sort, toggleSort } = useSort<SortKey>();
   const { density, hidden, setDensity, toggleColumn } = useTablePrefs<ColumnKey>("accounts", HIDEABLE);
-
-  const initialCursor = data?.nextCursor ?? null;
-  // undefined → haven't paginated yet, check initialCursor from SWR
-  // null      → exhausted all pages
-  // string    → more pages available
-  const hasMore = nextCursor === undefined ? initialCursor !== null : nextCursor !== null;
 
   const loaded = [...(data?.items ?? []), ...extraItems];
   const stateOf = (a: DashboardAccountSummary) => accountState(a.stateStatus, a.pausedAt, a.releasedAt);
@@ -136,24 +126,6 @@ export function AccountsPanel() {
       });
     }
   }, []);
-
-  const loadMore = useCallback(async () => {
-    const cursor = nextCursor !== undefined ? nextCursor : initialCursor;
-    if (!cursor) return;
-    setLoadingMore(true);
-    try {
-      const res = await fetch(`${listKey}&cursor=${encodeURIComponent(cursor)}`);
-      if (!res.ok) return; // keep cursor untouched so the next attempt can retry
-      const page: AccountsPage = await res.json();
-      const newItems = page.items ?? [];
-      setExtraItems((prev) => [...prev, ...newItems]);
-      setNextCursor(page.nextCursor ?? null);
-    } catch {
-      // network error — leave cursor untouched so the next attempt can retry
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [nextCursor, initialCursor, listKey]);
 
   const fetchSnapshotsRef = useRef(fetchSnapshots);
   useEffect(() => { fetchSnapshotsRef.current = fetchSnapshots; }, [fetchSnapshots]);

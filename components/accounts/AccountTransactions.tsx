@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import useSWR, { mutate } from "swr";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -10,7 +10,7 @@ import { Timestamp } from "@/components/ui/Timestamp";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { DataTable } from "@/components/ui/DataTable";
-import { TableControls, useTablePrefs, LoadMoreSentinel, type TableColumn } from "@/components/ui/TableControls";
+import { TableControls, useTablePrefs, usePaging, LoadMoreSentinel, type TableColumn } from "@/components/ui/TableControls";
 import { fetcher } from "@/lib/utils";
 import { activityLabel, deltaStatusBadge, proposalStatusBadge, AmountCell, CounterpartyCell } from "@/components/transactions/activity-cells";
 import type { DashboardDeltaEntry, DashboardProposalEntry, PagedResult } from "@openzeppelin/guardian-operator-client";
@@ -30,8 +30,7 @@ type ActivityRow = {
 };
 
 type ColumnKey = "nonce" | "counterparty" | "activity" | "amount" | "status" | "date";
-// The nonce is what makes a row identifiable here, so it is not offered for
-// hiding. Same arrangement as the other two tables.
+// Everything but the nonce, which is what identifies a row.
 const HIDEABLE: readonly ColumnKey[] = ["counterparty", "activity", "amount", "status", "date"];
 
 interface Props {
@@ -40,8 +39,9 @@ interface Props {
 
 /**
  * One account's activity, on the same table, controls and paging as the global
- * Activity table. No chips, sort or export: one account rarely has more than
- * a screen of rows, and the nonce column stands in for the account column.
+ * Activity table. No chips, sort or export, since those act on the loaded rows
+ * and one account's feed is read top to bottom; the nonce column stands in for
+ * the account column.
  */
 export function AccountTransactions({ accountId }: Props) {
   const router = useRouter();
@@ -52,44 +52,20 @@ export function AccountTransactions({ accountId }: Props) {
   const { data: deltasData, error: deltasError } = useSWR<DeltasPage>(deltasKey, fetcher, { refreshInterval: 30_000 });
   const { data: proposalsData, error: proposalsError } = useSWR<ProposalsPage>(proposalsKey, fetcher, { refreshInterval: 30_000 });
 
-  const [extraDeltas, setExtraDeltas] = useState<DashboardDeltaEntry[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const { extra: extraDeltas, hasMore, loadingMore, loadMore, reset } = usePaging(deltasData, (cursor) =>
+    fetcher(`${deltasKey}?cursor=${encodeURIComponent(cursor)}`));
   const [refreshing, setRefreshing] = useState(false);
   const { density, hidden, setDensity, toggleColumn } = useTablePrefs<ColumnKey>("account-activity", HIDEABLE);
 
-  const initialCursor = deltasData?.nextCursor ?? null;
-  const hasMore = nextCursor === undefined ? initialCursor !== null : nextCursor !== null;
-
-  const loadMore = useCallback(async () => {
-    const cursor = nextCursor !== undefined ? nextCursor : initialCursor;
-    if (!cursor) return;
-    setLoadingMore(true);
-    try {
-      const res = await fetch(`${deltasKey}?cursor=${encodeURIComponent(cursor)}`);
-      if (!res.ok) return; // keep cursor untouched so the next attempt can retry
-      const page: DeltasPage = await res.json();
-      setExtraDeltas((prev) => [...prev, ...(page.items ?? [])]);
-      setNextCursor(page.nextCursor ?? null);
-    } catch {
-      // network error — leave cursor untouched so the next attempt can retry
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [deltasKey, nextCursor, initialCursor]);
-
-  const refresh = useCallback(async () => {
+  const refresh = async () => {
     setRefreshing(true);
-    // Paged-in entries are dropped: the first page comes back with whatever is
-    // newest, and keeping the old tail would list some entries twice.
-    setExtraDeltas([]);
-    setNextCursor(undefined);
+    reset();
     try {
       await Promise.all([mutate(deltasKey), mutate(proposalsKey)]);
     } finally {
       setRefreshing(false);
     }
-  }, [deltasKey, proposalsKey]);
+  };
 
   const allDeltas = [...(deltasData?.items ?? []), ...extraDeltas];
   const allProposals = proposalsData?.items ?? [];
@@ -166,7 +142,7 @@ export function AccountTransactions({ accountId }: Props) {
           <ErrorPanel error={deltasError} onRetry={refresh} />
         </div>
       ) : rows.length === 0 ? (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-data text-muted-foreground">
+        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed px-4 text-center text-data text-muted-foreground">
           No activity recorded for this account yet.
         </div>
       ) : (

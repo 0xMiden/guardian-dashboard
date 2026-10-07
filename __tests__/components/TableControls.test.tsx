@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { AccountsPanel, ACCOUNTS_KEY } from "@/components/accounts/AccountsPanel";
+import { LoadMoreSentinel } from "@/components/ui/TableControls";
 
 vi.mock("swr", () => ({ default: vi.fn(), mutate: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -158,5 +159,53 @@ describe("activity table controls", () => {
     const { container } = render(<AccountsPanel />);
     expect(container.querySelector("tbody td")!.className).toContain("py-3");
     expect(localStorage.getItem("guardian:table:transactions")).toContain("compact");
+  });
+});
+
+type Callback = (entries: { isIntersecting: boolean }[]) => void;
+const observers: { cb: Callback; observe: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> }[] = [];
+
+const armObserver = () => {
+  observers.length = 0;
+  vi.stubGlobal("IntersectionObserver", class {
+    observe = vi.fn();
+    disconnect = vi.fn();
+    constructor(cb: Callback) { observers.push({ cb, observe: this.observe, disconnect: this.disconnect }); }
+  });
+};
+
+const inView = (i: number) => observers[i].cb([{ isIntersecting: true }]);
+
+describe("LoadMoreSentinel", () => {
+  beforeEach(armObserver);
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("asks for the next page when it scrolls into view", () => {
+    const onLoadMore = vi.fn(async () => {});
+    render(<LoadMoreSentinel hasMore loading={false} onLoadMore={onLoadMore} />);
+    inView(0);
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+  });
+
+  // The observer fires on a visibility change only. A page whose rows all fell
+  // to a client-side filter leaves the sentinel where it was, on screen, so
+  // without a re-arm it would never ask for the page after that one.
+  it("asks again after a page lands while it is still on screen", () => {
+    const onLoadMore = vi.fn(async () => {});
+    const { rerender } = render(<LoadMoreSentinel hasMore loading={false} onLoadMore={onLoadMore} />);
+    inView(0);
+    // While the page is loading no observer watches: a browser fires a new one
+    // at once for an element already in view, which would fetch the cursor twice.
+    rerender(<LoadMoreSentinel hasMore loading onLoadMore={onLoadMore} />);
+    expect(observers).toHaveLength(1);
+    rerender(<LoadMoreSentinel hasMore loading={false} onLoadMore={onLoadMore} />);
+    expect(observers).toHaveLength(2);
+    inView(1);
+    expect(onLoadMore).toHaveBeenCalledTimes(2);
+  });
+
+  it("is absent once there is nothing more to load", () => {
+    const { container } = render(<LoadMoreSentinel hasMore={false} loading={false} onLoadMore={async () => {}} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

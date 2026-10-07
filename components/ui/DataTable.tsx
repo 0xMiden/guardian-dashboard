@@ -1,5 +1,4 @@
 "use client";
-import type { RefObject } from "react";
 import { SortableHeader, type Sort, type TableColumn } from "@/components/ui/TableControls";
 
 /**
@@ -11,7 +10,7 @@ import { SortableHeader, type Sort, type TableColumn } from "@/components/ui/Tab
  * the cells, so hiding a column cannot leave the three out of step.
  */
 export function DataTable<T, K extends string, S extends string = string>({
-  columns, rows, rowKey, padding, sort, onSort, onRowClick, clickable, rowProps, tbodyRef,
+  columns, rows, rowKey, padding, sort, onSort, onRowClick, clickable, rowProps,
 }: {
   columns: TableColumn<T, K, S>[];
   rows: T[];
@@ -23,7 +22,6 @@ export function DataTable<T, K extends string, S extends string = string>({
   /** Which rows the click applies to; every row when absent. */
   clickable?: (row: T) => boolean;
   rowProps?: (row: T) => Record<`data-${string}`, string | undefined>;
-  tbodyRef?: RefObject<HTMLTableSectionElement | null>;
 }) {
   return (
     <table className="w-full table-fixed">
@@ -41,7 +39,7 @@ export function DataTable<T, K extends string, S extends string = string>({
           ))}
         </tr>
       </thead>
-      <tbody ref={tbodyRef}>
+      <tbody>
         {rows.map((row, i) => (
           <tr
             key={rowKey(row)}

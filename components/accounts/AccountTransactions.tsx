@@ -12,7 +12,6 @@ import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { DataTable } from "@/components/ui/DataTable";
 import { TableControls, useTablePrefs, LoadMoreSentinel, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
 import { fetcher } from "@/lib/utils";
-import { formatCount } from "@/lib/format";
 import { activityLabel, deltaStatusBadge, proposalStatusBadge, AmountCell, CounterpartyCell } from "@/components/transactions/activity-cells";
 import type { DashboardDeltaEntry, DashboardProposalEntry, PagedResult } from "@openzeppelin/guardian-operator-client";
 
@@ -185,11 +184,6 @@ export function AccountTransactions({ accountId }: Props) {
             />
           </CardContent>
         </Card>
-      )}
-      {hasMore && rows.length > 0 && (
-        <p className="text-center text-label text-muted-foreground" title="Columns cover the entries loaded so far.">
-          Showing the latest {formatCount(allDeltas.length + allProposals.length)}
-        </p>
       )}
       <LoadMoreSentinel hasMore={hasMore} loading={loadingMore} onLoadMore={loadMore} />
     </div>

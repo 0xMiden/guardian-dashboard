@@ -16,7 +16,7 @@ import { TableControls, useTablePrefs, useSort, sortRows, LoadMoreSentinel, CELL
 import { AccountIdFilter } from "@/components/ui/AccountIdFilter";
 import { FilterChip } from "@/components/ui/FilterChip";
 import { StatStrip, refreshStatStrip } from "@/components/accounts/StatStrip";
-import { fetcher } from "@/lib/utils";
+import { fetcher, downloadCsv } from "@/lib/utils";
 import { matchesAccountId, activityToCsv, formatCount } from "@/lib/format";
 import {
   activityLabel, deltaStatusBadge, deltaStatusLabel, proposalStatusBadge, proposalStatusLabel, AmountCell, CounterpartyCell,
@@ -211,18 +211,7 @@ export function TransactionsPanel() {
   // Loaded rows only, as on Accounts.
   function exportCsv() {
     posthog.capture("activity_exported", { row_count: rows.length, filter, sorted: !!sort });
-    const url = URL.createObjectURL(new Blob([activityToCsv(rows)], { type: "text/csv;charset=utf-8" }));
-    const link = Object.assign(document.createElement("a"), {
-      href: url,
-      download: `guardian-activity-${new Date().toISOString().slice(0, 10)}.csv`,
-    });
-    // In the document and revoked on the next tick: Safari ignores a click on a
-    // detached anchor, and revoking in the same tick can cancel the download
-    // before the browser has read the blob.
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    downloadCsv(`guardian-activity-${new Date().toISOString().slice(0, 10)}.csv`, activityToCsv(rows));
   }
 
   // The account is what makes a row identifiable, so it is not offered for

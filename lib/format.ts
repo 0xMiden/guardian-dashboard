@@ -124,7 +124,7 @@ export function activityToCsv(rows: ActivityCsvRow[]): string {
       r.counterparty?.direction ?? "",
       r.label,
       // Every asset the row moved, not the first and a count as the cell shows.
-      (r.assets ?? []).map((a) => a.amount).filter(Boolean).map((a) => formatAmount(a!)).join("; "),
+      (r.assets ?? []).flatMap((a) => (a.amount ? [formatAmount(a.amount)] : [])).join("; "),
       r.status,
       r.timestamp,
     ]),

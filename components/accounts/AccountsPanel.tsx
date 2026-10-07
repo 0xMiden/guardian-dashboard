@@ -20,7 +20,7 @@ import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { TableControls, useTablePrefs, useSort, sortRows, LoadMoreSentinel, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
 import { StatStrip, refreshStatStrip, STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
-import { fetcher } from "@/lib/utils";
+import { fetcher, downloadCsv } from "@/lib/utils";
 import { isWalletAccount, matchesAccountId, looksLikeAccountId, accountState, accountsToCsv, formatCount } from "@/lib/format";
 
 type AccountsPage = PagedResult<DashboardAccountSummary>;
@@ -226,10 +226,10 @@ export function AccountsPanel() {
   // which meant the chip filter was covered and the search box was not: typing
   // in it swapped the mounted rows while the observer went on watching detached
   // ones, and totals never loaded for what was actually on screen.
-  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return; // jsdom, older browsers
-    const root = tbodyRef.current;
+    const root = tableRef.current;
     if (!root) return;
     visibleRef.current.clear(); // the rendered rows changed; the observer refills it
     const observer = new IntersectionObserver(
@@ -265,20 +265,7 @@ export function AccountsPanel() {
   // makes scrolling to collect it absurd; at 7,198 accounts it nearly is.
   function exportCsv() {
     posthog.capture("accounts_exported", { row_count: items.length, filter: kind, state, sorted: !!sort });
-    const url = URL.createObjectURL(
-      new Blob([accountsToCsv(items, perAccount)], { type: "text/csv;charset=utf-8" }),
-    );
-    const link = Object.assign(document.createElement("a"), {
-      href: url,
-      download: `guardian-accounts-${new Date().toISOString().slice(0, 10)}.csv`,
-    });
-    // In the document and revoked on the next tick: Safari ignores a click on a
-    // detached anchor, and revoking in the same tick can cancel the download
-    // before the browser has read the blob.
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    downloadCsv(`guardian-accounts-${new Date().toISOString().slice(0, 10)}.csv`, accountsToCsv(items, perAccount));
   }
 
   function openAccount(a: DashboardAccountSummary) {
@@ -454,7 +441,7 @@ export function AccountsPanel() {
         )
       ) : (
       <Card>
-        <CardContent className="p-0 overflow-x-auto">
+        <CardContent ref={tableRef} className="p-0 overflow-x-auto">
           <DataTable
             columns={shownColumns}
             rows={items}
@@ -464,7 +451,6 @@ export function AccountsPanel() {
             onSort={toggleSort}
             onRowClick={(a) => { openAccount(a); router.push(`/accounts/${a.accountId}`); }}
             rowProps={(a) => ({ "data-account-id": a.accountId, "data-updated-at": a.updatedAt })}
-            tbodyRef={tbodyRef}
           />
           {!items.length && (
             <div className="px-4 py-6 text-center text-xs text-muted-foreground">

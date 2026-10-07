@@ -188,14 +188,12 @@ describe("AccountsPanel", () => {
     });
     render(<AccountsPanel />);
     expect(screen.getByText("wallet")).toBeInTheDocument();
-    expect(screen.getByText("Wallet (1)")).toBeInTheDocument();
-    expect(screen.getByText("Other (1)")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Wallet (1)"));
+    fireEvent.click(screen.getByText("Wallet"));
     expect(screen.getByText("0xwallet")).toBeInTheDocument();
     expect(screen.queryByText("0xsdk")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Other (1)"));
+    fireEvent.click(screen.getByText("Other"));
     expect(screen.getByText("0xsdk")).toBeInTheDocument();
     expect(screen.queryByText("0xwallet")).not.toBeInTheDocument();
   });
@@ -217,20 +215,16 @@ describe("AccountsPanel", () => {
       return { data: undefined, error: undefined };
     });
     render(<AccountsPanel />);
-    expect(screen.getByText("Active (1)")).toBeInTheDocument();
-    expect(screen.getByText("Frozen (1)")).toBeInTheDocument();
-    expect(screen.getByText("Released (1)")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText("Released (1)"));
+    fireEvent.click(screen.getByText("Released"));
     expect(screen.getByText("0xreleased")).toBeInTheDocument();
     expect(screen.queryByText("0xactive")).not.toBeInTheDocument();
     expect(screen.queryByText("0xfrozen")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Other (1)"));
+    fireEvent.click(screen.getByText("Other"));
     expect(screen.queryByText("0xreleased")).not.toBeInTheDocument();
     expect(screen.getByText(/no released other accounts among the 3 loaded so far/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Any state"));
+    fireEvent.click(screen.getByText("Any status"));
     expect(screen.getByText("0xfrozen")).toBeInTheDocument();
   });
 
@@ -243,7 +237,7 @@ describe("AccountsPanel", () => {
       return { data: undefined, error: undefined };
     });
     render(<AccountsPanel />);
-    fireEvent.click(screen.getByText("Wallet (0)"));
+    fireEvent.click(screen.getByText("Wallet"));
     expect(screen.getByText(/no wallet accounts among the 1 loaded so far/i)).toBeInTheDocument();
   });
 
@@ -400,14 +394,14 @@ describe("AccountsPanel sorting and export", () => {
     render(<AccountsPanel />);
     const button = screen.getByRole("button", { name: /export csv/i });
     expect(button).not.toBeDisabled();
-    fireEvent.click(screen.getByText("Wallet (0)"));
+    fireEvent.click(screen.getByText("Wallet"));
     expect(button).toBeDisabled();
   });
 });
 
-// The chips used to count the rows paged in, so they read "All (50)" on a Guardian
-// holding 1,418 and only moved when scrolling happened to load more.
-describe("AccountsPanel kind counts", () => {
+// The note under the table counts what the Guardian holds, from its aggregate,
+// so it does not read "of 50" on a Guardian holding 1,418.
+describe("AccountsPanel loaded note", () => {
   const row = (id: string, over: Record<string, unknown> = {}) => ({
     accountId: id, stateStatus: "available", authScheme: "ecdsa", authorizedSignerCount: 2,
     hasPendingCandidate: false, pausedAt: null, pausedReason: null,
@@ -422,19 +416,18 @@ describe("AccountsPanel kind counts", () => {
     });
   }
 
-  it("counts what the Guardian holds, not the page that has been loaded", () => {
+  // The chips carry no counts: the aggregate cannot fill every group under
+  // every filter, and a row where one group counts and the other does not
+  // reads as two controls. They are named after the columns they filter.
+  it("names the chips after their columns, without counts", () => {
     mock({
       items: [row("0xa"), row("0xb")],
-      stats: { total: 1418, count7d: 0, count30d: 0, counted: 1418, wallet: 1410, other: 8, frozen: 12, released: 6 },
+      stats: { total: 1418, count7d: 0, count30d: 0, counted: 1418, wallet: 1410, other: 8 },
     });
     render(<AccountsPanel />);
-    expect(screen.getByText("All (1,418)")).toBeInTheDocument();
-    expect(screen.getByText("Wallet (1,410)")).toBeInTheDocument();
-    expect(screen.getByText("Other (8)")).toBeInTheDocument();
-    // Active is what the aggregate leaves once frozen and released are taken out.
-    expect(screen.getByText("Active (1,400)")).toBeInTheDocument();
-    expect(screen.getByText("Frozen (12)")).toBeInTheDocument();
-    expect(screen.getByText("Released (6)")).toBeInTheDocument();
+    expect(screen.getByText("Any type")).toBeInTheDocument();
+    expect(screen.getByText("Any status")).toBeInTheDocument();
+    expect(screen.queryByText(/\(1,418\)/)).not.toBeInTheDocument();
   });
 
   // Below the table rather than beside the chips: sitting in the chip row it
@@ -457,11 +450,9 @@ describe("AccountsPanel kind counts", () => {
     expect(screen.queryByText(/loaded$/)).not.toBeInTheDocument();
   });
 
-  it("falls back to the loaded rows before the walk has answered", () => {
+  it("omits the note before the aggregate has answered", () => {
     mock({ items: [row("0xa"), row("0xb", { authScheme: "falcon" })], stats: undefined });
     render(<AccountsPanel />);
-    expect(screen.getByText("All (2)")).toBeInTheDocument();
-    expect(screen.getByText("Wallet (1)")).toBeInTheDocument();
-    expect(screen.getByText("Other (1)")).toBeInTheDocument();
+    expect(screen.queryByText(/Showing/)).not.toBeInTheDocument();
   });
 });

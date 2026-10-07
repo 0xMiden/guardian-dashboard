@@ -163,7 +163,6 @@ export function AccountsPanel() {
   const hasMore = nextCursor === undefined ? initialCursor !== null : nextCursor !== null;
 
   const loaded = [...(data?.items ?? []), ...extraItems];
-  const walletCount = loaded.filter(isWalletAccount).length;
   const stateOf = (a: DashboardAccountSummary) => accountState(a.stateStatus, a.pausedAt, a.releasedAt);
   const filtered = loaded.filter(
     (a) =>
@@ -347,27 +346,10 @@ export function AccountsPanel() {
 
   const items = sort ? sortAccounts(filtered, sort, perAccount) : filtered;
 
-  // The chips count what the Guardian holds, from the same paged walk that feeds
-  // the stat strip above, so they no longer read as a total while showing one
-  // page. Until that answers, they fall back to the loaded rows, which is what
-  // they always were. The filters themselves still act on loaded rows, hence
-  // the "of" line beside them.
-  //
-  // Under the frozen filter the Guardian counts describe the wrong population:
-  // "All (173)" beside a single frozen row is a contradiction. The loaded rows
-  // *are* the whole frozen set, because that filter is applied server-side, so
-  // counting them is both correct and complete here.
-  const byState = (s: AccountState) => loaded.filter((a) => stateOf(a) === s).length;
-  const counts = stats?.counted != null && !pausedOnly
-    ? {
-        all: stats.counted, wallet: stats.wallet ?? 0, other: stats.other ?? 0,
-        frozen: stats.frozen ?? 0, released: stats.released ?? 0,
-        active: stats.counted - (stats.frozen ?? 0) - (stats.released ?? 0),
-      }
-    : {
-        all: loaded.length, wallet: walletCount, other: loaded.length - walletCount,
-        active: byState("active"), frozen: byState("frozen"), released: byState("released"),
-      };
+  // What the Guardian holds, from the same aggregate that feeds the stat strip,
+  // for the "showing N of M" note below the table. Under the frozen filter the
+  // loaded rows *are* the whole set, because that filter is applied server-side.
+  const total = stats?.counted != null && !pausedOnly ? stats.counted : loaded.length;
 
   // Exports exactly what the table shows: same filter, same sort, same rows.
   // ponytail: loaded rows only, so an export after scrolling three pages holds
@@ -515,24 +497,26 @@ export function AccountsPanel() {
       )}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <AccountIdFilter value={query} onChange={setQuery} />
+        {/* One chip group per column it filters, named after the column. No
+            counts: the Status group had none the aggregate could fill under
+            every filter, and a row where one group counts and the other does
+            not reads as two different controls. The "showing N of M" note
+            below the table carries the total. */}
         {([
-          ["all", `All (${counts.all.toLocaleString()})`],
-          ["wallet", `Wallet (${counts.wallet.toLocaleString()})`],
-          ["other", `Other (${counts.other.toLocaleString()})`],
+          ["all", "Any type"],
+          ["wallet", "Wallet"],
+          ["other", "Other"],
         ] as const).map(([value, label]) => (
           <FilterChip key={value} active={kind === value} onClick={() => setKind(value)}>
             {label}
           </FilterChip>
         ))}
-        {/* Lifecycle state, orthogonal to kind. An account whose owner switched
-            Guardian stays listed as released beside the active ones, and the
-            Overview's frozen count has its own server-side route in. */}
         <span aria-hidden className="mx-1 h-4 w-px bg-border" />
         {([
-          ["all", "Any state"],
-          ["active", `Active (${counts.active.toLocaleString()})`],
-          ["frozen", `Frozen (${counts.frozen.toLocaleString()})`],
-          ["released", `Released (${counts.released.toLocaleString()})`],
+          ["all", "Any status"],
+          ["active", "Active"],
+          ["frozen", "Frozen"],
+          ["released", "Released"],
         ] as const).map(([value, label]) => (
           <FilterChip key={value} active={state === value} onClick={() => setState(value)}>
             {label}
@@ -619,12 +603,12 @@ export function AccountsPanel() {
           )}
         </CardContent>
       </Card>
-      {counts.all > loaded.length && (
+      {total > loaded.length && (
         <p
           className="text-center text-label text-muted-foreground"
           title="Filters, sort and export cover the rows loaded so far."
         >
-          Showing {formatCount(loaded.length)} of {formatCount(counts.all)}
+          Showing {formatCount(loaded.length)} of {formatCount(total)}
         </p>
       )}
       {hasMore && (

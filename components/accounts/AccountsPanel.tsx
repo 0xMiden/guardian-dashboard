@@ -79,8 +79,7 @@ export function AccountsPanel() {
   // spinner on every row without a value, including rows that were never
   // requested and rows whose fetch had already failed.
   const [inFlight, setInFlight] = useState<Set<string>>(new Set());
-  const { extra: extraItems, hasMore, loadingMore, loadMore } = usePaging(data, (cursor) =>
-    fetcher(`${listKey}&cursor=${encodeURIComponent(cursor)}`));
+  const paging = usePaging(listKey, data, (cursor) => fetcher(`${listKey}&cursor=${encodeURIComponent(cursor)}`), (a) => a.accountId);
   const [kind, setKind] = useState<AccountKind>("all");
   const [state, setState] = useState<AccountState>("all");
   const [query, setQuery] = useState("");
@@ -88,7 +87,7 @@ export function AccountsPanel() {
   const { sort, toggleSort } = useSort<SortKey>();
   const { density, hidden, setDensity, toggleColumn } = useTablePrefs<ColumnKey>("accounts", HIDEABLE);
 
-  const loaded = [...(data?.items ?? []), ...extraItems];
+  const loaded = paging.items;
   const stateOf = (a: DashboardAccountSummary) => accountState(a.stateStatus, a.pausedAt, a.releasedAt);
   const filtered = loaded.filter(
     (a) =>
@@ -170,9 +169,13 @@ export function AccountsPanel() {
       // versions land would just re-read what is already on screen. A failed
       // revalidation falls back to the rendered rows, which still works because
       // `refresh=1` re-reads them whatever their version says.
+      // The paged-in tail is kept, unlike on Activity: a refresh here is scoped
+      // to the rows on screen, and dropping the tail would pull them away.
       const page = await mutate<AccountsPage>(listKey);
-      const rows = [...(page?.items ?? data?.items ?? []), ...extraItems]
+      const fresh = new Map((page?.items ?? []).map((a) => [a.accountId, a]));
+      const rows = loaded
         .filter((a) => visibleRef.current.has(a.accountId))
+        .map((a) => fresh.get(a.accountId) ?? a)
         .map((a) => ({ accountId: a.accountId, updatedAt: a.updatedAt }));
       // Let the observer re-queue these once the new versions are rendered.
       for (const r of rows) requestedRef.current.delete(`${r.accountId}@${r.updatedAt}`);
@@ -180,7 +183,7 @@ export function AccountsPanel() {
     } finally {
       setRefreshing(false);
     }
-  }, [data, extraItems, listKey]);
+  }, [loaded, listKey]);
 
   // A row entering view queues its asset total. Rows stay observed rather than
   // being unobserved after first sight: the queue key includes `updatedAt`, so
@@ -420,7 +423,7 @@ export function AccountsPanel() {
                   {query
                     ? `No account matching "${query.trim()}" among the ${formatCount(loaded.length)} loaded so far`
                     : `No ${[state, kind].filter((f) => f !== "all").join(" ")} accounts among the ${formatCount(loaded.length)} loaded so far`}
-                  {hasMore ? ", keep scrolling to load more." : "."}
+                  {paging.hasMore ? ", keep scrolling to load more." : "."}
                 </p>
                 {/* The filter can only see rows that have been paged in. A full ID
                     needs no search endpoint to open, so offer that directly. */}
@@ -442,7 +445,7 @@ export function AccountsPanel() {
           Showing {formatCount(loaded.length)} of {formatCount(total)}
         </p>
       )}
-      <LoadMoreSentinel hasMore={hasMore} loading={loadingMore} onLoadMore={loadMore} />
+      <LoadMoreSentinel {...paging} />
     </div>
   );
 }

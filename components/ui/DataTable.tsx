@@ -60,7 +60,7 @@ export function DataTable<T, K extends string, S extends string = string>({
             key={rowKey(row)}
             {...rowProps?.(row)}
             tabIndex={0}
-            className="border-b last:border-0 cursor-pointer hover:bg-muted/40 transition-colors focus-visible:outline-none focus-visible:bg-muted/40"
+            className="border-b last:border-0 cursor-pointer hover:bg-muted/40 transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
             onClick={() => onRowClick(row)}
             onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) onRowClick(row); }}
           >

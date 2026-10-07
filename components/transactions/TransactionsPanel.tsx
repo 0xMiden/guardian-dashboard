@@ -142,17 +142,16 @@ export function TransactionsPanel() {
   const { data: deltasData, error: deltasError } = useSWR<GlobalDeltasPage>(deltaUrl, fetcher, { refreshInterval: 30_000 });
   const { data: proposalsData, error: proposalsError } = useSWR<GlobalProposalsPage>("/api/global-proposals", fetcher, { refreshInterval: 30_000 });
 
-  const { extra: extraDeltas, hasMore: hasMoreDeltas, loadingMore, loadMore, reset } = usePaging(deltasData, (cursor) =>
-    fetcher(`/api/global-deltas?${new URLSearchParams(deltaStatus ? { cursor, status: deltaStatus } : { cursor })}`));
-
-  const handleFilterChange = (value: FilterValue) => {
-    setFilter(value);
-    reset();
-  };
+  const paging = usePaging(
+    deltaUrl,
+    deltasData,
+    (cursor) => fetcher(`/api/global-deltas?${new URLSearchParams(deltaStatus ? { cursor, status: deltaStatus } : { cursor })}`),
+    (d) => `${d.accountId}-${d.nonce}`,
+  );
 
   const refresh = async () => {
     setRefreshing(true);
-    reset();
+    paging.reset();
     try {
       await Promise.all([
         deltaUrl ? mutate(deltaUrl) : Promise.resolve(),
@@ -164,7 +163,7 @@ export function TransactionsPanel() {
     }
   };
 
-  const allDeltas = [...(deltasData?.items ?? []), ...extraDeltas];
+  const allDeltas = paging.items;
   const allProposals = proposalsData?.items ?? [];
   const loaded = toRows(allDeltas, allProposals, filter);
   const rows = sortRows(loaded.filter((r) => matchesAccountId(query, r.accountId)), sort, sortValue);
@@ -178,7 +177,7 @@ export function TransactionsPanel() {
   const unavailable = proposalsOnly ? proposalsError && !proposalsData : deltasError && !deltasData;
 
   // Exports exactly what the table shows: same filter, same sort, same rows.
-  // Loaded rows only, as on Accounts.
+  // ponytail: loaded rows only, the same ceiling as on Accounts.
   function exportCsv() {
     posthog.capture("activity_exported", { row_count: rows.length, filter, sorted: !!sort });
     downloadCsv(`guardian-activity-${new Date().toISOString().slice(0, 10)}.csv`, activityToCsv(rows));
@@ -208,7 +207,7 @@ export function TransactionsPanel() {
       <div className="flex items-center gap-2 flex-wrap text-xs">
         <AccountIdFilter value={query} onChange={setQuery} />
         {FILTERS.map((f) => (
-          <FilterChip key={f.value} active={filter === f.value} onClick={() => handleFilterChange(f.value)}>
+          <FilterChip key={f.value} active={filter === f.value} onClick={() => setFilter(f.value)}>
             {f.label}
           </FilterChip>
         ))}
@@ -241,7 +240,7 @@ export function TransactionsPanel() {
           {/* The search sees the entries loaded so far: the Guardian's activity
               feeds take a cursor and a status, so there is nothing to search with. */}
           {query
-            ? `No activity for an account matching "${query.trim()}" among the ${formatCount(loaded.length)} loaded so far${hasMoreDeltas ? ", keep scrolling to load more." : "."}`
+            ? `No activity for an account matching "${query.trim()}" among the ${formatCount(loaded.length)} loaded so far${paging.hasMore ? ", keep scrolling to load more." : "."}`
             : "No activity found."}
         </div>
       ) : (
@@ -262,7 +261,7 @@ export function TransactionsPanel() {
         </Card>
       )}
       {/* The feeds carry no total, so the note says how deep the table goes. */}
-      {hasMoreDeltas && rows.length > 0 && (
+      {paging.hasMore && rows.length > 0 && (
         <p
           className="text-center text-label text-muted-foreground"
           title="Filters, sort and export cover the entries loaded so far."
@@ -270,7 +269,8 @@ export function TransactionsPanel() {
           Showing the latest {formatCount(loaded.length)}
         </p>
       )}
-      <LoadMoreSentinel hasMore={hasMoreDeltas} loading={loadingMore} onLoadMore={loadMore} />
+      {/* Not while the skeletons are up: the deltas may have landed before the proposals. */}
+      <LoadMoreSentinel {...paging} hasMore={paging.hasMore && !loading} />
     </div>
   );
 }

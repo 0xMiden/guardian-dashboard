@@ -52,14 +52,13 @@ export function AccountTransactions({ accountId }: Props) {
   const { data: deltasData, error: deltasError } = useSWR<DeltasPage>(deltasKey, fetcher, { refreshInterval: 30_000 });
   const { data: proposalsData, error: proposalsError } = useSWR<ProposalsPage>(proposalsKey, fetcher, { refreshInterval: 30_000 });
 
-  const { extra: extraDeltas, hasMore, loadingMore, loadMore, reset } = usePaging(deltasData, (cursor) =>
-    fetcher(`${deltasKey}?cursor=${encodeURIComponent(cursor)}`));
+  const paging = usePaging(deltasKey, deltasData, (cursor) => fetcher(`${deltasKey}?cursor=${encodeURIComponent(cursor)}`), (d) => String(d.nonce));
   const [refreshing, setRefreshing] = useState(false);
   const { density, hidden, setDensity, toggleColumn } = useTablePrefs<ColumnKey>("account-activity", HIDEABLE);
 
   const refresh = async () => {
     setRefreshing(true);
-    reset();
+    paging.reset();
     try {
       await Promise.all([mutate(deltasKey), mutate(proposalsKey)]);
     } finally {
@@ -67,7 +66,7 @@ export function AccountTransactions({ accountId }: Props) {
     }
   };
 
-  const allDeltas = [...(deltasData?.items ?? []), ...extraDeltas];
+  const allDeltas = paging.items;
   const allProposals = proposalsData?.items ?? [];
 
   const rows: ActivityRow[] = [
@@ -159,7 +158,7 @@ export function AccountTransactions({ accountId }: Props) {
           </CardContent>
         </Card>
       )}
-      <LoadMoreSentinel hasMore={hasMore} loading={loadingMore} onLoadMore={loadMore} />
+      <LoadMoreSentinel {...paging} />
     </div>
   );
 }

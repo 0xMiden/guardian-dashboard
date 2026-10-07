@@ -1,5 +1,23 @@
 import { describe, it, expect } from "vitest";
-import { truncateId, formatAmount, storageSlotLabel, accountState, toCsv, accountsToCsv, formatTimestamp, relativeTime } from "@/lib/format";
+import { truncateId, formatAmount, storageSlotLabel, accountState, toCsv, accountsToCsv, activityToCsv, formatTimestamp, relativeTime } from "@/lib/format";
+
+describe("activityToCsv", () => {
+  it("writes the words the table shows, with every asset the row moved", () => {
+    const csv = activityToCsv([{
+      accountId: "0xabc", counterparty: { accountId: "0xdef", direction: "in" }, label: "Asset Transfer",
+      assets: [{ amount: "1000" }, { amount: "-5" }, {}], status: "confirmed", timestamp: "2026-01-01T00:00:00.000Z",
+    }]);
+    expect(csv.split("\r\n")).toEqual([
+      "Account ID,To / From,Direction,Activity,Amount,Status,Date",
+      '0xabc,0xdef,in,Asset Transfer,"1,000; -5",confirmed,2026-01-01T00:00:00.000Z',
+    ]);
+  });
+
+  it("leaves the counterparty and amount blank for a proposal", () => {
+    const row = activityToCsv([{ accountId: "0xabc", label: "Swap", status: "1/2 signed", timestamp: "t" }]).split("\r\n")[1];
+    expect(row).toBe("0xabc,,,Swap,,1/2 signed,t");
+  });
+});
 
 describe("truncateId", () => {
   it("returns short strings unchanged", () => {

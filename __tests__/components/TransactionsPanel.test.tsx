@@ -23,10 +23,10 @@ const delta = (accountId: string, nonce: number) => ({
 
 const stats = { total: 42, count7d: 7, count30d: 30 };
 
-function mockFeeds(deltas: unknown[], proposals: unknown[] = [], withStats = true) {
+function mockFeeds(deltas: unknown[], proposals: unknown[] = [], withStats = true, nextCursor: string | null = null) {
   useSWR.mockImplementation((key: string) => {
     if (typeof key === "string" && key.startsWith("/api/global-deltas")) {
-      return { data: { items: deltas, nextCursor: null }, error: undefined };
+      return { data: { items: deltas, nextCursor }, error: undefined };
     }
     if (key === "/api/global-proposals") return { data: { items: proposals, nextCursor: null }, error: undefined };
     if (key === "/api/accounts/stats") return { data: withStats ? stats : undefined, error: undefined };
@@ -88,7 +88,70 @@ describe("TransactionsPanel", () => {
     mockFeeds([delta("0xaaa111", 1)]);
     render(<TransactionsPanel />);
     fireEvent.change(screen.getByLabelText("Filter by account ID"), { target: { value: "0xnothere" } });
-    expect(screen.getByText(/in the entries loaded so far/i)).toBeInTheDocument();
+    expect(screen.getByText(/among the 1 loaded so far/i)).toBeInTheDocument();
+  });
+
+  // Same controls as Accounts: sort by header, export what is shown, and the
+  // next page arrives by scrolling. Sorted on Activity rather than Date, since
+  // the feed already arrives newest first and a date sort would look the same.
+  it("cycles a column through descending, ascending, then back to feed order", () => {
+    // Three rows whose labels (Note Created, Asset Transfer, Custom) are in
+    // neither alphabetical order, so every step of the cycle differs.
+    const a = { ...delta("0xaaa", 3), category: "note_creation", statusTimestamp: "2026-03-01T00:00:00Z" };
+    const b = { ...delta("0xbbb", 2), category: "asset_transfer", statusTimestamp: "2026-02-01T00:00:00Z" };
+    const c = { ...delta("0xccc", 1), category: "custom", statusTimestamp: "2026-01-01T00:00:00Z" };
+    mockFeeds([a, b, c]);
+    const { container } = render(<TransactionsPanel />);
+    const ids = () => [...container.querySelectorAll("tbody tr")].map((r) => r.textContent?.slice(0, 5));
+    expect(ids()).toEqual(["0xaaa", "0xbbb", "0xccc"]);
+    const header = screen.getByRole("button", { name: /^activity/i });
+    const th = header.closest("th");
+    expect(th).toHaveAttribute("aria-sort", "none");
+
+    fireEvent.click(header);
+    expect(th).toHaveAttribute("aria-sort", "descending");
+    expect(ids()).toEqual(["0xaaa", "0xccc", "0xbbb"]);
+    fireEvent.click(header);
+    expect(th).toHaveAttribute("aria-sort", "ascending");
+    expect(ids()).toEqual(["0xbbb", "0xccc", "0xaaa"]);
+    fireEvent.click(header);
+    expect(th).toHaveAttribute("aria-sort", "none");
+    expect(ids()).toEqual(["0xaaa", "0xbbb", "0xccc"]);
+  });
+
+  // Deltas can land before proposals. The sentinel then sits under the
+  // skeletons, on screen, and would page the whole feed in before anything
+  // is shown.
+  it("does not page while the skeletons are still up", () => {
+    vi.stubGlobal("IntersectionObserver", class {
+      disconnect() {}
+      constructor(private cb: (entries: { isIntersecting: boolean }[]) => void) {}
+      observe() { this.cb([{ isIntersecting: true }]); }
+    });
+    useSWR.mockImplementation((key: string) => {
+      if (typeof key === "string" && key.startsWith("/api/global-deltas")) {
+        return { data: { items: [delta("0xaaa111", 1)], nextCursor: "page2" }, error: undefined };
+      }
+      return { data: undefined, error: undefined }; // proposals still loading
+    });
+    render(<TransactionsPanel />);
+    expect(fetchSpy.mock.calls.map((c) => String(c[0]))).not.toContainEqual(expect.stringContaining("cursor="));
+    vi.unstubAllGlobals();
+  });
+
+  it("disables export when the filter leaves no rows", () => {
+    mockFeeds([delta("0xaaa111", 1)]);
+    render(<TransactionsPanel />);
+    const button = screen.getByRole("button", { name: /export csv/i });
+    expect(button).not.toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Filter by account ID"), { target: { value: "0xnothere" } });
+    expect(button).toBeDisabled();
+  });
+
+  it("says how deep the table goes while there is more to page in", () => {
+    mockFeeds([delta("0xaaa111", 1)], [], true, "page2");
+    render(<TransactionsPanel />);
+    expect(screen.getByText(/Showing the latest 1/)).toBeInTheDocument();
   });
 
   // The two aggregate keys used to be refreshed with a `fetch(...?refresh=1)`

@@ -91,6 +91,16 @@ describe("AccountsPanel", () => {
     expect(screen.getByText("Guardian offline")).toBeInTheDocument();
   });
 
+  // The panel used to return early on error, taking the toolbar with it, so
+  // the Refresh that is the way out of that state was gone. Activity kept its
+  // toolbar; now both do.
+  it("keeps the toolbar up when the Guardian did not answer", () => {
+    useSWR.mockReturnValue({ data: undefined, error: new FetchError("Guardian offline", 503) });
+    render(<AccountsPanel />);
+    expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
+    expect(screen.getByText("Any status")).toBeInTheDocument();
+  });
+
   it("names the missing permission rather than the status code", () => {
     useSWR.mockReturnValue({
       data: undefined,
@@ -330,6 +340,16 @@ describe("AccountsPanel", () => {
       has_pending_candidate: false,
     });
     expect(mockPush).toHaveBeenCalledWith("/accounts/0xabc123");
+
+    // A row that only answers to a mouse leaves the detail page unreachable
+    // from the keyboard. Enter on the focused row opens it; Enter on a link
+    // inside the row is that link's own business.
+    const tr = screen.getByText("0xabc123").closest("tr")!;
+    expect(tr).toHaveAttribute("tabindex", "0");
+    fireEvent.keyDown(tr, { key: "Enter" });
+    expect(mockPush).toHaveBeenCalledTimes(2);
+    fireEvent.keyDown(screen.getByText("0xabc123"), { key: "Enter" });
+    expect(mockPush).toHaveBeenCalledTimes(2);
   });
 });
 

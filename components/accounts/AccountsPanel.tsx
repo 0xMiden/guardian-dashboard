@@ -3,9 +3,10 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import useSWR, { mutate } from "swr";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronUp, ChevronDown, ChevronsUpDown, Download, Snowflake } from "lucide-react";
+import { Download, Snowflake } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { DataTable } from "@/components/ui/DataTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardAccountSummary, PagedResult } from "@openzeppelin/guardian-operator-client";
 import posthog from "posthog-js";
@@ -17,9 +18,9 @@ import { stateBadge } from "@/components/accounts/StateBadge";
 import { Button } from "@/components/ui/Button";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
-import { TableControls, useTablePrefs, CELL_PADDING, type TableColumn } from "@/components/ui/TableControls";
+import { TableControls, useTablePrefs, useSort, sortRows, usePaging, LoadMoreSentinel, type TableColumn } from "@/components/ui/TableControls";
 import { StatStrip, refreshStatStrip, STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
-import { fetcher } from "@/lib/utils";
+import { fetcher, downloadCsv } from "@/lib/utils";
 import { isWalletAccount, matchesAccountId, looksLikeAccountId, accountState, accountsToCsv, formatCount } from "@/lib/format";
 
 type AccountsPage = PagedResult<DashboardAccountSummary>;
@@ -27,7 +28,6 @@ type AccountKind = "all" | "wallet" | "other";
 type AccountState = "all" | "active" | "frozen" | "released";
 type SnapshotTarget = { accountId: string; updatedAt: string };
 type SortKey = "status" | "signers" | "assets" | "created" | "updated";
-type Sort = { key: SortKey; dir: "asc" | "desc" };
 type ColumnKey = "index" | "id" | "status" | "type" | "signers" | "pending" | "assets" | "created" | "updated";
 
 // The row number and the account id are what make a row identifiable, so they
@@ -53,7 +53,6 @@ export const ACCOUNTS_KEY = `/api/accounts?limit=${PAGE_SIZE}`;
 const accountsKey = (pausedOnly: boolean) =>
   pausedOnly ? `${ACCOUNTS_KEY}&paused=true` : ACCOUNTS_KEY;
 
-
 // null sorts last in both directions: a row whose asset total was never fetched
 // is unknown, and ordering it as zero would read as an empty account.
 function sortValue(a: DashboardAccountSummary, key: SortKey, assets: Record<string, number | null>): string | number | null {
@@ -66,55 +65,10 @@ function sortValue(a: DashboardAccountSummary, key: SortKey, assets: Record<stri
   }
 }
 
-// ponytail: sorts the rows already paged in, the same ceiling the filters above
-// carry. `ListAccountsOptions` is limit/cursor/paused with no ordering, so a
-// full-inventory sort would mean paging the whole Guardian first. Upgrade path is an
-// order parameter on the Guardian's list endpoints.
-function sortAccounts(items: DashboardAccountSummary[], sort: Sort, assets: Record<string, number | null>) {
-  return [...items].sort((a, b) => {
-    const av = sortValue(a, sort.key, assets);
-    const bv = sortValue(b, sort.key, assets);
-    if (av === null || bv === null) return av === bv ? 0 : av === null ? 1 : -1;
-    const cmp = typeof av === "string" ? av.localeCompare(bv as string) : av - (bv as number);
-    return sort.dir === "asc" ? cmp : -cmp;
-  });
-}
-
-function SortableHeader({
-  label, sortKey, sort, onSort, align = "left", padding = "px-4 py-3",
-}: {
-  label: string;
-  sortKey: SortKey;
-  sort: Sort | null;
-  onSort: (key: SortKey) => void;
-  align?: "left" | "right";
-  padding?: string;
-}) {
-  const active = sort?.key === sortKey;
-  return (
-    <th
-      className={`${padding} text-label ${align === "right" ? "text-right" : "text-left"}`}
-      aria-sort={active ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"}
-    >
-      <button
-        onClick={() => onSort(sortKey)}
-        className={`inline-flex items-center gap-1 rounded-lg transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "text-foreground" : ""}`}
-      >
-        {label}
-        {active
-          ? (sort!.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)
-          : <ChevronsUpDown className="h-3 w-3 opacity-40" />}
-      </button>
-    </th>
-  );
-}
-
-type Column = TableColumn<DashboardAccountSummary, ColumnKey> & { sortKey?: SortKey };
-
 export function AccountsPanel() {
   const pausedOnly = useSearchParams().get("paused") === "true";
   const listKey = accountsKey(pausedOnly);
-  const { data, error, mutate: revalidate } = useSWR<AccountsPage>(listKey, fetcher, { refreshInterval: 30_000 });
+  const { data, error } = useSWR<AccountsPage>(listKey, fetcher, { refreshInterval: 30_000 });
   // Same key StatStrip already polls, so SWR serves both from one request.
   const { data: stats } = useSWR<AccountStats>(STATS_KEY, fetcher);
   const router = useRouter();
@@ -125,33 +79,15 @@ export function AccountsPanel() {
   // spinner on every row without a value, including rows that were never
   // requested and rows whose fetch had already failed.
   const [inFlight, setInFlight] = useState<Set<string>>(new Set());
-  const [extraItems, setExtraItems] = useState<DashboardAccountSummary[]>([]);
-  // undefined = haven't paginated yet (fall through to initialCursor)
-  // null      = last page loaded, no more pages
-  // string    = cursor for the next page
-  const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const paging = usePaging(listKey, data, (cursor) => fetcher(`${listKey}&cursor=${encodeURIComponent(cursor)}`), (a) => a.accountId);
   const [kind, setKind] = useState<AccountKind>("all");
   const [state, setState] = useState<AccountState>("all");
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-  // null is the Guardian's own order. Clicking a header cycles desc, asc, back to
-  // null, so there is a way back to the order the rows arrived in.
-  const [sort, setSort] = useState<Sort | null>(null);
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const { sort, toggleSort } = useSort<SortKey>();
   const { density, hidden, setDensity, toggleColumn } = useTablePrefs<ColumnKey>("accounts", HIDEABLE);
 
-  const toggleSort = useCallback((key: SortKey) => {
-    setSort((s) => (s?.key !== key ? { key, dir: "desc" } : s.dir === "desc" ? { key, dir: "asc" } : null));
-  }, []);
-
-  const initialCursor = data?.nextCursor ?? null;
-  // undefined → haven't paginated yet, check initialCursor from SWR
-  // null      → exhausted all pages
-  // string    → more pages available
-  const hasMore = nextCursor === undefined ? initialCursor !== null : nextCursor !== null;
-
-  const loaded = [...(data?.items ?? []), ...extraItems];
+  const loaded = paging.items;
   const stateOf = (a: DashboardAccountSummary) => accountState(a.stateStatus, a.pausedAt, a.releasedAt);
   const filtered = loaded.filter(
     (a) =>
@@ -190,24 +126,6 @@ export function AccountsPanel() {
     }
   }, []);
 
-  const loadMore = useCallback(async () => {
-    const cursor = nextCursor !== undefined ? nextCursor : initialCursor;
-    if (!cursor) return;
-    setLoadingMore(true);
-    try {
-      const res = await fetch(`${listKey}&cursor=${encodeURIComponent(cursor)}`);
-      if (!res.ok) return; // keep cursor untouched so the next attempt can retry
-      const page: AccountsPage = await res.json();
-      const newItems = page.items ?? [];
-      setExtraItems((prev) => [...prev, ...newItems]);
-      setNextCursor(page.nextCursor ?? null);
-    } catch {
-      // network error — leave cursor untouched so the next attempt can retry
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [nextCursor, initialCursor, listKey]);
-
   const fetchSnapshotsRef = useRef(fetchSnapshots);
   useEffect(() => { fetchSnapshotsRef.current = fetchSnapshots; }, [fetchSnapshots]);
 
@@ -243,7 +161,7 @@ export function AccountsPanel() {
   // recompute cannot fit in one click: ~470 active accounts against a budget of
   // 60 requests a minute is minutes of paced fetching, and attempting it as a
   // burst is what earns the 429s that leave the page with no numbers at all.
-  const refresh = useCallback(async () => {
+  const refresh = async () => {
     setRefreshing(true);
     try {
       // The account list comes first and the rest waits for it: a row's
@@ -251,9 +169,13 @@ export function AccountsPanel() {
       // versions land would just re-read what is already on screen. A failed
       // revalidation falls back to the rendered rows, which still works because
       // `refresh=1` re-reads them whatever their version says.
+      // The paged-in tail is kept, unlike on Activity: a refresh here is scoped
+      // to the rows on screen, and dropping the tail would pull them away.
       const page = await mutate<AccountsPage>(listKey);
-      const rows = [...(page?.items ?? data?.items ?? []), ...extraItems]
+      const fresh = new Map((page?.items ?? []).map((a) => [a.accountId, a]));
+      const rows = loaded
         .filter((a) => visibleRef.current.has(a.accountId))
+        .map((a) => fresh.get(a.accountId) ?? a)
         .map((a) => ({ accountId: a.accountId, updatedAt: a.updatedAt }));
       // Let the observer re-queue these once the new versions are rendered.
       for (const r of rows) requestedRef.current.delete(`${r.accountId}@${r.updatedAt}`);
@@ -261,29 +183,7 @@ export function AccountsPanel() {
     } finally {
       setRefreshing(false);
     }
-  }, [data, extraItems, listKey]);
-
-  // Keep a stable ref to loadMore so the observer never needs to be rebuilt on cursor changes
-  const loadMoreRef = useRef(loadMore);
-  useEffect(() => { loadMoreRef.current = loadMore; }, [loadMore]);
-
-  // Infinite scroll — rebuilt only when the sentinel appears/disappears (hasMore flips)
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    let busy = false;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !busy) {
-          busy = true;
-          loadMoreRef.current().finally(() => { busy = false; });
-        }
-      },
-      { rootMargin: "200px" }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [hasMore]);
+  };
 
   // A row entering view queues its asset total. Rows stay observed rather than
   // being unobserved after first sight: the queue key includes `updatedAt`, so
@@ -294,10 +194,10 @@ export function AccountsPanel() {
   // which meant the chip filter was covered and the search box was not: typing
   // in it swapped the mounted rows while the observer went on watching detached
   // ones, and totals never loaded for what was actually on screen.
-  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return; // jsdom, older browsers
-    const root = tbodyRef.current;
+    const root = tableRef.current;
     if (!root) return;
     visibleRef.current.clear(); // the rendered rows changed; the observer refills it
     const observer = new IntersectionObserver(
@@ -316,24 +216,11 @@ export function AccountsPanel() {
     return () => observer.disconnect();
   }, [renderedKey, queueSnapshot]);
 
-  if (!data && !error) {
-    return (
-      <div className="space-y-2">
-        {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
-      </div>
-    );
-  }
-
-  // Keep showing cached rows on a failed revalidation — SWR retries in the background
-  if (error && !data) {
-    return (
-      <div className="rounded-lg border border-dashed">
-        <ErrorPanel error={error} onRetry={() => revalidate()} />
-      </div>
-    );
-  }
-
-  const items = sort ? sortAccounts(filtered, sort, perAccount) : filtered;
+  // ponytail: sorts the rows already paged in, the same ceiling the filters above
+  // carry. `ListAccountsOptions` is limit/cursor/paused with no ordering, so a
+  // full-inventory sort would mean paging the whole Guardian first. Upgrade path is an
+  // order parameter on the Guardian's list endpoints.
+  const items = sortRows(filtered, sort, (a, key) => sortValue(a, key, perAccount));
 
   // What the Guardian holds, from the same aggregate that feeds the stat strip,
   // for the "showing N of M" note below the table. Under the frozen filter the
@@ -350,20 +237,7 @@ export function AccountsPanel() {
   // makes scrolling to collect it absurd; at 7,198 accounts it nearly is.
   function exportCsv() {
     posthog.capture("accounts_exported", { row_count: items.length, filter: kind, state, sorted: !!sort });
-    const url = URL.createObjectURL(
-      new Blob([accountsToCsv(items, perAccount)], { type: "text/csv;charset=utf-8" }),
-    );
-    const link = Object.assign(document.createElement("a"), {
-      href: url,
-      download: `guardian-accounts-${new Date().toISOString().slice(0, 10)}.csv`,
-    });
-    // In the document and revoked on the next tick: Safari ignores a click on a
-    // detached anchor, and revoking in the same tick can cancel the download
-    // before the browser has read the blob.
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    downloadCsv(`guardian-accounts-${new Date().toISOString().slice(0, 10)}.csv`, accountsToCsv(items, perAccount));
   }
 
   function openAccount(a: DashboardAccountSummary) {
@@ -378,7 +252,7 @@ export function AccountsPanel() {
   // hiding a column cannot leave the three lists out of step. Built here rather
   // than at module scope because the cells read the asset totals and the
   // in-flight set, which change as rows scroll into view.
-  const columns: Column[] = [
+  const columns: TableColumn<DashboardAccountSummary, ColumnKey, SortKey>[] = [
     {
       key: "index", label: "#", width: "w-12", align: "right",
       cellClass: "text-data text-muted-foreground tabular-nums",
@@ -449,25 +323,12 @@ export function AccountsPanel() {
     },
   ];
   const shownColumns = columns.filter((c) => !hidden.has(c.key));
-  const pad = CELL_PADDING[density];
 
-  if (!loaded.length) {
-    // An empty *filtered* list is not an empty Guardian. Saying "no accounts
-    // registered" to someone who arrived from the frozen count would be flatly
-    // untrue, and would strand them with no way back.
-    return pausedOnly ? (
-      <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-lg border border-dashed text-data text-muted-foreground">
-        <p>No accounts are frozen.</p>
-        <Link href="/accounts" className="underline-offset-4 hover:text-foreground hover:underline">
-          Show all accounts
-        </Link>
-      </div>
-    ) : (
-      <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-data text-muted-foreground">
-        No accounts registered on this Guardian yet.
-      </div>
-    );
-  }
+  // Keep showing cached rows on a failed revalidation — SWR retries in the background.
+  // The toolbar stays up in every state, as it does on Activity: Refresh is the
+  // way out of the error state, so it cannot leave with the rows.
+  const loading = !data && !error;
+  const unavailable = error && !data;
 
   return (
     <div className="flex flex-col gap-4">
@@ -528,72 +389,54 @@ export function AccountsPanel() {
           <RefreshButton onClick={refresh} busy={refreshing} />
         </div>
       </div>
-      <Card>
-        <CardContent className="p-0 overflow-x-auto">
-          {/* table-fixed + colgroup so the columns keep their widths when a
-              filter changes which rows are mounted. Auto layout re-measured the
-              content on every switch, and the whole table jumped. Same pattern
-              as the Activity table. */}
-          <table className="w-full table-fixed">
-            <colgroup>
-              {shownColumns.map((c) => <col key={c.key} className={c.width} />)}
-            </colgroup>
-            <thead>
-              <tr className="border-b text-muted-foreground">
-                {shownColumns.map((c) => c.sortKey ? (
-                  <SortableHeader
-                    key={c.key}
-                    label={c.label}
-                    sortKey={c.sortKey}
-                    sort={sort}
-                    onSort={toggleSort}
-                    align={c.align}
-                    padding={pad}
-                  />
-                ) : (
-                  <th key={c.key} className={`${pad} text-label ${c.align === "right" ? "text-right" : "text-left"}`}>
-                    {c.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody ref={tbodyRef}>
-              {items.map((a, i) => (
-                <tr
-                  key={a.accountId}
-                  data-account-id={a.accountId}
-                  data-updated-at={a.updatedAt}
-                  className="border-b last:border-0 cursor-pointer hover:bg-muted/40 transition-colors"
-                  onClick={() => { openAccount(a); router.push(`/accounts/${a.accountId}`); }}
-                >
-                  {shownColumns.map((c) => (
-                    <td key={c.key} className={`${pad} ${c.align === "right" ? "text-right" : ""} ${c.cellClass}`}>
-                      {c.cell(a, i)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!items.length && (
-            <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-              <p>
-                {query
-                  ? `No account matching "${query.trim()}" among the ${loaded.length} loaded so far`
-                  : `No ${[state, kind].filter((f) => f !== "all").join(" ")} accounts among the ${loaded.length} loaded so far`}
-                {hasMore ? ", keep scrolling to load more." : "."}
-              </p>
-              {/* The filter can only see rows that have been paged in. A full ID
-                  needs no search endpoint to open, so offer that directly. */}
-              {looksLikeAccountId(query) && (
-                <Button onClick={() => router.push(`/accounts/${encodeURIComponent(query.trim())}`)} size="sm" className="mt-2">
-                  Open this account directly
-                </Button>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {loading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+        </div>
+      ) : unavailable ? (
+        <div className="rounded-lg border border-dashed">
+          <ErrorPanel error={error} onRetry={refresh} />
+        </div>
+      ) : !loaded.length ? (
+        // An empty *filtered* list is not an empty Guardian. Saying "no accounts
+        // registered" to someone who arrived from the frozen count would be flatly
+        // untrue. The banner above carries the way back.
+        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-data text-muted-foreground">
+          {pausedOnly ? "No accounts are frozen." : "No accounts registered on this Guardian yet."}
+        </div>
+      ) : (
+        <Card>
+          <CardContent ref={tableRef} className="p-0 overflow-x-auto">
+            <DataTable
+              columns={shownColumns}
+              rows={items}
+              rowKey={(a) => a.accountId}
+              density={density}
+              sort={sort}
+              onSort={toggleSort}
+              onRowClick={(a) => { openAccount(a); router.push(`/accounts/${a.accountId}`); }}
+              rowProps={(a) => ({ "data-account-id": a.accountId, "data-updated-at": a.updatedAt })}
+            />
+            {!items.length && (
+              <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+                <p>
+                  {query
+                    ? `No account matching "${query.trim()}" among the ${formatCount(loaded.length)} loaded so far`
+                    : `No ${[state, kind].filter((f) => f !== "all").join(" ")} accounts among the ${formatCount(loaded.length)} loaded so far`}
+                  {paging.hasMore ? ", more are loading." : "."}
+                </p>
+                {/* The filter can only see rows that have been paged in. A full ID
+                    needs no search endpoint to open, so offer that directly. */}
+                {looksLikeAccountId(query) && (
+                  <Button onClick={() => router.push(`/accounts/${encodeURIComponent(query.trim())}`)} size="sm" className="mt-2">
+                    Open this account directly
+                  </Button>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
       {total > loaded.length && (
         <p
           className="text-center text-label text-muted-foreground"
@@ -602,16 +445,7 @@ export function AccountsPanel() {
           Showing {formatCount(loaded.length)} of {formatCount(total)}
         </p>
       )}
-      {hasMore && (
-        <>
-          <div ref={sentinelRef} className="h-1" />
-          {loadingMore && (
-            <div className="space-y-2">
-              {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
-            </div>
-          )}
-        </>
-      )}
+      <LoadMoreSentinel {...paging} />
     </div>
   );
 }

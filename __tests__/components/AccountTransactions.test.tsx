@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { AccountTransactions } from "@/components/accounts/AccountTransactions";
 
 vi.mock("swr", () => ({ default: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: vi.fn(() => ({ push: vi.fn(), back: vi.fn() })) }));
+vi.mock("next/navigation", () => ({ useRouter: vi.fn(() => ({ push: vi.fn() })) }));
 
 const useSWR = (await import("swr")).default as ReturnType<typeof vi.fn>;
 
@@ -22,6 +22,19 @@ function mockFeeds(deltas: { data?: unknown; error?: Error }, proposals: { data?
 
 beforeEach(() => vi.clearAllMocks());
 
+// Rebuilt on the same pieces as the global Activity table: it polls, so it
+// gets a Refresh; it has columns, so it gets the column controls; "#" meant
+// the row number on Accounts and the nonce here, so the column says which.
+describe("AccountTransactions controls", () => {
+  it("carries the same toolbar as the global Activity table", () => {
+    mockFeeds({ data: { items: [delta(3)], nextCursor: null } }, { data: { items: [], nextCursor: null } });
+    render(<AccountTransactions accountId="0xabc123" />);
+    expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /columns/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Nonce" })).toBeInTheDocument();
+  });
+});
+
 // A failed proposals fetch used to count as "still loading", so the skeleton
 // never cleared and the deltas that had arrived were never shown.
 describe("AccountTransactions when a feed fails", () => {
@@ -37,5 +50,7 @@ describe("AccountTransactions when a feed fails", () => {
     const { container } = render(<AccountTransactions accountId="0xabc123" />);
     expect(container.querySelectorAll("[data-slot='skeleton']")).toHaveLength(0);
     expect(screen.getByText(/Guardian refused/)).toBeInTheDocument();
+    // The way out of that state stays on screen.
+    expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
   });
 });

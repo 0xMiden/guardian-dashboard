@@ -105,6 +105,32 @@ export function toCsv(rows: unknown[][]): string {
   return rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
 }
 
+/** The activity table's rows, in the words the table shows. */
+export function activityToCsv(
+  rows: {
+    accountId: string;
+    counterparty?: { accountId: string; direction: string };
+    label: string;
+    assets?: { amount?: string }[];
+    status: string;
+    timestamp: string;
+  }[],
+): string {
+  return toCsv([
+    ["Account ID", "To / From", "Direction", "Activity", "Amount", "Status", "Date"],
+    ...rows.map((r) => [
+      r.accountId,
+      r.counterparty?.accountId ?? "",
+      r.counterparty?.direction ?? "",
+      r.label,
+      // Every asset the row moved, not the first and a count as the cell shows.
+      (r.assets ?? []).flatMap((a) => (a.amount ? [formatAmount(a.amount)] : [])).join("; "),
+      r.status,
+      r.timestamp,
+    ]),
+  ]);
+}
+
 // Timestamps go out as ISO rather than localized: a spreadsheet can sort and
 // filter those, and they carry the timezone the rendered table leaves implicit.
 export function accountsToCsv(

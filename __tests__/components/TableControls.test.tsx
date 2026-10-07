@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, renderHook, act } from "@testing-library/react";
 import { AccountsPanel, ACCOUNTS_KEY } from "@/components/accounts/AccountsPanel";
+import { LoadMoreSentinel, usePaging, sortRows } from "@/components/ui/TableControls";
 
 vi.mock("swr", () => ({ default: vi.fn(), mutate: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -158,5 +159,179 @@ describe("activity table controls", () => {
     const { container } = render(<AccountsPanel />);
     expect(container.querySelector("tbody td")!.className).toContain("py-3");
     expect(localStorage.getItem("guardian:table:transactions")).toContain("compact");
+  });
+});
+
+const observers: { disconnect: ReturnType<typeof vi.fn> }[] = [];
+
+// Fires at once on observe, as a browser does for an element already in view.
+const armObserver = () => {
+  observers.length = 0;
+  vi.stubGlobal("IntersectionObserver", class {
+    disconnect = vi.fn();
+    constructor(private cb: (entries: { isIntersecting: boolean }[]) => void) { observers.push(this); }
+    observe() { this.cb([{ isIntersecting: true }]); }
+  });
+};
+
+const sentinel = (over: Partial<Parameters<typeof LoadMoreSentinel>[0]> = {}, loadMore = vi.fn()) =>
+  <LoadMoreSentinel hasMore loadingMore={false} failed={false} loadMore={loadMore} {...over} />;
+
+describe("LoadMoreSentinel", () => {
+  beforeEach(armObserver);
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("asks for the next page when it scrolls into view", () => {
+    const loadMore = vi.fn();
+    render(sentinel({}, loadMore));
+    expect(loadMore).toHaveBeenCalledTimes(1);
+  });
+
+  // The observer fires on a visibility change only. A page whose rows all fell
+  // to a client-side filter leaves the sentinel where it was, on screen, so
+  // without a re-arm it would never ask for the page after that one. And no
+  // observer may exist while a page loads, or the same cursor is asked twice.
+  it("asks again after a page lands while it is still on screen, once", () => {
+    const loadMore = vi.fn();
+    const { rerender } = render(sentinel({}, loadMore));
+    rerender(sentinel({ loadingMore: true }, loadMore));
+    expect(observers[0].disconnect).toHaveBeenCalled();
+    expect(loadMore).toHaveBeenCalledTimes(1);
+    rerender(sentinel({}, loadMore));
+    expect(loadMore).toHaveBeenCalledTimes(2);
+  });
+
+  // A failed page must not be asked for again by itself: with the observer
+  // rebuilt after each failure, a Guardian answering 429 would be hit in a loop.
+  it("stops asking after a failure and offers a retry instead", () => {
+    const loadMore = vi.fn();
+    render(sentinel({ failed: true }, loadMore));
+    expect(loadMore).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
+    expect(loadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it("is absent once there is nothing more to load", () => {
+    const { container } = render(sentinel({ hasMore: false }));
+    expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("usePaging", () => {
+  const page = (items: string[], nextCursor: string | null) => ({ items, nextCursor });
+  type Page = ReturnType<typeof page>;
+  const id = (s: string) => s;
+  const deferred = () => {
+    let resolve!: (p: Page) => void;
+    const fetchPage = vi.fn(() => new Promise<Page>((r) => { resolve = r; }));
+    return { fetchPage, resolve: (p: Page) => resolve(p) };
+  };
+  // Started in a synchronous act: an async act held open across rerenders
+  // batches them into one render with the final props, so a key that changed
+  // and changed back would never be seen to change at all.
+  const start = (loadMore: () => Promise<void>) => {
+    let inFlight!: Promise<void>;
+    act(() => { inFlight = loadMore(); });
+    return inFlight;
+  };
+
+  it("lists every page loaded so far and stops at the last cursor", async () => {
+    const fetchPage = vi.fn(async (cursor: string) => (cursor === "p2" ? page(["b"], "p3") : page(["c"], null)));
+    const { result } = renderHook(() => usePaging("k", page(["a"], "p2"), fetchPage, id));
+    expect(result.current.hasMore).toBe(true);
+    await act(() => result.current.loadMore());
+    await act(() => result.current.loadMore());
+    expect(result.current.items).toEqual(["a", "b", "c"]);
+    expect(result.current.hasMore).toBe(false);
+    expect(fetchPage.mock.calls.map((c) => c[0])).toEqual(["p2", "p3"]);
+  });
+
+  it("keeps the cursor when a fetch fails, flags it, and retries the same page", async () => {
+    const fetchPage = vi.fn().mockRejectedValueOnce(new Error("503")).mockResolvedValueOnce(page(["b"], null));
+    const { result } = renderHook(() => usePaging("k", page(["a"], "p2"), fetchPage, id));
+    await act(() => result.current.loadMore());
+    expect(result.current.failed).toBe(true);
+    expect(result.current.hasMore).toBe(true);
+    await act(() => result.current.loadMore());
+    expect(result.current.failed).toBe(false);
+    expect(result.current.items).toEqual(["a", "b"]);
+    expect(fetchPage.mock.calls.map((c) => c[0])).toEqual(["p2", "p2"]);
+  });
+
+  // A filter change resets the list while a page for the old filter may still
+  // be on its way. That page must not land under the new filter.
+  it("drops a page that was in flight when reset was called", async () => {
+    const { fetchPage, resolve } = deferred();
+    const { result } = renderHook(() => usePaging("k", page(["a"], "p2"), fetchPage, id));
+    const inFlight = start(result.current.loadMore);
+    act(() => result.current.reset());
+    resolve(page(["stale"], "p3"));
+    await act(() => inFlight);
+    expect(result.current.items).toEqual(["a"]);
+    expect(result.current.loadingMore).toBe(false);
+  });
+
+  it("starts over when the key changes, dropping a page in flight for the old one", async () => {
+    const { fetchPage, resolve } = deferred();
+    const { result, rerender } = renderHook(
+      ({ key, first }) => usePaging(key, first, fetchPage, id),
+      { initialProps: { key: "all", first: page(["a"], "p2") } },
+    );
+    const inFlight = start(result.current.loadMore);
+    rerender({ key: "frozen", first: page(["f"], null) });
+    expect(result.current.loadingMore).toBe(false);
+    expect(result.current.failed).toBe(false);
+    resolve(page(["stale"], "p3"));
+    await act(() => inFlight);
+    expect(result.current.items).toEqual(["f"]);
+    expect(result.current.hasMore).toBe(false);
+  });
+
+  // Back to the same key is a new run of it: a page from the first run would
+  // otherwise land in the second, skipping the pages between.
+  it("drops a page from an earlier run of the same key", async () => {
+    const { fetchPage, resolve } = deferred();
+    const first = page(["a"], "p2");
+    const { result, rerender } = renderHook(
+      ({ key }) => usePaging(key, first, fetchPage, id),
+      { initialProps: { key: "all" } },
+    );
+    const inFlight = start(result.current.loadMore);
+    rerender({ key: "frozen" });
+    rerender({ key: "all" });
+    resolve(page(["p3 rows"], "p4"));
+    await act(() => inFlight);
+    expect(result.current.items).toEqual(["a"]);
+    expect(result.current.loadingMore).toBe(false);
+  });
+
+  // SWR polls the first page while the tail continues from where it was, so a
+  // row that moved between them would otherwise render twice, with one key.
+  it("lists a row once when the polled first page and the tail both hold it", async () => {
+    const fetchPage = vi.fn(async () => page(["b", "c"], null));
+    const { result, rerender } = renderHook(
+      ({ first }) => usePaging("k", first, fetchPage, id),
+      { initialProps: { first: page(["a"], "p2") } },
+    );
+    await act(() => result.current.loadMore());
+    rerender({ first: page(["b", "a"], "p2") });
+    expect(result.current.items).toEqual(["b", "a", "c"]);
+  });
+
+  it("has nothing more while the first page is still loading", () => {
+    const { result } = renderHook(() => usePaging("k", undefined, vi.fn(), id));
+    expect(result.current.hasMore).toBe(false);
+    expect(result.current.items).toEqual([]);
+  });
+});
+
+describe("sortRows", () => {
+  // An unknown value must not read as the smallest one.
+  it("puts null last in both directions", () => {
+    const rows = [{ v: 1 }, { v: null }, { v: 3 }];
+    const value = (r: { v: number | null }) => r.v;
+    expect(sortRows(rows, { key: "v", dir: "desc" }, value).map((r) => r.v)).toEqual([3, 1, null]);
+    expect(sortRows(rows, { key: "v", dir: "asc" }, value).map((r) => r.v)).toEqual([1, 3, null]);
+    expect(sortRows(rows, null, value)).toBe(rows);
   });
 });

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { fetcher } from "@/lib/utils";
+import { ErrorPanel } from "@/components/ui/ErrorPanel";
 
 interface ClerkUser {
   id: string;
@@ -167,7 +168,9 @@ export default function AdminPage() {
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           {!data ? (
-            <p className="px-4 py-6 text-sm text-muted-foreground">Loading…</p>
+            error
+              ? <ErrorPanel error={error} />
+              : <p className="px-4 py-6 text-sm text-muted-foreground">Loading…</p>
           ) : (
             <table className="w-full text-sm">
               <thead>

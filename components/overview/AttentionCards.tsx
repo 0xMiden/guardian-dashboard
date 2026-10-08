@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { fetcher } from "@/lib/utils";
 import { formatCount } from "@/lib/format";
+import { describeError } from "@/components/ui/ErrorPanel";
 import { InfoTip } from "@/components/ui/InfoTip";
 import { STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
 
@@ -52,13 +53,15 @@ function Stat({
 
 export function AttentionCards() {
   // Same key the accounts table already polls, so SWR serves both from one request.
-  const { data: stats } = useSWR<AccountStats>(STATS_KEY, fetcher, { refreshInterval: 60_000 });
-  const { data: overview } = useSWR<{ latestActivity?: string | null }>("/api/overview", fetcher, {
+  const { data: stats, error: statsError } = useSWR<AccountStats>(STATS_KEY, fetcher, { refreshInterval: 60_000 });
+  const { data: overview, error: overviewError } = useSWR<{ latestActivity?: string | null }>("/api/overview", fetcher, {
     refreshInterval: 30_000,
   });
+  // A skeleton that never ends says nothing; a dash with the reason does.
+  const failed = (error: unknown) => <span title={describeError(error).detail}>—</span>;
 
   const count = (value: number | undefined, href: string) =>
-    stats == null ? <Skeleton className="h-8 w-16" />
+    stats == null ? (statsError ? failed(statsError) : <Skeleton className="h-8 w-16" />)
     // A 0.17.0 Guardian has no aggregate, and a fresh 0.18.0 one not yet: the
     // same two cases StatStrip spells out.
     : value == null ? <span title={stats.unsupported ? "Needs Guardian 0.18.0" : "Calculating…"}>—</span>
@@ -96,7 +99,7 @@ export function AttentionCards() {
           info="When this Guardian last recorded a transaction or a proposal."
         >
           {overview === undefined ? (
-            <Skeleton className="h-8 w-28" />
+            overviewError ? failed(overviewError) : <Skeleton className="h-8 w-28" />
           ) : overview.latestActivity ? (
             // Smaller than the counts beside it: a timestamp needs more room and
             // reads as a phrase rather than a figure.

@@ -49,4 +49,13 @@ describe("AttentionCards", () => {
     render(<AttentionCards />);
     expect(screen.getByText(/Statistics as of/)).toBeInTheDocument();
   });
+
+  // Two skeletons that never ended, on a Guardian that refused both calls.
+  it("shows a dash with the reason when the Guardian did not answer", () => {
+    const error = Object.assign(new Error("Request failed (503)"), { status: 503 });
+    useSWR.mockImplementation(() => ({ data: undefined, error }));
+    render(<AttentionCards />);
+    expect(screen.getAllByText("—")).toHaveLength(4);
+    expect(screen.queryByTestId("skeleton")).not.toBeInTheDocument();
+  });
 });

@@ -53,6 +53,19 @@ describe("GuardianStatusCard", () => {
     expect(container.querySelector("[data-slot='skeleton'], .animate-pulse")).toBeTruthy();
   });
 
+  // The skeleton used to stay up for good when the health call itself failed.
+  it("says Offline with the reason when the health call fails", () => {
+    const error = Object.assign(new Error("Request failed (503)"), { status: 503 });
+    useSWR.mockImplementation((key: string) => {
+      if (key === "/api/health") return { data: undefined, error };
+      if (key === "/api/operator-info") return { data: undefined, error };
+      return { data: overview };
+    });
+    render(<GuardianStatusCard />);
+    expect(screen.getByText("Offline")).toBeInTheDocument();
+    expect(screen.getAllByText("The Guardian did not answer.")).toHaveLength(2);
+  });
+
   it("shows Online badge when Guardian is up", () => {
     mockSWR();
     render(<GuardianStatusCard />);

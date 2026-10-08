@@ -199,7 +199,7 @@ export function AccountDetail({ accountId }: Props) {
               posthog.capture("account_transactions_clicked", { account_id: accountId });
               router.push(`/accounts/${encoded}/transactions`);
             }}
-            className="text-label"
+            size="sm"
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
             Activity
@@ -211,7 +211,11 @@ export function AccountDetail({ accountId }: Props) {
                   posthog.capture("account_unfreeze_clicked", { account_id: accountId });
                   setModal("unfreeze");
                 }}
-                className="text-label border-state-active text-state-active hover:bg-state-active/10"
+                // The colour classes share tailwind-merge's "text-" group with a
+                // font-size override, which is how this button grew: the size
+                // comes from the variant instead.
+                size="sm"
+                className="border-state-active text-state-active hover:bg-state-active/10"
               >
                 <Sun className="h-3.5 w-3.5" />
                 Unfreeze
@@ -222,7 +226,7 @@ export function AccountDetail({ accountId }: Props) {
                   posthog.capture("account_freeze_clicked", { account_id: accountId });
                   setModal("freeze");
                 }}
-                className="text-label"
+                size="sm"
               >
                 <Snowflake className="h-3.5 w-3.5" />
                 Freeze

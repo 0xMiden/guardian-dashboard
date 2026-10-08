@@ -70,21 +70,21 @@ export function AttentionCards() {
       <Stat
         icon={<CircleCheck className="h-3.5 w-3.5" />}
         label="Active accounts"
-        info="Accounts this Guardian signs for, neither frozen nor released."
+        info="Accounts this Guardian acknowledges transactions for, neither frozen nor released."
       >
         {count(stats?.active, "/accounts?state=active")}
       </Stat>
       <Stat
         icon={<ArrowRightFromLine className="h-3.5 w-3.5" />}
         label="Released accounts"
-        info="Accounts moved to another Guardian. This one no longer signs for them."
+        info="Accounts moved to another Guardian. This one no longer acknowledges their transactions."
       >
         {count(stats?.released, "/accounts?state=released")}
       </Stat>
       <Stat
         icon={<Snowflake className="h-3.5 w-3.5" />}
         label="Frozen accounts"
-        info="Accounts paused by the operator. Nothing is signed for them until they are unfrozen."
+        info="Accounts paused by the operator. No transaction is acknowledged for them until they are unfrozen."
         tone={stats?.frozen ? "attention" : "quiet"}
       >
         {count(stats?.frozen, "/accounts?paused=true")}

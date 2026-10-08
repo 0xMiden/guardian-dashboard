@@ -39,7 +39,7 @@ export function AssetsCard() {
           <div>
             <p className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
               Assets
-              <InfoTip text="Dollar value of what the accounts updated in the last 7 days hold, for tokens on the verified token list with a market price. Anything else is unpriced." />
+              <InfoTip text="Dollar value of everything the accounts on this Guardian hold, for tokens on the verified token list with a market price. Anything else is unpriced." />
             </p>
             {!data && !error ? (
               <Skeleton className="h-8 w-20 mt-1" />

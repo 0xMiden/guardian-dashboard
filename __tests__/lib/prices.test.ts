@@ -148,6 +148,16 @@ describe("priceBook", () => {
   });
 
   // Bread's rule for a listed symbol without a quote: no price, never $1 or $0.
+  // Named is not priced: the UI shows "MIDEN" and scales by its decimals even
+  // though no market quotes it.
+  it("names every listed token, priced or not", async () => {
+    mockFetch(defaultRoutes());
+    const { priceBook } = await freshModule();
+    const book = await priceBook("MidenTestnet");
+    expect(book.token(MIDEN_HEX)).toEqual({ symbol: "MIDEN", decimals: 6 });
+    expect(book.token("0x000000000000000000000000000000")).toBeUndefined();
+  });
+
   it("leaves a listed faucet unpriced while the feed is unreachable", async () => {
     mockFetch({ ...defaultRoutes(), "api.binance.com": () => { throw new Error("down"); } });
     const { priceBook } = await freshModule();

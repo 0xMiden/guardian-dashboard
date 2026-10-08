@@ -20,6 +20,7 @@ import { fetcher, downloadCsv } from "@/lib/utils";
 import { matchesAccountId, activityToCsv, formatCount } from "@/lib/format";
 import {
   activityLabel, deltaStatusBadge, deltaStatusLabel, proposalStatusBadge, proposalStatusLabel, AmountCell, CounterpartyCell,
+  type AssetLike,
 } from "@/components/transactions/activity-cells";
 import type {
   DashboardGlobalDeltaEntry,
@@ -29,8 +30,11 @@ import type {
   PagedResult,
 } from "@openzeppelin/guardian-operator-client";
 
-type GlobalDeltasPage = PagedResult<DashboardGlobalDeltaEntry>;
-type GlobalProposalsPage = PagedResult<DashboardGlobalProposalEntry>;
+// What lib/enrich.ts adds server-side: the bech32 spelling beside each hex id,
+// and the token's name and scale beside each asset.
+type Spelled = { accountIdBech32?: string };
+type GlobalDeltasPage = PagedResult<DashboardGlobalDeltaEntry & Spelled & { counterparty?: Spelled; assets?: AssetLike[] }>;
+type GlobalProposalsPage = PagedResult<DashboardGlobalProposalEntry & Spelled>;
 
 type FilterValue = "" | "awaiting" | "ready" | DashboardDeltaStatus;
 
@@ -54,11 +58,12 @@ const FILTERS: Array<{ label: string; value: FilterValue; title?: string }> = [
 type ActivityRow = {
   key: string;
   accountId: string;
+  accountIdBech32?: string;
   label: string;
   status: string;
   statusNode: React.ReactNode;
-  assets: DashboardDeltaEntry["assets"];
-  counterparty: DashboardDeltaEntry["counterparty"];
+  assets: AssetLike[] | undefined;
+  counterparty: (DashboardDeltaEntry["counterparty"] & Spelled) | undefined;
   timestamp: string;
   isPending: boolean;
   nonce: number;
@@ -67,8 +72,8 @@ type ActivityRow = {
 const PROPOSALS_ONLY: FilterValue[] = ["awaiting", "ready"];
 
 function toRows(
-  deltas: DashboardGlobalDeltaEntry[],
-  proposals: DashboardGlobalProposalEntry[],
+  deltas: GlobalDeltasPage["items"],
+  proposals: GlobalProposalsPage["items"],
   filter: FilterValue,
 ): ActivityRow[] {
   const rows: ActivityRow[] = [];
@@ -81,6 +86,7 @@ function toRows(
       rows.push({
         key: `proposal-${p.accountId}-${p.nonce}`,
         accountId: p.accountId,
+        accountIdBech32: p.accountIdBech32,
         label: activityLabel(undefined, p.proposalType),
         status: proposalStatusLabel(p.signaturesCollected, p.signaturesRequired),
         statusNode: proposalStatusBadge(p.signaturesCollected, p.signaturesRequired),
@@ -98,6 +104,7 @@ function toRows(
       rows.push({
         key: `delta-${d.accountId}-${d.nonce}`,
         accountId: d.accountId,
+        accountIdBech32: d.accountIdBech32,
         label: activityLabel(d.category, d.proposalType),
         status: deltaStatusLabel(d.status),
         statusNode: deltaStatusBadge(d.status, d.statusReason),
@@ -166,7 +173,7 @@ export function TransactionsPanel() {
   const allDeltas = paging.items;
   const allProposals = proposalsData?.items ?? [];
   const loaded = toRows(allDeltas, allProposals, filter);
-  const rows = sortRows(loaded.filter((r) => matchesAccountId(query, r.accountId)), sort, sortValue);
+  const rows = sortRows(loaded.filter((r) => matchesAccountId(query, r.accountId, r.accountIdBech32)), sort, sortValue);
 
   // A feed that failed has settled, so it must not hold the skeleton up: the
   // proposals feed failing used to leave the page on skeletons for good.
@@ -186,7 +193,7 @@ export function TransactionsPanel() {
   // The account is what makes a row identifiable, so it is not offered for
   // hiding. Same arrangement as the accounts table.
   const columns: TableColumn<ActivityRow, ColumnKey, SortKey>[] = [
-    { key: "account", label: "Account ID", width: "w-36", cellClass: "text-data", cell: (r) => <CopyableId id={r.accountId} /> },
+    { key: "account", label: "Account ID", width: "w-36", cellClass: "text-data", cell: (r) => <CopyableId id={r.accountIdBech32 ?? r.accountId} /> },
     { key: "counterparty", label: "To / From", width: "w-36", cellClass: "text-data", cell: (r) => <CounterpartyCell counterparty={r.counterparty} /> },
     { key: "activity", label: "Activity", width: "w-40", sortKey: "activity", cellClass: "text-data", cell: (r) => r.label },
     // The figure the row exists to show, same rank as Total assets on accounts.

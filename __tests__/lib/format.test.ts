@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { truncateId, formatAmount, storageSlotLabel, accountState, toCsv, accountsToCsv, activityToCsv, formatTimestamp, relativeTime } from "@/lib/format";
+import { truncateId, formatAmount, formatAsset, storageSlotLabel, accountState, toCsv, accountsToCsv, activityToCsv, formatTimestamp, relativeTime } from "@/lib/format";
 
 describe("activityToCsv", () => {
   it("writes the words the table shows, with every asset the row moved", () => {
@@ -8,14 +8,14 @@ describe("activityToCsv", () => {
       assets: [{ amount: "1000" }, { amount: "-5" }, {}], status: "confirmed", timestamp: "2026-01-01T00:00:00.000Z",
     }]);
     expect(csv.split("\r\n")).toEqual([
-      "Account ID,To / From,Direction,Activity,Amount,Status,Date",
-      '0xabc,0xdef,in,Asset transfer,"1,000; -5",confirmed,2026-01-01T00:00:00.000Z',
+      "Account ID,Account ID (hex),To / From,Direction,Activity,Amount,Status,Date",
+      '0xabc,0xabc,0xdef,in,Asset transfer,"1,000; -5",confirmed,2026-01-01T00:00:00.000Z',
     ]);
   });
 
   it("leaves the counterparty and amount blank for a proposal", () => {
     const row = activityToCsv([{ accountId: "0xabc", label: "Swap", status: "1/2 acknowledged", timestamp: "t" }]).split("\r\n")[1];
-    expect(row).toBe("0xabc,,,Swap,,1/2 acknowledged,t");
+    expect(row).toBe("0xabc,0xabc,,,Swap,,1/2 acknowledged,t");
   });
 });
 
@@ -99,6 +99,20 @@ describe("toCsv", () => {
 
   it("separates rows with CRLF", () => {
     expect(toCsv([["a"], ["b"]])).toBe("a\r\nb");
+  });
+});
+
+describe("formatAmount with decimals", () => {
+  it("scales by the token's decimals and keeps two fraction digits at least", () => {
+    expect(formatAmount("150000000", 8)).toBe("1.50");
+    expect(formatAmount("8000000", 6)).toBe("8.00");
+    expect(formatAmount("-1234567", 6)).toBe("-1.234567");
+    expect(formatAmount("1000000")).toBe("1,000,000");
+  });
+
+  it("names the token when a list does, and shows the raw figure when none does", () => {
+    expect(formatAsset("150000000", { symbol: "IETH", decimals: 8 })).toBe("1.50 IETH");
+    expect(formatAsset("150000000")).toBe("150,000,000");
   });
 });
 

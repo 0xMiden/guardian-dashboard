@@ -1,7 +1,7 @@
 "use client";
 import { Badge } from "@/components/ui/badge";
 import { CopyableId } from "@/components/ui/CopyableId";
-import { formatAmount } from "@/lib/format";
+import { formatAsset, type TokenInfo } from "@/lib/format";
 import type { DashboardDeltaEntry } from "@openzeppelin/guardian-operator-client";
 
 export const CATEGORY_LABELS: Record<string, string> = {
@@ -149,27 +149,30 @@ export function proposalStatusBadge(collected: number, required: number) {
   );
 }
 
-export function AmountCell({ assets }: { assets?: DashboardDeltaEntry["assets"] }) {
+export type AssetLike = { assetId?: string; amount?: string } & TokenInfo;
+
+export function AmountCell({ assets }: { assets?: AssetLike[] }) {
   if (!assets || assets.length === 0) return <span className="text-muted-foreground">—</span>;
   const first = assets[0];
   if (!first.amount) return <span className="text-muted-foreground">—</span>;
   const positive = !first.amount.startsWith("-");
-  const formatted = formatAmount(first.amount);
+  const formatted = formatAsset(first.amount, first);
   const display = positive && !formatted.startsWith("+") ? "+" + formatted : formatted;
   const more = assets.length > 1 ? <span className="text-muted-foreground"> +{assets.length - 1}</span> : null;
   return (
-    <span className={`tabular-nums ${positive ? "text-state-active" : "text-state-error"}`}>
+    // A token no list names shows its raw figure, with the faucet on hover.
+    <span className={`tabular-nums ${positive ? "text-state-active" : "text-state-error"}`} title={first.symbol ? undefined : first.assetId}>
       {display}{more}
     </span>
   );
 }
 
-export function CounterpartyCell({ counterparty }: { counterparty?: DashboardDeltaEntry["counterparty"] }) {
+export function CounterpartyCell({ counterparty }: { counterparty?: DashboardDeltaEntry["counterparty"] & { accountIdBech32?: string } }) {
   if (!counterparty) return <span className="text-muted-foreground">—</span>;
   return (
     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
       <span>{counterparty.direction === "in" ? "←" : "→"}</span>
-      <CopyableId id={counterparty.accountId} prefixLen={8} suffixLen={4} />
+      <CopyableId id={counterparty.accountIdBech32 ?? counterparty.accountId} prefixLen={8} suffixLen={4} />
     </span>
   );
 }

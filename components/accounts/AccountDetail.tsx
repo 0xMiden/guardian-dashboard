@@ -15,13 +15,15 @@ import { ArrowLeft, Snowflake, Sun, ArrowLeftRight, ChevronDown, ChevronRight } 
 import type { DashboardAccountDetail } from "@openzeppelin/guardian-operator-client";
 import posthog from "posthog-js";
 import { fetcher, FetchError } from "@/lib/utils";
+import { formatAmount } from "@/lib/format";
 
 type AccountSnapshot = {
   commitment: string;
   updatedAt: string;
   hasPendingCandidate: boolean;
   vault: {
-    fungible: { faucetId: string; amount: string }[];
+    // symbol, decimals and usd are lib/enrich.ts's additions, for faucets a list names.
+    fungible: { faucetId: string; amount: string; symbol?: string; decimals?: number; usd?: number }[];
     nonFungible: { faucetId: string; vaultKey: string }[];
   };
 };
@@ -197,7 +199,7 @@ export function AccountDetail({ accountId }: Props) {
               posthog.capture("account_transactions_clicked", { account_id: accountId });
               router.push(`/accounts/${encoded}/transactions`);
             }}
-            className="text-label"
+            size="sm"
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
             Activity
@@ -209,10 +211,14 @@ export function AccountDetail({ accountId }: Props) {
                   posthog.capture("account_unfreeze_clicked", { account_id: accountId });
                   setModal("unfreeze");
                 }}
-                className="text-label border-state-active text-state-active hover:bg-state-active/10"
+                // The colour classes share tailwind-merge's "text-" group with a
+                // font-size override, which is how this button grew: the size
+                // comes from the variant instead.
+                size="sm"
+                className="border-state-active text-state-active hover:bg-state-active/10"
               >
                 <Sun className="h-3.5 w-3.5" />
-                Unfreeze account
+                Unfreeze
               </Button>
             ) : (
               <Button
@@ -220,10 +226,10 @@ export function AccountDetail({ accountId }: Props) {
                   posthog.capture("account_freeze_clicked", { account_id: accountId });
                   setModal("freeze");
                 }}
-                className="text-label"
+                size="sm"
               >
                 <Snowflake className="h-3.5 w-3.5" />
-                Freeze account
+                Freeze
               </Button>
             )
           )}
@@ -352,8 +358,19 @@ export function AccountDetail({ accountId }: Props) {
                     {snapshot.vault.fungible.map((asset) => (
                       <div key={asset.faucetId} className="flex items-start justify-between gap-4 py-2 text-sm">
                         <div className="flex flex-col gap-0.5 min-w-0">
+                          {asset.symbol && <span className="font-medium">{asset.symbol}</span>}
                           <CopyableId id={asset.faucetId} prefixLen={10} suffixLen={6} className="text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">{BigInt(asset.amount).toLocaleString()} units</span>
+                        </div>
+                        {/* A token no list names keeps its raw figure, marked as base units. */}
+                        <div className="text-right shrink-0">
+                          <div className="font-medium tabular-nums">
+                            {asset.symbol ? formatAmount(asset.amount, asset.decimals) : `${formatAmount(asset.amount)} units`}
+                          </div>
+                          {asset.usd != null && (
+                            <div className="text-xs text-muted-foreground">
+                              ${asset.usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}

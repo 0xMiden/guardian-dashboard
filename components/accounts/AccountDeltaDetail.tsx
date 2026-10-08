@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
-import { formatAmount, formatCount, storageSlotLabel } from "@/lib/format";
+import { formatAmount, formatAsset, formatCount, storageSlotLabel, type TokenInfo } from "@/lib/format";
 import { fetcher } from "@/lib/utils";
 import { activityLabel, deltaStatusBadge } from "@/components/transactions/activity-cells";
 import type {
@@ -18,7 +18,27 @@ import type {
   DashboardDeltaDecodedNote,
 } from "@openzeppelin/guardian-operator-client";
 
-type DetailResponse = DashboardDeltaDetail;
+// What lib/enrich.ts adds server-side: the bech32 spelling beside each hex id,
+// and the token's name and scale beside each asset id.
+type Note = Omit<DashboardDeltaDecodedNote, "assets"> & {
+  senderBech32?: string;
+  recipientBech32?: string;
+  assets: (DashboardDeltaDecodedNote["assets"][number] & TokenInfo)[];
+};
+type DetailResponse = Omit<DashboardDeltaDetail, "inputNotes" | "outputNotes" | "vaultChanges" | "proposal"> & {
+  accountIdBech32?: string;
+  inputNotes: Note[];
+  outputNotes: Note[];
+  vaultChanges: (DashboardDeltaVaultChange & TokenInfo)[];
+  proposal?: NonNullable<DashboardDeltaDetail["proposal"]> & TokenInfo & { recipientIdBech32?: string };
+};
+
+/** The token's name where a list has one, the faucet id where none does. */
+function AssetName({ id, token, prefixLen = 10, suffixLen = 6 }: { id: string; token: TokenInfo; prefixLen?: number; suffixLen?: number }) {
+  return token.symbol
+    ? <span className="font-medium" title={id}>{token.symbol}</span>
+    : <CopyableId id={id} prefixLen={prefixLen} suffixLen={suffixLen} className="text-muted-foreground" />;
+}
 
 const NOTE_TAG_LABELS: Record<string, string> = {
   p2id: "P2ID (standard payment)",
@@ -38,14 +58,14 @@ function Row({ label, value, title }: { label: React.ReactNode; value: React.Rea
   );
 }
 
-function VaultChangeRow({ change }: { change: DashboardDeltaVaultChange }) {
+function VaultChangeRow({ change }: { change: DashboardDeltaVaultChange & TokenInfo }) {
   if (change.kind === "fungible") {
     const positive = !change.change.startsWith("-");
-    const formatted = formatAmount(change.change);
+    const formatted = formatAsset(change.change, change);
     const display = positive && !formatted.startsWith("+") ? "+" + formatted : formatted;
     return (
       <div className="flex items-center justify-between gap-4 py-2 text-sm">
-        <CopyableId id={change.assetId} prefixLen={10} suffixLen={6} className="text-muted-foreground" />
+        <AssetName id={change.assetId} token={change} />
         <span className={`font-medium shrink-0 ${positive ? "text-state-active" : "text-state-error"}`}>
           {display}
         </span>
@@ -63,7 +83,7 @@ function VaultChangeRow({ change }: { change: DashboardDeltaVaultChange }) {
   );
 }
 
-function NoteCard({ note, direction }: { note: DashboardDeltaDecodedNote; direction: "in" | "out" }) {
+function NoteCard({ note, direction }: { note: Note; direction: "in" | "out" }) {
   const tagLabel = NOTE_TAG_LABELS[note.tag] ?? note.tag;
   return (
     <div className="border rounded-lg p-3 text-xs space-y-1.5">
@@ -80,21 +100,21 @@ function NoteCard({ note, direction }: { note: DashboardDeltaDecodedNote; direct
       {note.sender && (
         <div className="flex gap-2">
           <span className="text-muted-foreground shrink-0">From</span>
-          <CopyableId id={note.sender} prefixLen={10} suffixLen={6} />
+          <CopyableId id={note.senderBech32 ?? note.sender} prefixLen={10} suffixLen={6} />
         </div>
       )}
       {note.recipient && (
         <div className="flex gap-2">
           <span className="text-muted-foreground shrink-0">To</span>
-          <CopyableId id={note.recipient} prefixLen={10} suffixLen={6} />
+          <CopyableId id={note.recipientBech32 ?? note.recipient} prefixLen={10} suffixLen={6} />
         </div>
       )}
       {note.assets.map((a, i) => (
         <div key={i} className="flex items-center justify-between gap-2">
-          <CopyableId id={a.assetId} prefixLen={8} suffixLen={4} className="text-muted-foreground" />
+          <AssetName id={a.assetId} token={a} prefixLen={8} suffixLen={4} />
           {a.amount && (
             <span className={direction === "in" ? "text-state-active" : "text-state-error"}>
-              {direction === "in" ? "+" : "−"}{formatAmount(a.amount)}
+              {direction === "in" ? "+" : "−"}{formatAsset(a.amount, a)}
             </span>
           )}
         </div>
@@ -151,6 +171,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
               <CardTitle className="text-section text-muted-foreground">Transaction #{nonce}</CardTitle>
             </CardHeader>
             <CardContent className="divide-y">
+              <Row label="Account" value={<CopyableId id={data!.accountIdBech32 ?? data!.accountId} prefixLen={14} suffixLen={8} />} />
               <Row label="Status" value={deltaStatusBadge(data!.status, data!.statusReason)} />
               {/* The same label the tables show for this row. The raw proposal
                   type is not for a cell: the live USDCx one is a ~1,500
@@ -227,17 +248,17 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
                 {data!.proposal.recipientId && (
                   <Row
                     label="Recipient"
-                    value={<CopyableId id={data!.proposal.recipientId} prefixLen={12} suffixLen={8} />}
+                    value={<CopyableId id={data!.proposal.recipientIdBech32 ?? data!.proposal.recipientId} prefixLen={12} suffixLen={8} />}
                   />
                 )}
                 {data!.proposal.faucetId && (
                   <Row
                     label="Asset"
-                    value={<CopyableId id={data!.proposal.faucetId} prefixLen={12} suffixLen={8} />}
+                    value={<AssetName id={data!.proposal.faucetId} token={data!.proposal} prefixLen={12} suffixLen={8} />}
                   />
                 )}
                 {data!.proposal.amount && (
-                  <Row label="Amount" value={formatAmount(data!.proposal.amount)} />
+                  <Row label="Amount" value={formatAsset(data!.proposal.amount, data!.proposal)} />
                 )}
                 {/* P2ID visibility (issue #322) and the two P2IDE block heights
                     (issue #366, client 0.17.0). No Guardian in the fleet fills

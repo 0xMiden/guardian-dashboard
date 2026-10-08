@@ -42,3 +42,12 @@ describe("cn", () => {
     expect(cn()).toBe("");
   });
 });
+
+// tailwind-merge filed the type scale under text colour and dropped the size
+// whenever a colour class followed it: the Unfreeze button rendered at 16px.
+describe("cn", () => {
+  it("keeps a type-scale class beside a text colour", () => {
+    expect(cn("text-label", "text-state-active")).toBe("text-label text-state-active");
+    expect(cn("text-data", "text-label")).toBe("text-label");
+  });
+});

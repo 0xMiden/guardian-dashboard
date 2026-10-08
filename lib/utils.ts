@@ -1,5 +1,13 @@
 import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { extendTailwindMerge } from "tailwind-merge"
+
+// The type scale in globals.css (text-label, text-data, ...) is unknown to
+// tailwind-merge, which filed those classes under text colour and dropped
+// `text-label` whenever a colour class came after it: a coloured button then
+// fell back to the browser's font size.
+const twMerge = extendTailwindMerge({
+  extend: { classGroups: { "font-size": [{ text: ["data", "figure", "label", "section", "stat", "subtitle", "title"] }] } },
+});
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

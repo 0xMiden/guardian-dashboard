@@ -107,7 +107,7 @@ describe("AccountDetail", () => {
   it("requires a reason before a freeze can be submitted, and surfaces server failures", async () => {
     mockAccount();
     const { container } = render(<AccountDetail accountId="0xabc123" />);
-    fireEvent.click(screen.getByText("Freeze account"));
+    fireEvent.click(screen.getByText("Freeze"));
     expect(screen.getByText("Freeze account", { selector: "h2" })).toBeInTheDocument();
 
     // the modal's submit carries the same label as the trigger; pick it by its style
@@ -125,7 +125,7 @@ describe("AccountDetail", () => {
   it("offers unfreeze instead of freeze when the account is frozen", () => {
     mockAccount({ pausedAt: new Date().toISOString(), pausedReason: "incident" });
     render(<AccountDetail accountId="0xabc123" />);
-    expect(screen.getByText("Unfreeze account")).toBeInTheDocument();
-    expect(screen.queryByText("Freeze account")).not.toBeInTheDocument();
+    expect(screen.getByText("Unfreeze")).toBeInTheDocument();
+    expect(screen.queryByText("Freeze")).not.toBeInTheDocument();
   });
 });

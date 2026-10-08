@@ -12,15 +12,15 @@ export default function OverviewPage() {
       {/* Is the server itself all right? */}
       <GuardianStatusCard />
 
-      {/* Is anything in a state that wants attention? This band is the reason
-          the page exists; the inventory below is context, not the answer. */}
-      <AttentionCards />
-
+      {/* What is on it: the inventory, in the order of the navigation. */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <AccountsCard />
         <AssetsCard />
         <ActivityCard />
       </div>
+
+      {/* How it stands: every account by lifecycle, and when it last moved. */}
+      <AttentionCards />
     </div>
   );
 }

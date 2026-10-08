@@ -66,7 +66,10 @@ function sortValue(a: DashboardAccountSummary, key: SortKey, assets: Record<stri
 }
 
 export function AccountsPanel() {
-  const pausedOnly = useSearchParams().get("paused") === "true";
+  const params = useSearchParams();
+  const pausedOnly = params.get("paused") === "true";
+  // The Overview lifecycle cards land here with the matching chip selected.
+  const stateParam = params.get("state");
   const listKey = accountsKey(pausedOnly);
   const { data, error } = useSWR<AccountsPage>(listKey, fetcher, { refreshInterval: 30_000 });
   // Same key StatStrip already polls, so SWR serves both from one request.
@@ -81,7 +84,9 @@ export function AccountsPanel() {
   const [inFlight, setInFlight] = useState<Set<string>>(new Set());
   const paging = usePaging(listKey, data, (cursor) => fetcher(`${listKey}&cursor=${encodeURIComponent(cursor)}`), (a) => a.accountId);
   const [kind, setKind] = useState<AccountKind>("all");
-  const [state, setState] = useState<AccountState>("all");
+  const [state, setState] = useState<AccountState>(
+    stateParam === "active" || stateParam === "frozen" || stateParam === "released" ? stateParam : "all",
+  );
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const { sort, toggleSort } = useSort<SortKey>();

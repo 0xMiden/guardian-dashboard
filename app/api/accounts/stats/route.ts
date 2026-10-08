@@ -32,6 +32,7 @@ export function GET() {
       other: accounts.total - wallet,
       // Mutually exclusive server-side, in the same order `accountState`
       // resolves them: released wins over paused.
+      active: accounts.byLifecycle.active,
       frozen: accounts.byLifecycle.paused,
       released: accounts.byLifecycle.released,
       // When the server's walk ran. The aggregate is refreshed on a cadence, so

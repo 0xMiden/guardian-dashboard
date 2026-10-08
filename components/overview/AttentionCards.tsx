@@ -1,7 +1,7 @@
 "use client";
 import useSWR from "swr";
 import Link from "next/link";
-import { Snowflake, Activity } from "lucide-react";
+import { CircleCheck, ArrowRightFromLine, Snowflake, Activity } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Timestamp } from "@/components/ui/Timestamp";
@@ -10,23 +10,15 @@ import { formatCount } from "@/lib/format";
 import { STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
 
 /**
- * The band that answers "is anything wrong".
+ * Every account by lifecycle, in the Guardian's own split, then when it last
+ * recorded activity.
  *
- * Overview used to lead with total accounts, total assets and lifetime
- * transactions: two inventory figures and a historical one, none of which
- * changes what an operator does today. These three do.
- *
- * Zero is the good answer here, so it is styled as reassurance rather than as
- * an empty slot. A muted "None" reads as "checked, nothing to do"; a big grey
- * 0 reads as missing data.
- *
- * There is deliberately no "released accounts" count. The Guardian documents a
- * `releasedAt` on every summary, meaning the account moved to a different
- * guardian, but it is null on all 2,270 accounts across all five configured
- * endpoints, every one of which reports `stateStatus: "available"`. Since
- * accounts are known to have moved away, either the server does not record it
- * on v0.16.0 or a released account leaves the inventory entirely. A count that
- * can only ever read "None" would assert something false.
+ * Zero is written as "None" rather than a big grey 0, which reads as missing
+ * data; for Frozen it is the good answer and styled as reassurance. A count
+ * leads to the Accounts table with that status selected. Frozen goes through
+ * the Guardian's own paused filter, which finds those accounts wherever they
+ * sit in the list; the other two preselect the status chip over the rows the
+ * table has loaded.
  */
 function Stat({
   icon,
@@ -55,35 +47,31 @@ function Stat({
 }
 
 export function AttentionCards() {
-  // Same key the accounts table already polls, so SWR serves both from one
-  // request and the counts cost nothing on top of the walk that route runs.
+  // Same key the accounts table already polls, so SWR serves both from one request.
   const { data: stats } = useSWR<AccountStats>(STATS_KEY, fetcher, { refreshInterval: 60_000 });
   const { data: overview } = useSWR<{ latestActivity?: string | null }>("/api/overview", fetcher, {
     refreshInterval: 30_000,
   });
 
-  const frozen = stats?.frozen;
+  const count = (value: number | undefined, href: string) =>
+    stats == null ? <Skeleton className="h-8 w-16" />
+    // A 0.17.0 Guardian has no aggregate, and a fresh 0.18.0 one not yet: the
+    // same two cases StatStrip spells out.
+    : value == null ? <span title={stats.unsupported ? "Needs Guardian 0.18.0" : "Calculating…"}>—</span>
+    : value ? <Link href={href} className="hover:underline">{formatCount(value)}</Link>
+    : "None";
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <Stat
-        icon={<Snowflake className="h-3.5 w-3.5" />}
-        label="Frozen accounts"
-        tone={frozen ? "attention" : "quiet"}
-      >
-        {stats == null ? (
-          <Skeleton className="h-8 w-16" />
-        ) : frozen ? (
-          // The count is only useful if it leads somewhere. The Guardian filters
-          // by pause state natively, so this is one request rather than a walk.
-          <Link href="/accounts?paused=true" className="hover:underline">
-            {formatCount(frozen)}
-          </Link>
-        ) : (
-          "None"
-        )}
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <Stat icon={<CircleCheck className="h-3.5 w-3.5" />} label="Active">
+        {count(stats?.active, "/accounts?state=active")}
       </Stat>
-
+      <Stat icon={<ArrowRightFromLine className="h-3.5 w-3.5" />} label="Released">
+        {count(stats?.released, "/accounts?state=released")}
+      </Stat>
+      <Stat icon={<Snowflake className="h-3.5 w-3.5" />} label="Frozen" tone={stats?.frozen ? "attention" : "quiet"}>
+        {count(stats?.frozen, "/accounts?paused=true")}
+      </Stat>
       <Stat icon={<Activity className="h-3.5 w-3.5" />} label="Last activity">
         {overview === undefined ? (
           <Skeleton className="h-8 w-28" />

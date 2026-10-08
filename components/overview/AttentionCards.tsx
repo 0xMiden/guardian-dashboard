@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { fetcher } from "@/lib/utils";
 import { formatCount } from "@/lib/format";
+import { InfoTip } from "@/components/ui/InfoTip";
 import { STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
 
 /**
@@ -23,11 +24,13 @@ import { STATS_KEY, type AccountStats } from "@/components/accounts/StatStrip";
 function Stat({
   icon,
   label,
+  info,
   children,
   tone = "quiet",
 }: {
   icon: React.ReactNode;
   label: string;
+  info: string;
   children: React.ReactNode;
   tone?: "quiet" | "attention";
 }) {
@@ -37,6 +40,7 @@ function Stat({
         <p className="mb-1 flex items-center gap-1.5 text-label text-muted-foreground">
           {icon}
           {label}
+          <InfoTip text={info} />
         </p>
         <div className={tone === "attention" ? "text-stat text-state-frozen" : "text-stat text-muted-foreground"}>
           {children}
@@ -63,16 +67,33 @@ export function AttentionCards() {
 
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-      <Stat icon={<CircleCheck className="h-3.5 w-3.5" />} label="Active">
+      <Stat
+        icon={<CircleCheck className="h-3.5 w-3.5" />}
+        label="Active accounts"
+        info="Accounts this Guardian signs for, neither frozen nor released."
+      >
         {count(stats?.active, "/accounts?state=active")}
       </Stat>
-      <Stat icon={<ArrowRightFromLine className="h-3.5 w-3.5" />} label="Released">
+      <Stat
+        icon={<ArrowRightFromLine className="h-3.5 w-3.5" />}
+        label="Released accounts"
+        info="Accounts moved to another Guardian. This one no longer signs for them."
+      >
         {count(stats?.released, "/accounts?state=released")}
       </Stat>
-      <Stat icon={<Snowflake className="h-3.5 w-3.5" />} label="Frozen" tone={stats?.frozen ? "attention" : "quiet"}>
+      <Stat
+        icon={<Snowflake className="h-3.5 w-3.5" />}
+        label="Frozen accounts"
+        info="Accounts paused by the operator. Nothing is signed for them until they are unfrozen."
+        tone={stats?.frozen ? "attention" : "quiet"}
+      >
         {count(stats?.frozen, "/accounts?paused=true")}
       </Stat>
-      <Stat icon={<Activity className="h-3.5 w-3.5" />} label="Last activity">
+      <Stat
+        icon={<Activity className="h-3.5 w-3.5" />}
+        label="Last activity"
+        info="When this Guardian last recorded a transaction or a proposal."
+      >
         {overview === undefined ? (
           <Skeleton className="h-8 w-28" />
         ) : overview.latestActivity ? (

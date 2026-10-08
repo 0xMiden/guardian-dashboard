@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { fetcher } from "@/lib/utils";
 import { formatCount } from "@/lib/format";
+import { InfoTip } from "@/components/ui/InfoTip";
 
 interface OverviewData {
   totalAccounts: number;
@@ -36,7 +37,10 @@ export function AccountsCard() {
       <CardContent className="pt-4 pb-3">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Accounts</p>
+            <p className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+              Accounts
+              <InfoTip text="Every account registered with this Guardian." />
+            </p>
             {loading ? (
               <Skeleton className="h-8 w-12 mt-1" />
             ) : (
@@ -58,6 +62,7 @@ export function AccountsCard() {
         </div>
         {expanded && data && (
           <div className="mt-3 pt-3 border-t space-y-1.5">
+            <p className="text-xs text-muted-foreground">By signature scheme</p>
             {data.falcon === null ? (
               <p
                 className="text-xs text-muted-foreground"

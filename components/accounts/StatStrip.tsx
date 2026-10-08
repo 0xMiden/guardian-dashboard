@@ -91,7 +91,7 @@ export function StatStrip() {
       )}
       {assets?.usd7d != null && (
         <span className="text-muted-foreground">
-          Assets (updated last 7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">${assets.usd7d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          Assets (accounts updated last 7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">${assets.usd7d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </span>
       )}
     </div>

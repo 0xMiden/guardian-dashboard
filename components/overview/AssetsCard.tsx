@@ -1,8 +1,12 @@
 "use client";
+import { useState } from "react";
 import useSWR from "swr";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetcher } from "@/lib/utils";
+import { formatCount } from "@/lib/format";
+import { InfoTip } from "@/components/ui/InfoTip";
 
 type AssetTotals = {
   usd7d?: number | null;
@@ -25,59 +29,93 @@ export function AssetsCard() {
   const { data, error } = useSWR<AssetTotals>("/api/accounts/asset-totals", fetcher, {
     refreshInterval: 60_000,
   });
+  const [expanded, setExpanded] = useState(false);
+  const split = data?.priced != null && data.unpriced != null;
 
   return (
     <Card>
       <CardContent className="pt-4 pb-3">
-        <p className="text-xs text-muted-foreground mb-1">Assets (updated last 7d)</p>
-        {!data && !error ? (
-          <Skeleton className="h-8 w-20 mt-1" />
-        ) : data?.usd7d != null ? (
-          <p className="text-stat text-foreground">
-            ${data.usd7d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </p>
-        ) : data?.unsupported ? (
-          // Names the reason rather than showing the same dash a dead Guardian
-          // would. Nothing here will change until this Guardian's operator
-          // upgrades, so there is no progress to report.
-          <p
-            className="text-section text-muted-foreground"
-            title="This Guardian computes no cross-account totals. The endpoint the dashboard reads them from arrived in Guardian 0.18.0."
-          >
-            Needs Guardian 0.18.0
-          </p>
-        ) : data?.unpriced && !data.priced ? (
-          // Holdings exist, and none of them has a market. Priced the way the
-          // Miden wallet does (lib/prices.ts): a test mint or an unlisted token
-          // gets no dollar figure rather than an invented one.
-          <p
-            className="text-section text-muted-foreground"
-            title={`Holdings in ${data.unpriced.toLocaleString()} faucet(s) with no price: not on the verified token list, or the price feed is unreachable. The Miden wallet shows the same holdings with no dollar figure.`}
-          >
-            Unpriced
-          </p>
-        ) : data?.warming ? (
-          // A 0.18.0 Guardian that has not finished its first pass, or one whose
-          // pass could not decode every vault. It says how far it got, and the
-          // number climbing is the only evidence that waiting will end.
-          <p
-            className="text-section text-muted-foreground"
-            title="The Guardian is still computing its first asset aggregate. This clears within one refresh interval."
-          >
-            Calculating…
-            {data.done != null && data.total != null && (
-              <span className="ml-1 text-data">
-                {data.done.toLocaleString()} of {data.total.toLocaleString()}
-              </span>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+              Assets
+              <InfoTip text="Dollar value of what the accounts updated in the last 7 days hold, for tokens on the verified token list with a market price. Anything else is unpriced." />
+            </p>
+            {!data && !error ? (
+              <Skeleton className="h-8 w-20 mt-1" />
+            ) : data?.usd7d != null ? (
+              <p className="text-stat text-foreground">
+                ${data.usd7d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            ) : data?.unsupported ? (
+              // Names the reason rather than showing the same dash a dead Guardian
+              // would. Nothing here will change until this Guardian's operator
+              // upgrades, so there is no progress to report.
+              <p
+                className="text-section text-muted-foreground"
+                title="This Guardian computes no cross-account totals. The endpoint the dashboard reads them from arrived in Guardian 0.18.0."
+              >
+                Needs Guardian 0.18.0
+              </p>
+            ) : data?.unpriced && !data.priced ? (
+              // Holdings exist, and none of them has a market. Priced the way the
+              // Miden wallet does (lib/prices.ts): a test mint or an unlisted token
+              // gets no dollar figure rather than an invented one.
+              <p
+                className="text-section text-muted-foreground"
+                title={`Holdings in ${data.unpriced.toLocaleString()} token(s) with no price: not on the verified token list, or the price feed is unreachable. The Miden wallet shows the same holdings with no dollar figure.`}
+              >
+                Unpriced
+              </p>
+            ) : data?.warming ? (
+              // A 0.18.0 Guardian that has not finished its first pass, or one whose
+              // pass could not decode every vault. It says how far it got, and the
+              // number climbing is the only evidence that waiting will end.
+              <p
+                className="text-section text-muted-foreground"
+                title="The Guardian is still computing its first asset aggregate. This clears within one refresh interval."
+              >
+                Calculating…
+                {data.done != null && data.total != null && (
+                  <span className="ml-1 text-data">
+                    {data.done.toLocaleString()} of {data.total.toLocaleString()}
+                  </span>
+                )}
+              </p>
+            ) : (
+              <p
+                className="text-stat text-muted-foreground"
+                title={error ? "The Guardian did not answer." : "Not computed yet."}
+              >
+                —
+              </p>
             )}
-          </p>
-        ) : (
-          <p
-            className="text-stat text-muted-foreground"
-            title={error ? "The Guardian did not answer." : "Not computed yet."}
-          >
-            —
-          </p>
+            {split && (
+              <p className="text-xs text-muted-foreground mt-1">held by accounts updated in the last 7d</p>
+            )}
+          </div>
+          {split && (
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="text-muted-foreground hover:text-foreground transition-colors mt-1"
+              title={expanded ? "Collapse" : "Expand"}
+              aria-label={expanded ? "Collapse" : "Expand"}
+            >
+              {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+          )}
+        </div>
+        {expanded && split && (
+          <div className="mt-3 pt-3 border-t space-y-1.5">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Priced tokens</span>
+              <span className="font-medium">{formatCount(data.priced!)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Unpriced tokens</span>
+              <span className="font-medium">{formatCount(data.unpriced!)}</span>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>

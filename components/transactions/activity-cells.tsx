@@ -117,8 +117,10 @@ export function proposalStatusLabel(collected: number, required: number): string
 }
 
 export function deltaStatusBadge(status: string, statusReason?: string) {
+  // Recovering shares Frozen's tone: both wait on an operator, not on the chain.
   const tone = status === "canonical" ? "bg-state-active"
-    : status === "candidate" || status === "retained" ? "bg-state-pending"
+    : status === "candidate" ? "bg-state-pending"
+    : status === "retained" ? "bg-state-frozen"
     : "bg-state-neutral";
   return (
     <Badge className={`${tone} text-white`} title={statusReasonText(statusReason)}>

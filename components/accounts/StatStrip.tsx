@@ -16,6 +16,8 @@ export type AccountStats = {
   active?: number;
   frozen?: number;
   released?: number;
+  /** When the Guardian computed the aggregate these counts come from. */
+  asOf?: string;
   /** The Guardian predates `GET /dashboard/stats`, which shipped in 0.18.0. */
   unsupported?: boolean;
   /** A 0.18.0 Guardian that has not published its first aggregate yet. */

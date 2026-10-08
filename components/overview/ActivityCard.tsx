@@ -83,7 +83,7 @@ export function ActivityCard() {
               <Row
                 label="Recovering"
                 value={data.deltaStatusCounts.retained}
-                accent="text-state-pending"
+                accent="text-state-frozen"
               />
             )}
             <Row label="Discarded" value={data.deltaStatusCounts.discarded} />

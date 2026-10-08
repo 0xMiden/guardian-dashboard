@@ -40,4 +40,13 @@ describe("AttentionCards", () => {
     expect(screen.getAllByTitle("Needs Guardian 0.18.0")).toHaveLength(3);
     expect(screen.queryByText("None")).not.toBeInTheDocument();
   });
+
+  // The counts are minutes old by design while the Accounts card is live.
+  it("dates the counts with the aggregate's own timestamp", () => {
+    useSWR.mockImplementation((key: string) => ({
+      data: key === "/api/accounts/stats" ? { active: 1, frozen: 0, released: 0, asOf: "2026-10-08T10:05:00Z" } : { latestActivity: null },
+    }));
+    render(<AttentionCards />);
+    expect(screen.getByText(/Account counts as of/)).toBeInTheDocument();
+  });
 });

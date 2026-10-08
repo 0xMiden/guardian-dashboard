@@ -113,7 +113,7 @@ export function deltaStatusLabel(status: string): string {
 }
 
 export function proposalStatusLabel(collected: number, required: number): string {
-  return `${collected}/${required} signed`;
+  return `${collected}/${required} acknowledged`;
 }
 
 export function deltaStatusBadge(status: string, statusReason?: string) {

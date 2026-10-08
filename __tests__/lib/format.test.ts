@@ -14,8 +14,8 @@ describe("activityToCsv", () => {
   });
 
   it("leaves the counterparty and amount blank for a proposal", () => {
-    const row = activityToCsv([{ accountId: "0xabc", label: "Swap", status: "1/2 signed", timestamp: "t" }]).split("\r\n")[1];
-    expect(row).toBe("0xabc,,,Swap,,1/2 signed,t");
+    const row = activityToCsv([{ accountId: "0xabc", label: "Swap", status: "1/2 acknowledged", timestamp: "t" }]).split("\r\n")[1];
+    expect(row).toBe("0xabc,,,Swap,,1/2 acknowledged,t");
   });
 });
 

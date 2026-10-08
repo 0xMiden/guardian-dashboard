@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { AssetsCard } from "@/components/overview/AssetsCard";
 
 vi.mock("swr", () => ({ default: vi.fn() }));
@@ -46,7 +46,7 @@ describe("AssetsCard", () => {
     mockData({ usd7d: null, computedAt: "2026-10-07T12:00:00Z", priced: 0, unpriced: 104 });
     render(<AssetsCard />);
     expect(screen.getByText("Unpriced")).toBeInTheDocument();
-    expect(screen.getByTitle(/104 faucet/)).toBeInTheDocument();
+    expect(screen.getByTitle(/104 token/)).toBeInTheDocument();
     expect(screen.queryByText("—")).not.toBeInTheDocument();
   });
 
@@ -98,5 +98,17 @@ describe("AssetsCard poll scheduling", () => {
     mockData({ usd7d: null, warming: true, done: 10, total: 100 });
     render(<AssetsCard />);
     expect(optionsFromCall(0).refreshInterval).toBe(60_000);
+  });
+});
+
+describe("AssetsCard expander", () => {
+  it("expands into the priced and unpriced token counts", () => {
+    mockData({ usd7d: 2.32, computedAt: "2026-10-08T10:00:00Z", priced: 1, unpriced: 3 });
+    render(<AssetsCard />);
+    expect(screen.getByText(/held by accounts updated in the last 7d/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+    expect(screen.getByText("Priced tokens")).toBeInTheDocument();
+    expect(screen.getByText("Unpriced tokens")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
   });
 });

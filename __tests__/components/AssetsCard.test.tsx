@@ -15,7 +15,7 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("AssetsCard", () => {
   it("shows the total once it is published", () => {
-    mockData({ usd7d: 3911871.94, computedAt: "2026-08-04T12:00:00Z" });
+    mockData({ usd: 3911871.94, computedAt: "2026-08-04T12:00:00Z" });
     render(<AssetsCard />);
     expect(screen.getByText("$3,911,871.94")).toBeInTheDocument();
   });
@@ -23,7 +23,7 @@ describe("AssetsCard", () => {
   // The Guardian reports its own coverage (`covered`/`eligible`), so the card
   // can say how far the server's pass got instead of only that it is waiting.
   it("counts out loud while the Guardian's coverage is incomplete", () => {
-    mockData({ usd7d: null, warming: true, done: 358, total: 995 });
+    mockData({ usd: null, warming: true, done: 358, total: 995 });
     render(<AssetsCard />);
     expect(screen.getByText(/Calculating/)).toBeInTheDocument();
     expect(screen.getByText("358 of 995")).toBeInTheDocument();
@@ -43,7 +43,7 @@ describe("AssetsCard", () => {
   // that was every faucet on the fleet. It is a different claim from "the
   // Guardian holds nothing", which is what a $0.00 would say.
   it("says so when holdings exist but nothing prices them", () => {
-    mockData({ usd7d: null, computedAt: "2026-10-07T12:00:00Z", priced: 0, unpriced: 104 });
+    mockData({ usd: null, computedAt: "2026-10-07T12:00:00Z", priced: 0, unpriced: 104 });
     render(<AssetsCard />);
     expect(screen.getByText("Unpriced")).toBeInTheDocument();
     expect(screen.getByTitle(/104 token/)).toBeInTheDocument();
@@ -51,7 +51,7 @@ describe("AssetsCard", () => {
   });
 
   it("shows a genuine zero for a fleet holding nothing at all", () => {
-    mockData({ usd7d: 0, computedAt: "2026-10-07T12:00:00Z", priced: 0, unpriced: 0 });
+    mockData({ usd: 0, computedAt: "2026-10-07T12:00:00Z", priced: 0, unpriced: 0 });
     render(<AssetsCard />);
     expect(screen.getByText("$0.00")).toBeInTheDocument();
   });
@@ -79,7 +79,7 @@ describe("AssetsCard", () => {
  */
 describe("AssetsCard poll scheduling", () => {
   it("passes a referentially stable refreshInterval across re-renders", () => {
-    mockData({ usd7d: null, warming: true, done: 10, total: 100 });
+    mockData({ usd: null, warming: true, done: 10, total: 100 });
     const { rerender } = render(<AssetsCard />);
     rerender(<AssetsCard />);
     rerender(<AssetsCard />);
@@ -95,7 +95,7 @@ describe("AssetsCard poll scheduling", () => {
   // identity per render in the first place, so the trap is unreachable rather
   // than merely avoided.
   it("polls on a plain number, not a function of the last answer", () => {
-    mockData({ usd7d: null, warming: true, done: 10, total: 100 });
+    mockData({ usd: null, warming: true, done: 10, total: 100 });
     render(<AssetsCard />);
     expect(optionsFromCall(0).refreshInterval).toBe(60_000);
   });
@@ -103,9 +103,8 @@ describe("AssetsCard poll scheduling", () => {
 
 describe("AssetsCard expander", () => {
   it("expands into the priced and unpriced token counts", () => {
-    mockData({ usd7d: 2.32, computedAt: "2026-10-08T10:00:00Z", priced: 1, unpriced: 3 });
+    mockData({ usd: 2.32, computedAt: "2026-10-08T10:00:00Z", priced: 1, unpriced: 3 });
     render(<AssetsCard />);
-    expect(screen.getByText(/held by accounts updated in the last 7d/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Expand" }));
     expect(screen.getByText("Priced tokens")).toBeInTheDocument();
     expect(screen.getByText("Unpriced tokens")).toBeInTheDocument();

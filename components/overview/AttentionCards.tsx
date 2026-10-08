@@ -66,46 +66,57 @@ export function AttentionCards() {
     : "None";
 
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-      <Stat
-        icon={<CircleCheck className="h-3.5 w-3.5" />}
-        label="Active accounts"
-        info="Accounts this Guardian acknowledges transactions for, neither frozen nor released."
-      >
-        {count(stats?.active, "/accounts?state=active")}
-      </Stat>
-      <Stat
-        icon={<ArrowRightFromLine className="h-3.5 w-3.5" />}
-        label="Released accounts"
-        info="Accounts moved to another Guardian. This one no longer acknowledges their transactions."
-      >
-        {count(stats?.released, "/accounts?state=released")}
-      </Stat>
-      <Stat
-        icon={<Snowflake className="h-3.5 w-3.5" />}
-        label="Frozen accounts"
-        info="Accounts paused by the operator. No transaction is acknowledged for them until they are unfrozen."
-        tone={stats?.frozen ? "attention" : "quiet"}
-      >
-        {count(stats?.frozen, "/accounts?paused=true")}
-      </Stat>
-      <Stat
-        icon={<Activity className="h-3.5 w-3.5" />}
-        label="Last activity"
-        info="When this Guardian last recorded a transaction or a proposal."
-      >
-        {overview === undefined ? (
-          <Skeleton className="h-8 w-28" />
-        ) : overview.latestActivity ? (
-          // Smaller than the counts beside it: a timestamp needs more room and
-          // reads as a phrase rather than a figure.
-          <span className="text-section">
-            <Timestamp iso={overview.latestActivity} />
-          </span>
-        ) : (
-          <span className="text-section">Nothing recorded</span>
-        )}
-      </Stat>
+    <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <Stat
+          icon={<CircleCheck className="h-3.5 w-3.5" />}
+          label="Active accounts"
+          info="Accounts this Guardian acknowledges transactions for, neither frozen nor released."
+        >
+          {count(stats?.active, "/accounts?state=active")}
+        </Stat>
+        <Stat
+          icon={<ArrowRightFromLine className="h-3.5 w-3.5" />}
+          label="Released accounts"
+          info="Accounts moved to another Guardian. This one no longer acknowledges their transactions."
+        >
+          {count(stats?.released, "/accounts?state=released")}
+        </Stat>
+        <Stat
+          icon={<Snowflake className="h-3.5 w-3.5" />}
+          label="Frozen accounts"
+          info="Accounts paused by the operator. No transaction is acknowledged for them until they are unfrozen."
+          tone={stats?.frozen ? "attention" : "quiet"}
+        >
+          {count(stats?.frozen, "/accounts?paused=true")}
+        </Stat>
+        <Stat
+          icon={<Activity className="h-3.5 w-3.5" />}
+          label="Last activity"
+          info="When this Guardian last recorded a transaction or a proposal."
+        >
+          {overview === undefined ? (
+            <Skeleton className="h-8 w-28" />
+          ) : overview.latestActivity ? (
+            // Smaller than the counts beside it: a timestamp needs more room and
+            // reads as a phrase rather than a figure.
+            <span className="text-section">
+              <Timestamp iso={overview.latestActivity} />
+            </span>
+          ) : (
+            <span className="text-section">Nothing recorded</span>
+          )}
+        </Stat>
+      </div>
+      {/* The lifecycle counts and the asset total come from an aggregate the
+          Guardian refreshes on its own cadence, while the Accounts and
+          Activity cards read live figures, so they can disagree for a few
+          minutes. The time says how old the aggregate is. */}
+      {stats?.asOf && (
+        <p className="self-end text-xs text-muted-foreground">
+          Statistics as of {new Date(stats.asOf).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+        </p>
+      )}
     </div>
   );
 }

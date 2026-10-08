@@ -68,7 +68,7 @@ describe("GuardianStatusCard", () => {
   it("shows latency in ms", () => {
     mockSWR();
     render(<GuardianStatusCard />);
-    expect(screen.getByText("42ms")).toBeInTheDocument();
+    expect(screen.getByText("42 ms")).toBeInTheDocument();
   });
 
   it("renders endpoint URL without protocol", () => {

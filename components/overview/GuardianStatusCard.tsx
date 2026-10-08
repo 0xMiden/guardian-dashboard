@@ -226,7 +226,8 @@ export function GuardianStatusCard() {
                   >
                     {isUp ? "Online" : "Offline"}
                   </Badge>
-                  <span className="text-title">{formatCount(health.latencyMs)}ms</span>
+                  <span className="text-title">{formatCount(health.latencyMs)} ms</span>
+                  <span className="text-label text-muted-foreground">ping</span>
                 </div>
                 {/* The wall clock, not a relative time. At a 5s poll "2
                     seconds ago" is always true and therefore says nothing;
@@ -274,20 +275,23 @@ export function GuardianStatusCard() {
             )}
             <div className="mt-3 h-32 w-full">
               {history.length > 1 && (
-                <ResponsiveContainer width="100%" height={128} minWidth={0}>
-                  <LineChart data={history}>
-                    <Line type="monotone" dataKey="ms" stroke="var(--color-brand)" dot={false} strokeWidth={2} />
-                    <Tooltip
-                      content={({ active, payload }) =>
-                        active && payload?.length ? (
-                          <div className="rounded-lg bg-background px-2 py-1 text-xs shadow-lg border">
-                            {payload[0].value}ms
-                          </div>
-                        ) : null
-                      }
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <>
+                  <p className="text-label text-muted-foreground">Ping, last {MAX_SAMPLES} checks</p>
+                  <ResponsiveContainer width="100%" height={112} minWidth={0}>
+                    <LineChart data={history}>
+                      <Line type="monotone" dataKey="ms" stroke="var(--color-brand)" dot={false} strokeWidth={2} />
+                      <Tooltip
+                        content={({ active, payload }) =>
+                          active && payload?.length ? (
+                            <div className="rounded-lg bg-background px-2 py-1 text-xs shadow-lg border">
+                              {payload[0].value}ms
+                            </div>
+                          ) : null
+                        }
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </>
               )}
             </div>
           </div>

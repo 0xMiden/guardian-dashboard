@@ -4,16 +4,14 @@ import { priceBook } from "@/lib/prices";
 
 export const dynamic = "force-dynamic";
 
-const MS_7D = 7 * 24 * 60 * 60 * 1000;
-
 /**
- * Dollar value of the vaults across the accounts active in the last 7 days.
+ * Dollar value of every vault on this Guardian.
  *
  * This was the expensive one: a paged walk to find the active set, then one
  * snapshot request per account, bounded by a 45-second deadline and retried
  * across invocations until a pass happened to cover everything. The Guardian
- * now sums the vaults itself; `updatedSince` applies the same 7-day window
- * server-side.
+ * now sums the vaults itself. No `updatedSince` window: the Overview reads all
+ * time, like its other figures.
  *
  * The route-level cache that used to sit here is gone with it. It existed to
  * avoid paying for the walk twice within 60 seconds, and the aggregate it
@@ -26,7 +24,7 @@ const MS_7D = 7 * 24 * 60 * 60 * 1000;
  */
 export function GET() {
   return guardianRoute(async (client, endpoint) => {
-    const outcome = await readStats(client, { updatedSince: new Date(Date.now() - MS_7D) });
+    const outcome = await readStats(client);
     if (outcome.kind !== "ok") return { [outcome.kind]: true };
 
     const { assets, asOf } = outcome.stats;
@@ -36,11 +34,11 @@ export function GET() {
     // it directly, and names the accounts it could not decode in `skipped`.
     // `covered`/`eligible` keep the progress line in AssetsCard meaningful.
     if (!assets.complete) {
-      return { usd7d: null, computedAt: null, warming: true, done: assets.covered, total: assets.eligible };
+      return { usd: null, computedAt: null, warming: true, done: assets.covered, total: assets.eligible };
     }
 
     const book = await priceBook(endpoint.network);
-    let usd7d = 0;
+    let usd = 0;
     let priced = 0;
     let unpriced = 0;
     // Fungible only, as before. `nonFungible` is a count per faucet, not an
@@ -50,14 +48,14 @@ export function GET() {
       if (value === undefined) unpriced++;
       else {
         priced++;
-        usd7d += value;
+        usd += value;
       }
     }
 
     return {
       // Null when every held faucet is unpriced: a zero would claim the
       // Guardian holds nothing. An empty fleet is a genuine zero.
-      usd7d: priced > 0 || unpriced === 0 ? usd7d : null,
+      usd: priced > 0 || unpriced === 0 ? usd : null,
       // The server's walk time, not ours. Reporting `new Date()` here claimed
       // the number was current when it was up to a refresh interval old.
       computedAt: asOf,

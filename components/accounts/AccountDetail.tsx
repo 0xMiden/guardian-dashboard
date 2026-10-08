@@ -30,10 +30,10 @@ interface Props {
   accountId: string;
 }
 
-function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {
+function Row({ label, value, title }: { label: React.ReactNode; value: React.ReactNode; title?: string }) {
   return (
     <div className="flex items-start justify-between gap-4 py-2 text-sm">
-      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className="text-muted-foreground shrink-0" title={title}>{label}</span>
       <span className="font-medium text-right break-all">{value}</span>
     </div>
   );
@@ -274,7 +274,11 @@ export function AccountDetail({ accountId }: Props) {
                   }
                 />
               )}
-              <Row label="Signature scheme" value={data!.authScheme === "falcon" ? "Falcon (post-quantum)" : data!.authScheme.toUpperCase()} />
+              <Row
+                label="Signature scheme"
+                title={data!.authScheme === "falcon" ? "Falcon-512 post-quantum signatures, Miden's native scheme." : "secp256k1 signatures, the scheme Ethereum wallets use."}
+                value={data!.authScheme === "falcon" ? "Falcon (post-quantum)" : data!.authScheme.toUpperCase()}
+              />
               <Row
                 label="Submitted"
                 // Same words as the table's Submitted column: a transaction on
@@ -312,7 +316,7 @@ export function AccountDetail({ accountId }: Props) {
               {showTechnical && (
                 <div className="pt-1 pb-2 space-y-2">
                   <div className="flex items-start justify-between gap-4 text-xs">
-                    <span className="text-muted-foreground shrink-0">Commitment</span>
+                    <span className="text-muted-foreground shrink-0" title="A hash of the account's full current state.">Commitment</span>
                     {data!.currentCommitment ? <CopyableId id={data!.currentCommitment} prefixLen={12} suffixLen={8} /> : <span className="text-muted-foreground">—</span>}
                   </div>
                   {data!.stateCreatedAt && (

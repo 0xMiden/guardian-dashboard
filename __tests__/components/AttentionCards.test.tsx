@@ -22,12 +22,12 @@ describe("AttentionCards", () => {
     expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 
-  it("frozen leads to the Guardian's paused filter", () => {
+  it("frozen leads to the Guardian's frozen set", () => {
     useSWR.mockImplementation((key: string) => ({
       data: key === "/api/accounts/stats" ? { active: 1, frozen: 2, released: 0 } : { latestActivity: null },
     }));
     render(<AttentionCards />);
-    expect(screen.getByRole("link", { name: "2" })).toHaveAttribute("href", "/accounts?paused=true");
+    expect(screen.getByRole("link", { name: "2" })).toHaveAttribute("href", "/accounts?state=frozen");
     expect(screen.getByText("Nothing recorded")).toBeInTheDocument();
   });
 

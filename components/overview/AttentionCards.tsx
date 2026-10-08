@@ -88,7 +88,7 @@ export function AttentionCards() {
           info="Accounts paused by the operator. No transaction is acknowledged for them until they are unfrozen."
           tone={stats?.frozen ? "attention" : "quiet"}
         >
-          {count(stats?.frozen, "/accounts?paused=true")}
+          {count(stats?.frozen, "/accounts?state=frozen")}
         </Stat>
         <Stat
           icon={<Activity className="h-3.5 w-3.5" />}

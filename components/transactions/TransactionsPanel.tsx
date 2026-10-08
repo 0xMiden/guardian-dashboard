@@ -38,17 +38,17 @@ type ColumnKey = "account" | "counterparty" | "activity" | "amount" | "status" |
 type SortKey = "activity" | "status" | "date";
 const HIDEABLE: readonly ColumnKey[] = ["counterparty", "activity", "amount", "status", "date"];
 
-const FILTERS: Array<{ label: string; value: FilterValue }> = [
+const FILTERS: Array<{ label: string; value: FilterValue; title?: string }> = [
   // Named as the Accounts chips are: "Any" for the reset, sentence case.
   { label: "Any status", value: "" },
-  { label: "Awaiting signatures", value: "awaiting" },
-  { label: "Ready to submit", value: "ready" },
-  { label: "Submitted", value: "candidate" },
-  { label: "Confirmed", value: "canonical" },
+  { label: "Awaiting signatures", value: "awaiting", title: "Proposals still collecting acknowledgements." },
+  { label: "Ready to submit", value: "ready", title: "Proposals with every acknowledgement collected, not yet submitted to the chain." },
+  { label: "Submitted", value: "candidate", title: "Transactions submitted to the chain, awaiting confirmation." },
+  { label: "Confirmed", value: "canonical", title: "Transactions the chain has included." },
   // Guardian 0.16.1 (issue #345). Findable, or six retained deltas on the OZ
   // Guardian are invisible unless you happen to scroll past one.
-  { label: "Recovering", value: "retained" },
-  { label: "Discarded", value: "discarded" },
+  { label: "Recovering", value: "retained", title: "Transactions the Guardian gave up verifying and keeps for later reconciliation." },
+  { label: "Discarded", value: "discarded", title: "Transactions the Guardian dropped." },
 ];
 
 type ActivityRow = {
@@ -209,7 +209,7 @@ export function TransactionsPanel() {
       <div className="flex items-center gap-2 flex-wrap text-xs">
         <AccountIdFilter value={query} onChange={setQuery} />
         {FILTERS.map((f) => (
-          <FilterChip key={f.value} active={filter === f.value} onClick={() => setFilter(f.value)}>
+          <FilterChip key={f.value} active={filter === f.value} onClick={() => setFilter(f.value)} title={f.title}>
             {f.label}
           </FilterChip>
         ))}

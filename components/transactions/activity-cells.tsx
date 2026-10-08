@@ -93,6 +93,14 @@ const STATUS_REASONS: Record<string, string> = {
   client_abandoned: "the client stopped before submitting it",
 };
 
+/** What a status means, for the badge of a row that has no reason to give. */
+const STATUS_HELP: Record<string, string> = {
+  canonical: "Included by the chain.",
+  candidate: "Submitted to the chain, awaiting confirmation.",
+  retained: "The Guardian gave up verifying it and keeps it for later reconciliation.",
+  discarded: "Dropped by the Guardian.",
+};
+
 export function statusReasonText(reason?: string): string | undefined {
   if (!reason) return undefined;
   return STATUS_REASONS[reason] ?? reason.replace(/_/g, " ");
@@ -122,7 +130,7 @@ export function deltaStatusBadge(status: string, statusReason?: string) {
     : status === "retained" ? "bg-state-frozen"
     : "bg-state-neutral";
   return (
-    <Badge className={`${tone} text-white`} title={statusReasonText(statusReason)}>
+    <Badge className={`${tone} text-white`} title={statusReasonText(statusReason) ?? STATUS_HELP[status]}>
       {deltaStatusLabel(status)}
     </Badge>
   );
@@ -134,6 +142,7 @@ export function proposalStatusBadge(collected: number, required: number) {
     <Badge
       variant="outline"
       className={full ? "border-state-active text-state-active" : "border-state-pending text-state-pending"}
+      title="Acknowledgements collected so far, out of the number this account requires."
     >
       {proposalStatusLabel(collected, required)}
     </Badge>

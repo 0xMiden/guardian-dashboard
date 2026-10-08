@@ -98,7 +98,7 @@ export function AccountTransactions({ accountId }: Props) {
   const unavailable = deltasError && !deltasData;
 
   const columns: TableColumn<ActivityRow, ColumnKey>[] = [
-    { key: "nonce", label: "Nonce", width: "w-20", align: "right", cellClass: "text-data text-muted-foreground tabular-nums", cell: (r) => r.nonce },
+    { key: "nonce", label: "Nonce", title: "The account's transaction counter. Each transaction takes the next number.", width: "w-20", align: "right", cellClass: "text-data text-muted-foreground tabular-nums", cell: (r) => r.nonce },
     { key: "counterparty", label: "To / From", width: "w-36", cellClass: "text-data", cell: (r) => <CounterpartyCell counterparty={r.counterparty} /> },
     { key: "activity", label: "Activity", width: "w-40", cellClass: "text-data", cell: (r) => r.label },
     { key: "amount", label: "Amount", width: "w-32", align: "right", cellClass: "text-figure", cell: (r) => <AmountCell assets={r.assets} /> },

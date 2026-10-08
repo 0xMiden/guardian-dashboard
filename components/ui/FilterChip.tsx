@@ -13,16 +13,19 @@
 export function FilterChip({
   active,
   onClick,
+  title,
   children,
 }: {
   active: boolean;
   onClick: () => void;
+  title?: string;
   children: React.ReactNode;
 }) {
   return (
     <button
       onClick={onClick}
       aria-pressed={active}
+      title={title}
       className={`rounded-full border px-3 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
         active
           ? "border-foreground text-foreground"

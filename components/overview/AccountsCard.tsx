@@ -17,11 +17,11 @@ interface OverviewData {
   evm: number | null;
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+function Row({ label, value, title }: { label: string; value: React.ReactNode; title?: string }) {
   if (typeof value === "number") value = formatCount(value);
   return (
     <div className="flex items-center justify-between text-sm">
-      <span className="text-muted-foreground">{label}</span>
+      <span className="text-muted-foreground" title={title}>{label}</span>
       <span className="font-medium">{value}</span>
     </div>
   );
@@ -72,9 +72,9 @@ export function AccountsCard() {
               </p>
             ) : (
               <>
-                <Row label="Falcon" value={data.falcon} />
-                <Row label="ECDSA" value={data.ecdsa} />
-                {!!data.evm && <Row label="EVM" value={data.evm} />}
+                <Row label="Falcon" value={data.falcon} title="Falcon-512 post-quantum signatures, Miden's native scheme." />
+                <Row label="ECDSA" value={data.ecdsa} title="secp256k1 signatures, the scheme Ethereum wallets use." />
+                {!!data.evm && <Row label="EVM" value={data.evm} title="Accounts keyed from an EVM chain. They hold no Miden vault." />}
               </>
             )}
           </div>

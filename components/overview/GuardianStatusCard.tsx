@@ -234,8 +234,8 @@ export function GuardianStatusCard() {
                   >
                     {isUp ? "Online" : "Offline"}
                   </Badge>
+                  {/* The chart caption below says what this is. */}
                   <span className="text-title">{formatCount(health.latencyMs)} ms</span>
-                  <span className="text-label text-muted-foreground">ping</span>
                 </div>
                 {/* The wall clock, not a relative time. At a 5s poll "2
                     seconds ago" is always true and therefore says nothing;

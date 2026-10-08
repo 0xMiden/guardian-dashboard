@@ -284,7 +284,7 @@ export function GuardianStatusCard() {
             <div className="mt-3 h-32 w-full">
               {history.length > 1 && (
                 <>
-                  <p className="text-label text-muted-foreground">Ping, last {MAX_SAMPLES} checks</p>
+                  <p className="text-label text-muted-foreground">Last {MAX_SAMPLES} pings</p>
                   <ResponsiveContainer width="100%" height={112} minWidth={0}>
                     <LineChart data={history}>
                       <Line type="monotone" dataKey="ms" stroke="var(--color-brand)" dot={false} strokeWidth={2} />

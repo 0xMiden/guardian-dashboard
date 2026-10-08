@@ -93,7 +93,7 @@ function EditModal({ user, onClose }: { user: ClerkUser; onClose: () => void }) 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="rounded-xl bg-popover border p-6 max-w-sm w-full mx-4 shadow-xl space-y-4">
-        <h2 className="text-sm font-semibold">Edit access — {name}</h2>
+        <h2 className="text-sm font-semibold">Edit access for {name}</h2>
 
         <div>
           <p className="text-xs text-muted-foreground mb-2">Role</p>

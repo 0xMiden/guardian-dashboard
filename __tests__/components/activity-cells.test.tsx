@@ -62,21 +62,21 @@ describe("statusReasonText", () => {
  */
 describe("activityLabel", () => {
   it("names the types the new testnet brought", () => {
-    expect(activityLabel("custom", "recallable_send")).toBe("Recallable Send");
-    expect(activityLabel("custom", "bridged_send")).toBe("Bridged Send");
+    expect(activityLabel("custom", "recallable_send")).toBe("Recallable send");
+    expect(activityLabel("custom", "bridged_send")).toBe("Bridged send");
     expect(activityLabel("custom", "swap")).toBe("Swap");
   });
 
   // The proposal type is the more specific view of the same event, so it wins.
-  // The same inversion used to call an add_signer delta "Account Changed".
+  // The same inversion used to call an add_signer delta "Account changed".
   it("prefers the proposal type over the category it arrives with", () => {
-    expect(activityLabel("account_storage_change", "add_signer")).toBe("Signer Added");
-    expect(activityLabel("account_storage_change", "remove_signer")).toBe("Signer Removed");
-    expect(activityLabel("note_consumption", "consume_notes")).toBe("Note Consumed");
+    expect(activityLabel("account_storage_change", "add_signer")).toBe("Signer added");
+    expect(activityLabel("account_storage_change", "remove_signer")).toBe("Signer removed");
+    expect(activityLabel("note_consumption", "consume_notes")).toBe("Note consumed");
   });
 
   it("still labels a delta that carries no proposal type", () => {
-    expect(activityLabel("note_creation")).toBe("Note Created");
+    expect(activityLabel("note_creation")).toBe("Note created");
     expect(activityLabel("guardian_switch")).toBe("Switch Guardian");
   });
 
@@ -86,7 +86,7 @@ describe("activityLabel", () => {
   });
 
   // A category this build has never heard of is still passed through rather
-  // than replaced by "State Change", which would throw away what the Guardian
+  // than replaced by "State change", which would throw away what the Guardian
   // did say. Reached only when the proposal type cannot name itself; a type
   // that can now wins, which is what "title-cases a type nobody has curated
   // yet" below asserts.
@@ -96,23 +96,23 @@ describe("activityLabel", () => {
   });
 
   it("has a last resort when the Guardian gives neither", () => {
-    expect(activityLabel()).toBe("State Change");
+    expect(activityLabel()).toBe("State change");
   });
 
   // Proposal types are defined by the applications on Miden, not by the
   // Guardian, and every one of them arrives under the `custom` category. Four
   // new ones appeared between 2026-09-10 and 2026-10-06, so an unlisted type
   // has to read as itself rather than as "Custom".
-  it("title-cases a type nobody has curated yet", () => {
-    expect(activityLabel("custom", "earn_deposit")).toBe("Earn Deposit");
-    expect(activityLabel("custom", "live_send")).toBe("Live Send");
+  it("sentence-cases a type nobody has curated yet", () => {
+    expect(activityLabel("custom", "earn_deposit")).toBe("Earn deposit");
+    expect(activityLabel("custom", "live_send")).toBe("Live send");
     expect(activityLabel("custom", "b2agg")).toBe("B2agg");
   });
 
   it("prefers a curated label over the derived one", () => {
     // Title-casing these would give "P2id" and "Midenid Register".
-    expect(activityLabel("asset_transfer", "p2id")).toBe("Asset Transfer");
-    expect(activityLabel("custom", "midenid_register")).toBe("Miden ID Registered");
+    expect(activityLabel("asset_transfer", "p2id")).toBe("Asset transfer");
+    expect(activityLabel("custom", "midenid_register")).toBe("Miden ID registered");
   });
 
   // `custom_transaction` really is an arbitrary script, so the generic word is
@@ -133,6 +133,6 @@ describe("activityLabel", () => {
   it("declines to derive a label from a payload-shaped type", () => {
     expect(activityLabel("custom", "x".repeat(400))).toBe("Custom");
     expect(activityLabel("custom", "Not_A_Wire_Token")).toBe("Custom");
-    expect(activityLabel(undefined, "y".repeat(400))).toBe("State Change");
+    expect(activityLabel(undefined, "y".repeat(400))).toBe("State change");
   });
 });

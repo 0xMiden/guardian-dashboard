@@ -203,10 +203,10 @@ describe("GuardianStatusCard service status", () => {
   it("explains a capped aggregate rather than warning about it", () => {
     withStatus("degraded", ["accounts_by_auth_method"]);
     render(<GuardianStatusCard />);
-    const line = screen.getByText(/stops computing above 1000 accounts/);
+    const line = screen.getByText(/stops computing above 1,000 accounts/);
     expect(line).toHaveTextContent(
-      "The Guardian reports itself degraded: the account breakdown by auth method stops " +
-        "computing above 1000 accounts (aggregation service is WIP).",
+      "The Guardian reports itself degraded: the account breakdown by signature scheme stops " +
+        "computing above 1,000 accounts.",
     );
     // The amber treatment is what said "something is wrong here".
     expect(line.className).not.toContain("text-state-frozen");

@@ -155,7 +155,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
               {/* The same label the tables show for this row. The raw proposal
                   type is not for a cell: the live USDCx one is a ~1,500
                   character payload. */}
-              <Row label="Type" value={activityLabel(data!.category, data!.proposal?.proposalType)} />
+              <Row label="Activity" value={activityLabel(data!.category, data!.proposal?.proposalType)} />
               <Row label="Date" value={<Timestamp iso={data!.statusTimestamp} />} />
               {data!.retryCount !== undefined && data!.retryCount > 0 && (
                 <Row label="Retries" value={data!.retryCount} />

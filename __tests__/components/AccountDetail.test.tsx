@@ -88,7 +88,7 @@ describe("AccountDetail", () => {
     render(<AccountDetail accountId="0xabc123" />);
 
     expect(screen.getByText("Authorized signers")).toBeInTheDocument();
-    expect(screen.getByText(/state update is in progress/i)).toBeInTheDocument();
+    expect(screen.getByText(/submitted transaction is awaiting confirmation/i)).toBeInTheDocument();
     expect(screen.getByText("1,500 units")).toBeInTheDocument();
     expect(screen.getByText("Non-fungible assets")).toBeInTheDocument();
 

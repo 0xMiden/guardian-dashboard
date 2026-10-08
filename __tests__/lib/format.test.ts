@@ -4,12 +4,12 @@ import { truncateId, formatAmount, storageSlotLabel, accountState, toCsv, accoun
 describe("activityToCsv", () => {
   it("writes the words the table shows, with every asset the row moved", () => {
     const csv = activityToCsv([{
-      accountId: "0xabc", counterparty: { accountId: "0xdef", direction: "in" }, label: "Asset Transfer",
+      accountId: "0xabc", counterparty: { accountId: "0xdef", direction: "in" }, label: "Asset transfer",
       assets: [{ amount: "1000" }, { amount: "-5" }, {}], status: "confirmed", timestamp: "2026-01-01T00:00:00.000Z",
     }]);
     expect(csv.split("\r\n")).toEqual([
       "Account ID,To / From,Direction,Activity,Amount,Status,Date",
-      '0xabc,0xdef,in,Asset Transfer,"1,000; -5",confirmed,2026-01-01T00:00:00.000Z',
+      '0xabc,0xdef,in,Asset transfer,"1,000; -5",confirmed,2026-01-01T00:00:00.000Z',
     ]);
   });
 
@@ -118,7 +118,7 @@ describe("accountsToCsv", () => {
 
   it("exports both id forms, the state word and an ISO timestamp", () => {
     const [header, row] = accountsToCsv([account], { "0xabc": 1234.5 }).split("\r\n");
-    expect(header).toBe("Account ID,Account ID (hex),Status,Type,Signers,Pending,Total assets (USD),Created,Updated");
+    expect(header).toBe("Account ID,Account ID (hex),Status,Type,Signers,Submitted,Total assets (USD),Created,Updated");
     expect(row).toBe("mtst1abc,0xabc,active,wallet,2,,1234.5,2026-01-01T00:00:00.000Z,2026-01-02T00:00:00.000Z");
   });
 

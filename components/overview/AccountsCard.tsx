@@ -66,7 +66,7 @@ export function AccountsCard() {
             {data.falcon === null ? (
               <p
                 className="text-xs text-muted-foreground"
-                title="This Guardian stops computing the per-auth-method breakdown above a certain account count. The total above is still exact."
+                title="This Guardian stops computing the breakdown by signature scheme above 1,000 accounts. The total above is still exact."
               >
                 Breakdown unavailable on this Guardian
               </p>

@@ -295,9 +295,9 @@ export function AccountsPanel() {
       cell: (a) => a.authorizedSignerCount,
     },
     {
-      key: "pending", label: "Pending", width: "w-24", cellClass: "text-data",
+      key: "pending", label: "Submitted", width: "w-24", cellClass: "text-data",
       cell: (a) => a.hasPendingCandidate ? (
-        <Badge variant="outline" className="border-state-pending text-state-pending">pending</Badge>
+        <Badge variant="outline" className="border-state-pending text-state-pending">submitted</Badge>
       ) : (
         <span className="text-muted-foreground text-xs">—</span>
       ),
@@ -372,8 +372,8 @@ export function AccountsPanel() {
         {([
           ["all", "Any status"],
           ["active", "Active"],
-          ["frozen", "Frozen"],
           ["released", "Released"],
+          ["frozen", "Frozen"],
         ] as const).map(([value, label]) => (
           <FilterChip key={value} active={state === value} onClick={() => setState(value)}>
             {label}

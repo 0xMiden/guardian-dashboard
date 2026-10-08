@@ -28,7 +28,7 @@ interface OverviewData {
 // The Guardian names what it cannot compute in its own vocabulary. An operator
 // should not have to know that `accounts_by_auth_method` is the auth split.
 const DEGRADED_LABELS: Record<string, string> = {
-  accounts_by_auth_method: "the account breakdown by auth method",
+  accounts_by_auth_method: "the account breakdown by signature scheme",
 };
 const describeDegraded = (keys: string[]) =>
   keys.map((k) => DEGRADED_LABELS[k] ?? k.replace(/_/g, " ")).join(", ");
@@ -257,7 +257,7 @@ export function GuardianStatusCard() {
                     <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     <p className="text-label text-muted-foreground">
                       The Guardian reports itself degraded: {describeDegraded(degradedAggregates)}{" "}
-                      stops computing above 1000 accounts (aggregation service is WIP).
+                      stops computing above 1,000 accounts.
                     </p>
                   </>
                 ) : (

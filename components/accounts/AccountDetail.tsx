@@ -214,7 +214,7 @@ export function AccountDetail({ accountId }: Props) {
                 className="text-label border-state-active text-state-active hover:bg-state-active/10"
               >
                 <Sun className="h-3.5 w-3.5" />
-                Unfreeze account
+                Unfreeze
               </Button>
             ) : (
               <Button
@@ -225,7 +225,7 @@ export function AccountDetail({ accountId }: Props) {
                 className="text-label"
               >
                 <Snowflake className="h-3.5 w-3.5" />
-                Freeze account
+                Freeze
               </Button>
             )
           )}

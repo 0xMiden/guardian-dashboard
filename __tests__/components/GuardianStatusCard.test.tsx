@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
+import { FetchError } from "@/lib/utils";
 import { GuardianStatusCard } from "@/components/overview/GuardianStatusCard";
 
 vi.mock("swr", () => ({ default: vi.fn() }));
@@ -55,7 +56,7 @@ describe("GuardianStatusCard", () => {
 
   // The skeleton used to stay up for good when the health call itself failed.
   it("says Offline with the reason when the health call fails", () => {
-    const error = Object.assign(new Error("Request failed (503)"), { status: 503 });
+    const error = new FetchError("Request failed (503)", 503);
     useSWR.mockImplementation((key: string) => {
       if (key === "/api/health") return { data: undefined, error };
       if (key === "/api/operator-info") return { data: undefined, error };

@@ -15,13 +15,15 @@ import { ArrowLeft, Snowflake, Sun, ArrowLeftRight, ChevronDown, ChevronRight } 
 import type { DashboardAccountDetail } from "@openzeppelin/guardian-operator-client";
 import posthog from "posthog-js";
 import { fetcher, FetchError } from "@/lib/utils";
+import { formatAmount } from "@/lib/format";
 
 type AccountSnapshot = {
   commitment: string;
   updatedAt: string;
   hasPendingCandidate: boolean;
   vault: {
-    fungible: { faucetId: string; amount: string }[];
+    // symbol, decimals and usd are lib/enrich.ts's additions, for faucets a list names.
+    fungible: { faucetId: string; amount: string; symbol?: string; decimals?: number; usd?: number }[];
     nonFungible: { faucetId: string; vaultKey: string }[];
   };
 };
@@ -352,8 +354,19 @@ export function AccountDetail({ accountId }: Props) {
                     {snapshot.vault.fungible.map((asset) => (
                       <div key={asset.faucetId} className="flex items-start justify-between gap-4 py-2 text-sm">
                         <div className="flex flex-col gap-0.5 min-w-0">
+                          {asset.symbol && <span className="font-medium">{asset.symbol}</span>}
                           <CopyableId id={asset.faucetId} prefixLen={10} suffixLen={6} className="text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">{BigInt(asset.amount).toLocaleString()} units</span>
+                        </div>
+                        {/* A token no list names keeps its raw figure, marked as base units. */}
+                        <div className="text-right shrink-0">
+                          <div className="font-medium tabular-nums">
+                            {asset.symbol ? formatAmount(asset.amount, asset.decimals) : `${formatAmount(asset.amount)} units`}
+                          </div>
+                          {asset.usd != null && (
+                            <div className="text-xs text-muted-foreground">
+                              ${asset.usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}

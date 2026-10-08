@@ -3,14 +3,33 @@ export function truncateId(id: string, prefixLen = 10, suffixLen = 6): string {
   return `${id.slice(0, prefixLen)}…${id.slice(-suffixLen)}`;
 }
 
-export function formatAmount(amount: string): string {
+/** What the verified token list says about a faucet, when it names it. */
+export type TokenInfo = { symbol?: string; decimals?: number };
+
+/**
+ * A raw base-unit amount with separators, scaled when the token's decimals are
+ * known: "150000000" at 8 decimals is "1.50", at none it stays "150,000,000".
+ * At least two fraction digits, so a whole number of a scaled token still reads
+ * as one ("8.00" rather than "8", which looks like a count).
+ */
+export function formatAmount(amount: string, decimals?: number): string {
   const sign = amount[0] === "-" || amount[0] === "+" ? amount[0] : "";
   const digits = sign ? amount.slice(1) : amount;
   try {
-    return sign + BigInt(digits).toLocaleString();
+    const units = BigInt(digits);
+    if (decimals === undefined) return sign + units.toLocaleString();
+    const scale = BigInt(10) ** BigInt(decimals);
+    const fraction = (units % scale).toString().padStart(decimals, "0").replace(/0+$/, "").padEnd(2, "0");
+    return `${sign}${(units / scale).toLocaleString()}.${fraction}`;
   } catch {
     return amount;
   }
+}
+
+/** The amount in the token's own units with its symbol, or the raw figure for a token no list names. */
+export function formatAsset(amount: string, token?: TokenInfo): string {
+  const figure = formatAmount(amount, token?.decimals);
+  return token?.symbol ? `${figure} ${token.symbol}` : figure;
 }
 
 const STORAGE_SLOT_LABELS: Record<string, string> = {
@@ -109,22 +128,24 @@ export function toCsv(rows: unknown[][]): string {
 export function activityToCsv(
   rows: {
     accountId: string;
-    counterparty?: { accountId: string; direction: string };
+    accountIdBech32?: string;
+    counterparty?: { accountId: string; accountIdBech32?: string; direction: string };
     label: string;
-    assets?: { amount?: string }[];
+    assets?: ({ amount?: string } & TokenInfo)[];
     status: string;
     timestamp: string;
   }[],
 ): string {
   return toCsv([
-    ["Account ID", "To / From", "Direction", "Activity", "Amount", "Status", "Date"],
+    ["Account ID", "Account ID (hex)", "To / From", "Direction", "Activity", "Amount", "Status", "Date"],
     ...rows.map((r) => [
+      r.accountIdBech32 ?? r.accountId,
       r.accountId,
-      r.counterparty?.accountId ?? "",
+      r.counterparty ? r.counterparty.accountIdBech32 ?? r.counterparty.accountId : "",
       r.counterparty?.direction ?? "",
       r.label,
       // Every asset the row moved, not the first and a count as the cell shows.
-      (r.assets ?? []).flatMap((a) => (a.amount ? [formatAmount(a.amount)] : [])).join("; "),
+      (r.assets ?? []).flatMap((a) => (a.amount ? [formatAsset(a.amount, a)] : [])).join("; "),
       r.status,
       r.timestamp,
     ]),

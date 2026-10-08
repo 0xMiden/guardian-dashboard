@@ -12,18 +12,19 @@ import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { DataTable } from "@/components/ui/DataTable";
 import { TableControls, useTablePrefs, usePaging, LoadMoreSentinel, type TableColumn } from "@/components/ui/TableControls";
 import { fetcher } from "@/lib/utils";
-import { activityLabel, deltaStatusBadge, proposalStatusBadge, AmountCell, CounterpartyCell } from "@/components/transactions/activity-cells";
+import { activityLabel, deltaStatusBadge, proposalStatusBadge, AmountCell, CounterpartyCell, type AssetLike } from "@/components/transactions/activity-cells";
 import type { DashboardDeltaEntry, DashboardProposalEntry, PagedResult } from "@openzeppelin/guardian-operator-client";
 
-type DeltasPage = PagedResult<DashboardDeltaEntry>;
+// What lib/enrich.ts adds server-side beside the hex ids and the asset ids.
+type DeltasPage = PagedResult<DashboardDeltaEntry & { counterparty?: { accountIdBech32?: string }; assets?: AssetLike[] }>;
 type ProposalsPage = PagedResult<DashboardProposalEntry>;
 
 type ActivityRow = {
   key: string;
   label: string;
   statusNode: React.ReactNode;
-  assets: DashboardDeltaEntry["assets"];
-  counterparty: DashboardDeltaEntry["counterparty"];
+  assets: AssetLike[] | undefined;
+  counterparty: DeltasPage["items"][number]["counterparty"];
   timestamp: string;
   isDelta: boolean;
   nonce: number;
@@ -51,6 +52,8 @@ export function AccountTransactions({ accountId }: Props) {
 
   const { data: deltasData, error: deltasError } = useSWR<DeltasPage>(deltasKey, fetcher, { refreshInterval: 30_000 });
   const { data: proposalsData, error: proposalsError } = useSWR<ProposalsPage>(proposalsKey, fetcher, { refreshInterval: 30_000 });
+  // The URL carries hex; the account page just visited holds the bech32 spelling.
+  const { data: account } = useSWR<{ accountIdBech32?: string }>(`/api/accounts/${encoded}`, fetcher);
 
   const paging = usePaging(deltasKey, deltasData, (cursor) => fetcher(`${deltasKey}?cursor=${encodeURIComponent(cursor)}`), (d) => String(d.nonce));
   const [refreshing, setRefreshing] = useState(false);
@@ -119,7 +122,7 @@ export function AccountTransactions({ accountId }: Props) {
       </Link>
 
       <div className="flex items-center gap-2 flex-wrap text-xs">
-        <p className="text-muted-foreground font-mono truncate">{accountId}</p>
+        <p className="text-muted-foreground font-mono truncate">{account?.accountIdBech32 ?? accountId}</p>
         <div className="ml-auto flex items-center gap-2">
           <TableControls
             density={density}

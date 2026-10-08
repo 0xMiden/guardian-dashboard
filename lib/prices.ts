@@ -1,4 +1,5 @@
 import { loadSdk } from "@/lib/falcon";
+import { toHexId } from "@/lib/account-id";
 
 /**
  * What a faucet's amount is worth in US dollars, the way the Miden wallet
@@ -37,10 +38,13 @@ import { loadSdk } from "@/lib/falcon";
 export type PriceBook = {
   /** USD for a raw base-unit amount, or `undefined` when the faucet is unpriced. */
   usd(faucetId: string, rawAmount: string): number | undefined;
+  /** The verified list's name and scale for a faucet, priced or not; `undefined` for one no list names. */
+  token(faucetId: string): { symbol: string; decimals: number } | undefined;
 };
 
-type PricedFaucet = { priceSymbol: string; decimals: number };
-type Allowlist = Record<string, PricedFaucet>;
+/** A faucet a list names. `priceSymbol` only where a market quotes it. */
+type Token = { symbol: string; decimals: number; priceSymbol?: string };
+type Allowlist = Record<string, Token>;
 
 /** Bread's `KNOWN_SYMBOLS`: the price symbol and the Binance pair that quotes it. */
 const PAIRS: Record<string, string> = { ETH: "ETHUSD", BTC: "BTCUSD", USDC: "USDCUSD" };
@@ -145,13 +149,6 @@ async function loadPrices(): Promise<Record<string, number>> {
   return bySymbol;
 }
 
-/** The Guardian's spelling of a faucet id: lowercase hex, from bech32 if needed. */
-async function toHexId(id: string): Promise<string> {
-  if (HEX_ID.test(id)) return id.toLowerCase();
-  const { Address } = await loadSdk();
-  return Address.fromBech32(id).accountId().toString().toLowerCase();
-}
-
 /** The SDK call has no abort signal, so bound it the way the wallet's `withRpcTimeout` does. */
 function withTimeout<T>(promise: Promise<T>, what: string): Promise<T> {
   return Promise.race([
@@ -163,7 +160,7 @@ function withTimeout<T>(promise: Promise<T>, what: string): Promise<T> {
 /**
  * The network's native faucet, priced the way Bread prices it: a native symbol
  * of USDCX is fixed at $1; any other native symbol has no market and the faucet
- * is unpriced, like every other token nothing quotes. One entry or none.
+ * is unpriced, like every other token nothing quotes, though still named.
  */
 async function loadNativeFaucet(network: string): Promise<Allowlist> {
   const meta = await fetchJson(FAUCET_API(network));
@@ -182,8 +179,8 @@ async function loadNativeFaucet(network: string): Promise<Allowlist> {
   const meta2 = BasicFungibleFaucetComponent.fromAccountStorage(faucet.storage());
   const symbol = meta2.symbol().toString();
   const decimals = meta2.decimals();
-  if (!(symbol in FIXED) || !isDecimals(decimals)) return {};
-  return { [faucetId]: { priceSymbol: symbol, decimals } };
+  if (!isDecimals(decimals)) return {};
+  return { [faucetId]: { symbol, decimals, priceSymbol: symbol in FIXED ? symbol : undefined } };
 }
 
 async function loadTokenList(network: string): Promise<Allowlist> {
@@ -201,9 +198,9 @@ async function loadTokenList(network: string): Promise<Allowlist> {
     ) {
       throw new Error("token-list: malformed token entry");
     }
-    const priceSymbol = LISTED_AS[token.symbol];
-    if (token.network !== network || !priceSymbol) continue;
-    out[await toHexId(token.faucetId)] = { priceSymbol, decimals: token.decimals };
+    if (token.network !== network) continue;
+    // Every listed token is named; only the ones a market quotes get a price.
+    out[await toHexId(token.faucetId)] = { symbol: token.symbol, decimals: token.decimals, priceSymbol: LISTED_AS[token.symbol] };
   }
   return out;
 }
@@ -216,7 +213,7 @@ async function loadWalletConfig(network: string): Promise<Allowlist> {
   if (typeof faucet !== "string" || !HEX_ID.test(faucet)) return {};
   // The Epoch collateral USDC. Bread reads its decimals from the faucet on
   // chain; USDC is 6 everywhere it exists.
-  return { [faucet.toLowerCase()]: { priceSymbol: "USDC", decimals: 6 } };
+  return { [faucet.toLowerCase()]: { symbol: "USDC", decimals: 6, priceSymbol: "USDC" } };
 }
 
 /** `MidenTestnet` as the endpoint config spells it → `testnet` as the repos do. */
@@ -229,16 +226,20 @@ const empty = <T,>(): Record<string, T> => ({});
 export async function priceBook(network: string): Promise<PriceBook> {
   const net = repoNetwork(network);
   const [list, config, native, prices] = await Promise.all([
-    cached(`list:${net}`, LIST_TTL_MS, () => loadTokenList(net)).catch(empty<PricedFaucet>),
-    cached(`config:${net}`, LIST_TTL_MS, () => loadWalletConfig(net)).catch(empty<PricedFaucet>),
-    cached(`native:${net}`, LIST_TTL_MS, () => loadNativeFaucet(net)).catch(empty<PricedFaucet>),
+    cached(`list:${net}`, LIST_TTL_MS, () => loadTokenList(net)).catch(empty<Token>),
+    cached(`config:${net}`, LIST_TTL_MS, () => loadWalletConfig(net)).catch(empty<Token>),
+    cached(`native:${net}`, LIST_TTL_MS, () => loadNativeFaucet(net)).catch(empty<Token>),
     cached("prices", PRICE_TTL_MS, loadPrices).catch(empty<number>),
   ]);
   const faucets: Allowlist = { ...list, ...config, ...native };
   return {
+    token(faucetId) {
+      const entry = faucets[faucetId.toLowerCase()];
+      return entry && { symbol: entry.symbol, decimals: entry.decimals };
+    },
     usd(faucetId, rawAmount) {
       const entry = faucets[faucetId.toLowerCase()];
-      if (!entry) return undefined;
+      if (!entry?.priceSymbol) return undefined;
       const price = FIXED[entry.priceSymbol] ?? prices[entry.priceSymbol];
       // A listed faucet whose quote is missing (feed down) is unpriced for now,
       // never $1 or $0: Bread's rule for a listed symbol without a quote.

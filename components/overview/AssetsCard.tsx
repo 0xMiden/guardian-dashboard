@@ -9,7 +9,7 @@ import { formatCount } from "@/lib/format";
 import { InfoTip } from "@/components/ui/InfoTip";
 
 type AssetTotals = {
-  usd7d?: number | null;
+  usd?: number | null;
   computedAt?: string | null;
   /** The Guardian has not published its first aggregate since starting up. */
   warming?: boolean;
@@ -17,7 +17,7 @@ type AssetTotals = {
   unsupported?: boolean;
   done?: number;
   total?: number;
-  /** Faucets the 7-day-active vaults hold, split by whether anything prices them. */
+  /** Faucets the vaults hold, split by whether anything prices them. */
   priced?: number;
   unpriced?: number;
 };
@@ -43,9 +43,9 @@ export function AssetsCard() {
             </p>
             {!data && !error ? (
               <Skeleton className="h-8 w-20 mt-1" />
-            ) : data?.usd7d != null ? (
+            ) : data?.usd != null ? (
               <p className="text-stat text-foreground">
-                ${data.usd7d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ${data.usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             ) : data?.unsupported ? (
               // Names the reason rather than showing the same dash a dead Guardian
@@ -89,9 +89,6 @@ export function AssetsCard() {
               >
                 —
               </p>
-            )}
-            {split && (
-              <p className="text-xs text-muted-foreground mt-1">held by accounts updated in the last 7d</p>
             )}
           </div>
           {split && (

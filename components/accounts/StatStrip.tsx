@@ -23,7 +23,7 @@ export type AccountStats = {
   /** A 0.18.0 Guardian that has not published its first aggregate yet. */
   warming?: boolean;
 };
-type AssetTotals = { usd7d?: number | null; computedAt?: string | null };
+type AssetTotals = { usd?: number | null; computedAt?: string | null };
 
 export const STATS_KEY = "/api/accounts/stats";
 const ASSETS_KEY = "/api/accounts/asset-totals";
@@ -91,9 +91,9 @@ export function StatStrip() {
           Updated (last 30d)&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.count30d.toLocaleString()}</span>
         </span>
       )}
-      {assets?.usd7d != null && (
+      {assets?.usd != null && (
         <span className="text-muted-foreground">
-          Assets (accounts updated last 7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">${assets.usd7d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          Assets&nbsp;&nbsp;<span className="font-semibold text-foreground">${assets.usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </span>
       )}
     </div>

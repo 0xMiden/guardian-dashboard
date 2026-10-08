@@ -58,7 +58,7 @@ describe("GET /api/accounts/asset-totals", () => {
       }),
     );
     const body = await (await GET()).json();
-    expect(body).toEqual({ usd7d: 150_000, computedAt: ASOF, priced: 2, unpriced: 0 });
+    expect(body).toEqual({ usd: 150_000, computedAt: ASOF, priced: 2, unpriced: 0 });
   });
 
   // The fleet on 2026-10-07: devnet's hundred test mints and the reset testnet's
@@ -69,7 +69,7 @@ describe("GET /api/accounts/asset-totals", () => {
       stats({ fungible: [{ faucetId: "0xu1", totalAmount: "100000000000" }, { faucetId: "0xu2", totalAmount: "5" }] }),
     );
     const body = await (await GET()).json();
-    expect(body).toEqual({ usd7d: null, computedAt: ASOF, priced: 0, unpriced: 2 });
+    expect(body).toEqual({ usd: null, computedAt: ASOF, priced: 0, unpriced: 2 });
   });
 
   it("sums only the priced faucets of a mixed fleet and counts the rest", async () => {
@@ -77,19 +77,15 @@ describe("GET /api/accounts/asset-totals", () => {
       stats({ fungible: [{ faucetId: "0xa", totalAmount: "2000000" }, { faucetId: "0xu", totalAmount: "999000000" }] }),
     );
     const body = await (await GET()).json();
-    expect(body).toEqual({ usd7d: 2, computedAt: ASOF, priced: 1, unpriced: 1 });
+    expect(body).toEqual({ usd: 2, computedAt: ASOF, priced: 1, unpriced: 1 });
   });
 
-  // The 7-day window is the server's job now. Asking without the filter would
-  // total every account the Guardian holds, not the active ones.
-  it("asks the Guardian for the 7-day window", async () => {
+  // All time, like every other Overview figure: a window would total the
+  // active accounts and leave the rest of the fleet out of the number.
+  it("asks the Guardian for every account, with no window", async () => {
     mockGetDashboardStats.mockResolvedValue(stats({ fungible: [] }));
-    const before = Date.now();
     await GET();
-    const { updatedSince } = mockGetDashboardStats.mock.calls[0][0];
-    const ageMs = before - new Date(updatedSince).getTime();
-    expect(ageMs).toBeGreaterThan(6.9 * 24 * 60 * 60 * 1000);
-    expect(ageMs).toBeLessThan(7.1 * 24 * 60 * 60 * 1000);
+    expect(mockGetDashboardStats.mock.calls[0][0]?.updatedSince).toBeUndefined();
   });
 
   it("costs exactly one Guardian request", async () => {
@@ -100,7 +96,7 @@ describe("GET /api/accounts/asset-totals", () => {
 
   it("totals zero when no account holds anything", async () => {
     mockGetDashboardStats.mockResolvedValue(stats({ fungible: [], eligible: 0, covered: 0 }));
-    expect((await (await GET()).json()).usd7d).toBe(0);
+    expect((await (await GET()).json()).usd).toBe(0);
   });
 
   // The guard that matters: a sum missing accounts is a confidently wrong
@@ -117,7 +113,7 @@ describe("GET /api/accounts/asset-totals", () => {
       }),
     );
     const body = await (await GET()).json();
-    expect(body.usd7d).toBeNull();
+    expect(body.usd).toBeNull();
     expect(body.warming).toBe(true);
     // Feeds the progress line, so an operator can see the coverage climbing.
     expect(body.done).toBe(180);

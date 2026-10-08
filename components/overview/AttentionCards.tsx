@@ -112,8 +112,8 @@ export function AttentionCards() {
           cadence, while the Accounts card above reads a live total, so the
           two can disagree for a few minutes. The time says which is older. */}
       {stats?.asOf && (
-        <p className="text-label text-muted-foreground">
-          Account counts as of {new Date(stats.asOf).toLocaleTimeString()}
+        <p className="self-end text-xs text-muted-foreground">
+          Account counts as of {new Date(stats.asOf).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
         </p>
       )}
     </div>

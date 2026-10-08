@@ -76,6 +76,7 @@ describe("GET /api/accounts/stats", () => {
       count30d: 270,
       wallet: 218,
       other: 52,
+      active: 269,
       frozen: 0,
       released: 1,
       asOf: "2026-10-06T16:29:12.837967517+00:00",

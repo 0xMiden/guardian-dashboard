@@ -13,6 +13,7 @@ export type AccountStats = {
   other?: number;
   // In the same aggregate, so Overview can answer "is anything frozen" without
   // a query of its own.
+  active?: number;
   frozen?: number;
   released?: number;
   /** The Guardian predates `GET /dashboard/stats`, which shipped in 0.18.0. */

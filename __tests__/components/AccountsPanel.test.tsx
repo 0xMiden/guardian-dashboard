@@ -238,6 +238,26 @@ describe("AccountsPanel", () => {
     expect(screen.getByText("0xfrozen")).toBeInTheDocument();
   });
 
+  // The Overview lifecycle counts link here; the chip they name is already selected.
+  it("preselects the status chip named in the URL", () => {
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams("state=released") as never);
+    useSWR.mockImplementation((key: string) => {
+      if (key === ACCOUNTS_KEY) return { data: { items: [
+        { accountId: "0xactive", stateStatus: "available", authScheme: "ecdsa", authorizedSignerCount: 2,
+          hasPendingCandidate: false, pausedAt: null, pausedReason: null, updatedAt: "2026-10-08T00:00:00Z" },
+        { accountId: "0xreleased", stateStatus: "available", authScheme: "ecdsa", authorizedSignerCount: 2,
+          hasPendingCandidate: false, pausedAt: null, pausedReason: null, releasedAt: "2026-10-08T00:00:00Z", updatedAt: "2026-10-08T00:00:00Z" },
+      ], nextCursor: null }, error: undefined };
+      return { data: undefined, error: undefined };
+    });
+    render(<AccountsPanel />);
+    expect(screen.getByRole("button", { name: "Released" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("0xreleased")).toBeInTheDocument();
+    expect(screen.queryByText("0xactive")).not.toBeInTheDocument();
+    // clearAllMocks keeps a mockReturnValue, so the next test would read it too.
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams() as never);
+  });
+
   it("says so when a filter matches nothing in the loaded rows", () => {
     useSWR.mockImplementation((key: string) => {
       if (key === ACCOUNTS_KEY) return { data: { items: [

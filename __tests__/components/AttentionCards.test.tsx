@@ -47,6 +47,6 @@ describe("AttentionCards", () => {
       data: key === "/api/accounts/stats" ? { active: 1, frozen: 0, released: 0, asOf: "2026-10-08T10:05:00Z" } : { latestActivity: null },
     }));
     render(<AttentionCards />);
-    expect(screen.getByText(/Account counts as of/)).toBeInTheDocument();
+    expect(screen.getByText(/Statistics as of/)).toBeInTheDocument();
   });
 });

@@ -108,12 +108,13 @@ export function AttentionCards() {
           )}
         </Stat>
       </div>
-      {/* The counts come from an aggregate the Guardian refreshes on its own
-          cadence, while the Accounts card above reads a live total, so the
-          two can disagree for a few minutes. The time says which is older. */}
+      {/* The lifecycle counts and the asset total come from an aggregate the
+          Guardian refreshes on its own cadence, while the Accounts and
+          Activity cards read live figures, so they can disagree for a few
+          minutes. The time says how old the aggregate is. */}
       {stats?.asOf && (
         <p className="self-end text-xs text-muted-foreground">
-          Account counts as of {new Date(stats.asOf).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+          Statistics as of {new Date(stats.asOf).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
         </p>
       )}
     </div>

@@ -20,7 +20,7 @@ beforeEach(() => vi.clearAllMocks());
 // than filter what it already holds.
 describe("AccountsPanel frozen-only", () => {
   it("asks the Guardian for paused accounts and says the table is filtered", () => {
-    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams("paused=true") as never);
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams("state=frozen") as never);
     // Keyed by URL: a blanket mockReturnValue hands the accounts payload to
     // StatStrip as well, which then reads stats fields off it.
     useSWR.mockImplementation((key: string) =>
@@ -47,7 +47,7 @@ describe("AccountsPanel frozen-only", () => {
   // "No accounts registered" would be a lie to someone who arrived from the
   // frozen count, and would leave them with no way back.
   it("says nothing is frozen rather than that the server is empty", () => {
-    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams("paused=true") as never);
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams("state=frozen") as never);
     useSWR.mockImplementation((key: string) =>
       key === "/api/accounts?limit=500&paused=true"
         ? { data: { items: [], nextCursor: null }, error: undefined }
@@ -236,6 +236,20 @@ describe("AccountsPanel", () => {
 
     fireEvent.click(screen.getByText("Any status"));
     expect(screen.getByText("0xfrozen")).toBeInTheDocument();
+  });
+
+  // Frozen is also the Guardian's own paused filter. Picking another chip has
+  // to drop it, or "Any status" would still show the frozen set.
+  it("leaves the server-side frozen set when another status chip is picked", () => {
+    const replace = vi.fn();
+    vi.mocked(useRouter).mockReturnValue({ push: vi.fn(), replace } as never);
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams("state=frozen") as never);
+    useSWR.mockImplementation(() => ({ data: { items: [], nextCursor: null }, error: undefined }));
+    render(<AccountsPanel />);
+    expect(screen.getByRole("button", { name: "Frozen" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByText("Any status"));
+    expect(replace).toHaveBeenCalledWith("/accounts");
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams() as never);
   });
 
   // The Overview lifecycle counts link here; the chip they name is already selected.

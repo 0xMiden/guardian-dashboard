@@ -59,12 +59,12 @@ describe("accounts table controls", () => {
   it("remembers the choice for the next visit", () => {
     const first = render(<AccountsPanel />);
     openMenu();
-    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Pending" }));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Submitted" }));
     first.unmount();
 
     const { container } = render(<AccountsPanel />);
     expect(container.querySelectorAll("thead th")).toHaveLength(8);
-    expect(screen.queryByText("Pending")).not.toBeInTheDocument();
+    expect(screen.queryByText("Submitted")).not.toBeInTheDocument();
   });
 
   // A stored key for a column that no longer exists must not count against the

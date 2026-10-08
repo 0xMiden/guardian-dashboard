@@ -15,6 +15,8 @@ export type Density = "compact" | "comfortable";
 export type TableColumn<T, K extends string, S extends string = string> = {
   key: K;
   label: string;
+  /** Hover text on the header, for a column whose name is jargon. */
+  title?: string;
   width: string;
   align?: "left" | "right";
   sortKey?: S;

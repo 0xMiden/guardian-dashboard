@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
+import { FetchError } from "@/lib/utils";
 import { GuardianStatusCard } from "@/components/overview/GuardianStatusCard";
 
 vi.mock("swr", () => ({ default: vi.fn() }));
@@ -51,6 +52,19 @@ describe("GuardianStatusCard", () => {
     useSWR.mockReturnValue({ data: undefined });
     const { container } = render(<GuardianStatusCard />);
     expect(container.querySelector("[data-slot='skeleton'], .animate-pulse")).toBeTruthy();
+  });
+
+  // The skeleton used to stay up for good when the health call itself failed.
+  it("says Offline with the reason when the health call fails", () => {
+    const error = new FetchError("Request failed (503)", 503);
+    useSWR.mockImplementation((key: string) => {
+      if (key === "/api/health") return { data: undefined, error };
+      if (key === "/api/operator-info") return { data: undefined, error };
+      return { data: overview };
+    });
+    render(<GuardianStatusCard />);
+    expect(screen.getByText("Offline")).toBeInTheDocument();
+    expect(screen.getAllByText("The Guardian did not answer.")).toHaveLength(2);
   });
 
   it("shows Online badge when Guardian is up", () => {
@@ -203,10 +217,10 @@ describe("GuardianStatusCard service status", () => {
   it("explains a capped aggregate rather than warning about it", () => {
     withStatus("degraded", ["accounts_by_auth_method"]);
     render(<GuardianStatusCard />);
-    const line = screen.getByText(/stops computing above 1000 accounts/);
+    const line = screen.getByText(/stops computing above 1,000 accounts/);
     expect(line).toHaveTextContent(
-      "The Guardian reports itself degraded: the account breakdown by auth method stops " +
-        "computing above 1000 accounts (aggregation service is WIP).",
+      "The Guardian reports itself degraded: the account breakdown by signature scheme stops " +
+        "computing above 1,000 accounts.",
     );
     // The amber treatment is what said "something is wrong here".
     expect(line.className).not.toContain("text-state-frozen");

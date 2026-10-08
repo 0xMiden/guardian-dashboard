@@ -6,7 +6,7 @@ function Card({ description }: { description?: string }) {
     <div className="flex flex-col items-center gap-3 rounded-xl border bg-popover/90 px-8 py-6 text-center shadow-xl backdrop-blur-sm">
       <Construction className="h-6 w-6 text-muted-foreground" />
       <span className="rounded-lg border border-brand/50 bg-brand/10 px-3 py-0.5 text-xs font-semibold uppercase tracking-widest text-brand">
-        Coming Soon
+        Coming soon
       </span>
       {description && (
         <p className="text-xs text-muted-foreground max-w-xs">{description}</p>

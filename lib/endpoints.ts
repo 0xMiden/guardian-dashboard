@@ -39,7 +39,7 @@ export function getEndpoints(): Endpoint[] {
   try {
     parsed = JSON.parse(raw) as Endpoint[];
   } catch {
-    throw new Error("GUARDIAN_ENDPOINTS is not valid JSON — check your environment configuration");
+    throw new Error("GUARDIAN_ENDPOINTS is not valid JSON. Check your environment configuration.");
   }
   // Private keys may be omitted from GUARDIAN_ENDPOINTS (to stay under Vercel's
   // 4KB env var limit) and supplied via GUARDIAN_PRIVATE_KEY_{ID} instead.

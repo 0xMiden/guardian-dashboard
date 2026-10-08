@@ -29,10 +29,10 @@ const NOTE_TAG_LABELS: Record<string, string> = {
   custom: "Custom script",
 };
 
-function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {
+function Row({ label, value, title }: { label: React.ReactNode; value: React.ReactNode; title?: string }) {
   return (
     <div className="flex items-start justify-between gap-4 py-2 text-sm">
-      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className="text-muted-foreground shrink-0" title={title}>{label}</span>
       <span className="font-medium text-right break-all">{value}</span>
     </div>
   );
@@ -155,7 +155,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
               {/* The same label the tables show for this row. The raw proposal
                   type is not for a cell: the live USDCx one is a ~1,500
                   character payload. */}
-              <Row label="Type" value={activityLabel(data!.category, data!.proposal?.proposalType)} />
+              <Row label="Activity" value={activityLabel(data!.category, data!.proposal?.proposalType)} />
               <Row label="Date" value={<Timestamp iso={data!.statusTimestamp} />} />
               {data!.retryCount !== undefined && data!.retryCount > 0 && (
                 <Row label="Retries" value={data!.retryCount} />
@@ -286,13 +286,15 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
           {showTechnical && (
             <Card>
               <CardContent className="pt-4 divide-y">
-                <Row label="Nonce" value={<span className="font-mono">{data!.nonce}</span>} />
+                <Row label="Nonce" title="The account's transaction counter. Each transaction takes the next number." value={<span className="font-mono">{data!.nonce}</span>} />
                 <Row
                   label="Previous state"
+                  title="Hash of the account's state before this transaction."
                   value={<CopyableId id={data!.prevCommitment} prefixLen={12} suffixLen={8} />}
                 />
                 <Row
                   label="New state"
+                  title="Hash of the account's state after this transaction."
                   value={data!.newCommitment
                     ? <CopyableId id={data!.newCommitment} prefixLen={12} suffixLen={8} />
                     : "—"}

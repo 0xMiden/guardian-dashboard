@@ -45,6 +45,13 @@ describe("ErrorPanel", () => {
 
   // Retrying a permission denial or a missing account cannot succeed, so the
   // button would be an invitation to a second identical failure.
+  // The fetcher's fallback message is a status code in words. The house
+  // sentence never showed because that fallback always counted as a message.
+  it("says the Guardian did not answer rather than repeating a status code", () => {
+    render(<ErrorPanel error={new FetchError("Request failed (503)", 503)} />);
+    expect(screen.getByText("The Guardian did not answer.")).toBeInTheDocument();
+  });
+
   it("offers a retry only where retrying could work", () => {
     const onRetry = vi.fn();
     const { rerender } = render(<ErrorPanel error={err(503)} onRetry={onRetry} />);

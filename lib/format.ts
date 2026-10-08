@@ -149,14 +149,14 @@ export function accountsToCsv(
   assetTotals: Record<string, number | null>,
 ): string {
   return toCsv([
-    ["Account ID", "Account ID (hex)", "Status", "Type", "Signers", "Pending", "Total assets (USD)", "Created", "Updated"],
+    ["Account ID", "Account ID (hex)", "Status", "Type", "Signers", "Submitted", "Total assets (USD)", "Created", "Updated"],
     ...accounts.map((a) => [
       a.accountIdBech32 ?? a.accountId,
       a.accountId,
       accountState(a.stateStatus, a.pausedAt, a.releasedAt),
       isWalletAccount(a) ? "wallet" : "other",
       a.authorizedSignerCount,
-      a.hasPendingCandidate ? "pending" : "",
+      a.hasPendingCandidate ? "submitted" : "",
       // Blank rather than 0 when the row's total was never fetched, or when it
       // holds only unpriced tokens (`null`): the export must not claim an
       // account holds nothing when nobody looked, or that no price is $0.

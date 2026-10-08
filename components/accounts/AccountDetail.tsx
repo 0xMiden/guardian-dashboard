@@ -30,10 +30,10 @@ interface Props {
   accountId: string;
 }
 
-function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {
+function Row({ label, value, title }: { label: React.ReactNode; value: React.ReactNode; title?: string }) {
   return (
     <div className="flex items-start justify-between gap-4 py-2 text-sm">
-      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className="text-muted-foreground shrink-0" title={title}>{label}</span>
       <span className="font-medium text-right break-all">{value}</span>
     </div>
   );
@@ -54,7 +54,7 @@ const PAUSE_MODAL_COPY = {
   },
   unfreeze: {
     endpoint: "unpause",
-    title: "Unfreeze Account",
+    title: "Unfreeze account",
     description: "The account will be reactivated and resume normal operations.",
     event: "account_unfrozen",
     failure: "Failed to unfreeze account",
@@ -274,12 +274,17 @@ export function AccountDetail({ accountId }: Props) {
                   }
                 />
               )}
-              <Row label="Auth" value={data!.authScheme === "falcon" ? "Falcon (post-quantum)" : data!.authScheme.toUpperCase()} />
               <Row
-                label="Pending update"
-                // Same words as the table's Pending column.
+                label="Signature scheme"
+                title={data!.authScheme === "falcon" ? "Falcon-512 post-quantum signatures, Miden's native scheme." : "secp256k1 signatures, the scheme Ethereum wallets use."}
+                value={data!.authScheme === "falcon" ? "Falcon (post-quantum)" : data!.authScheme.toUpperCase()}
+              />
+              <Row
+                label="Submitted"
+                // Same words as the table's Submitted column: a transaction on
+                // its way to the chain, not yet confirmed.
                 value={data!.hasPendingCandidate
-                  ? <Badge variant="outline" className="border-state-pending text-state-pending">pending</Badge>
+                  ? <Badge variant="outline" className="border-state-pending text-state-pending">submitted</Badge>
                   : <span className="text-muted-foreground">—</span>}
               />
               <Row label="Signers" value={data!.authorizedSignerIds.length} />
@@ -311,8 +316,8 @@ export function AccountDetail({ accountId }: Props) {
               {showTechnical && (
                 <div className="pt-1 pb-2 space-y-2">
                   <div className="flex items-start justify-between gap-4 text-xs">
-                    <span className="text-muted-foreground shrink-0">Commitment</span>
-                    <CopyableId id={data!.currentCommitment ?? "—"} prefixLen={12} suffixLen={8} />
+                    <span className="text-muted-foreground shrink-0" title="A hash of the account's full current state.">Commitment</span>
+                    {data!.currentCommitment ? <CopyableId id={data!.currentCommitment} prefixLen={12} suffixLen={8} /> : <span className="text-muted-foreground">—</span>}
                   </div>
                   {data!.stateCreatedAt && (
                     <div className="flex items-start justify-between gap-4 text-xs">
@@ -338,7 +343,7 @@ export function AccountDetail({ accountId }: Props) {
               </CardHeader>
               <CardContent className="divide-y">
                 {snapshot.hasPendingCandidate && (
-                  <p className="pb-2 text-xs text-state-pending">A state update is in progress — balances may be slightly out of date.</p>
+                  <p className="pb-2 text-xs text-state-pending">A submitted transaction is awaiting confirmation, so balances may be slightly out of date.</p>
                 )}
                 {snapshot.vault.fungible.length === 0 && snapshot.vault.nonFungible.length === 0 ? (
                   <p className="py-2 text-xs text-muted-foreground">No assets in vault.</p>

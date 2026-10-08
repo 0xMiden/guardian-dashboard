@@ -5,10 +5,10 @@ import { formatAmount } from "@/lib/format";
 import type { DashboardDeltaEntry } from "@openzeppelin/guardian-operator-client";
 
 export const CATEGORY_LABELS: Record<string, string> = {
-  asset_transfer: "Asset Transfer",
-  note_consumption: "Note Consumed",
-  note_creation: "Note Created",
-  account_storage_change: "Account Changed",
+  asset_transfer: "Asset transfer",
+  note_consumption: "Note consumed",
+  note_creation: "Note created",
+  account_storage_change: "Account changed",
   guardian_switch: "Switch Guardian",
   custom: "Custom",
 };
@@ -29,18 +29,18 @@ export const CATEGORY_LABELS: Record<string, string> = {
  * "Custom".
  */
 const PROPOSAL_TYPE_LABELS: Record<string, string> = {
-  p2id: "Asset Transfer",
-  consume_notes: "Note Consumed",
-  recallable_send: "Recallable Send",
-  bridged_send: "Bridged Send",
+  p2id: "Asset transfer",
+  consume_notes: "Note consumed",
+  recallable_send: "Recallable send",
+  bridged_send: "Bridged send",
   swap: "Swap",
-  add_signer: "Signer Added",
-  remove_signer: "Signer Removed",
-  change_threshold: "Threshold Changed",
-  update_procedure_threshold: "Threshold Changed",
+  add_signer: "Signer added",
+  remove_signer: "Signer removed",
+  change_threshold: "Threshold changed",
+  update_procedure_threshold: "Threshold changed",
   switch_guardian: "Switch Guardian",
-  // Title-casing this one gives "Midenid Register".
-  midenid_register: "Miden ID Registered",
+  // Deriving this one gives "Midenid register".
+  midenid_register: "Miden ID registered",
   // A genuinely custom script, so the generic word is the honest answer.
   custom_transaction: "Custom",
 };
@@ -56,8 +56,9 @@ const PROPOSAL_TYPE_LABELS: Record<string, string> = {
 const PROPOSAL_TYPE_PREFIXES: [prefix: string, label: string][] = [["usdcx_v1_", "USDCx"]];
 
 /**
- * A wire name that looks like a deliberate snake_case token, title-cased.
- * `earn_deposit` reads "Earn Deposit" without anyone having to ship a release.
+ * A wire name that looks like a deliberate snake_case token, in sentence case
+ * like every curated label: `earn_deposit` reads "Earn deposit" without anyone
+ * having to ship a release.
  *
  * The guard matters: a proposal type is server-supplied and goes straight into
  * a table cell, and one of the live ones is 1,500 characters of base32. Rather
@@ -68,10 +69,8 @@ const SANE_TOKEN = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
 
 function derivedLabel(proposalType: string): string | undefined {
   if (proposalType.length > 32 || !SANE_TOKEN.test(proposalType)) return undefined;
-  return proposalType
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+  const words = proposalType.replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 export function activityLabel(category?: string, proposalType?: string): string {
@@ -84,7 +83,7 @@ export function activityLabel(category?: string, proposalType?: string): string 
     if (derived) return derived;
   }
   if (category) return CATEGORY_LABELS[category] ?? category;
-  return "State Change";
+  return "State change";
 }
 
 /** Why a delta left the active path, in the operator's words rather than the wire's. */
@@ -92,6 +91,14 @@ const STATUS_REASONS: Record<string, string> = {
   retry_exhausted: "the Guardian ran out of retries verifying it",
   diverged: "the Guardian found it no longer matches the chain",
   client_abandoned: "the client stopped before submitting it",
+};
+
+/** What a status means, for the badge of a row that has no reason to give. */
+const STATUS_HELP: Record<string, string> = {
+  canonical: "Included by the chain.",
+  candidate: "Submitted to the chain, awaiting confirmation.",
+  retained: "The Guardian gave up verifying it and keeps it for later reconciliation.",
+  discarded: "Dropped by the Guardian.",
 };
 
 export function statusReasonText(reason?: string): string | undefined {
@@ -123,7 +130,7 @@ export function deltaStatusBadge(status: string, statusReason?: string) {
     : status === "retained" ? "bg-state-frozen"
     : "bg-state-neutral";
   return (
-    <Badge className={`${tone} text-white`} title={statusReasonText(statusReason)}>
+    <Badge className={`${tone} text-white`} title={statusReasonText(statusReason) ?? STATUS_HELP[status]}>
       {deltaStatusLabel(status)}
     </Badge>
   );
@@ -135,6 +142,7 @@ export function proposalStatusBadge(collected: number, required: number) {
     <Badge
       variant="outline"
       className={full ? "border-state-active text-state-active" : "border-state-pending text-state-pending"}
+      title="Acknowledgements collected so far, out of the number this account requires."
     >
       {proposalStatusLabel(collected, required)}
     </Badge>

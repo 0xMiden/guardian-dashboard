@@ -95,7 +95,7 @@ describe("TransactionsPanel", () => {
   // next page arrives by scrolling. Sorted on Activity rather than Date, since
   // the feed already arrives newest first and a date sort would look the same.
   it("cycles a column through descending, ascending, then back to feed order", () => {
-    // Three rows whose labels (Note Created, Asset Transfer, Custom) are in
+    // Three rows whose labels (Note created, Asset transfer, Custom) are in
     // neither alphabetical order, so every step of the cycle differs.
     const a = { ...delta("0xaaa", 3), category: "note_creation", statusTimestamp: "2026-03-01T00:00:00Z" };
     const b = { ...delta("0xbbb", 2), category: "asset_transfer", statusTimestamp: "2026-02-01T00:00:00Z" };

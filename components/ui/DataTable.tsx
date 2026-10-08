@@ -33,6 +33,7 @@ export function DataTable<T, K extends string, S extends string = string>({
             return (
               <th
                 key={c.key}
+                title={c.title}
                 className={`${pad} text-label ${c.align === "right" ? "text-right" : "text-left"}`}
                 aria-sort={sortKey ? (dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none") : undefined}
               >

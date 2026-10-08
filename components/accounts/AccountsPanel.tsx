@@ -50,8 +50,8 @@ export const ACCOUNTS_KEY = `/api/accounts?limit=${PAGE_SIZE}`;
 // which act on rows already paged in. That is the whole point: an operator
 // arriving from the Overview count needs the frozen accounts wherever they sit
 // in the inventory, not the ones that happen to be on screen.
-const accountsKey = (pausedOnly: boolean) =>
-  pausedOnly ? `${ACCOUNTS_KEY}&paused=true` : ACCOUNTS_KEY;
+const accountsKey = (frozenOnly: boolean) =>
+  frozenOnly ? `${ACCOUNTS_KEY}&paused=true` : ACCOUNTS_KEY;
 
 // null sorts last in both directions: a row whose asset total was never fetched
 // is unknown, and ordering it as zero would read as an empty account.
@@ -66,11 +66,12 @@ function sortValue(a: DashboardAccountSummary, key: SortKey, assets: Record<stri
 }
 
 export function AccountsPanel() {
-  const params = useSearchParams();
-  const pausedOnly = params.get("paused") === "true";
   // The Overview lifecycle cards land here with the matching chip selected.
-  const stateParam = params.get("state");
-  const listKey = accountsKey(pausedOnly);
+  // Frozen also asks the Guardian for its paused set, so the table holds every
+  // frozen account wherever it sits in the list, not only the ones paged in.
+  const stateParam = useSearchParams().get("state");
+  const frozenOnly = stateParam === "frozen";
+  const listKey = accountsKey(frozenOnly);
   const { data, error } = useSWR<AccountsPage>(listKey, fetcher, { refreshInterval: 30_000 });
   // Same key StatStrip already polls, so SWR serves both from one request.
   const { data: stats } = useSWR<AccountStats>(STATS_KEY, fetcher);
@@ -87,6 +88,11 @@ export function AccountsPanel() {
   const [state, setState] = useState<AccountState>(
     stateParam === "active" || stateParam === "frozen" || stateParam === "released" ? stateParam : "all",
   );
+  // Leaving the frozen chip also leaves the server-side filter behind.
+  const pickState = (next: AccountState) => {
+    setState(next);
+    if (frozenOnly && next !== "frozen") router.replace("/accounts");
+  };
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const { sort, toggleSort } = useSort<SortKey>();
@@ -230,7 +236,7 @@ export function AccountsPanel() {
   // What the Guardian holds, from the same aggregate that feeds the stat strip,
   // for the "showing N of M" note below the table. Under the frozen filter the
   // loaded rows *are* the whole set, because that filter is applied server-side.
-  const total = stats?.counted != null && !pausedOnly ? stats.counted : loaded.length;
+  const total = stats?.counted != null && !frozenOnly ? stats.counted : loaded.length;
 
   // Exports exactly what the table shows: same filter, same sort, same rows.
   // ponytail: loaded rows only, so an export after scrolling three pages holds
@@ -295,9 +301,9 @@ export function AccountsPanel() {
       cell: (a) => a.authorizedSignerCount,
     },
     {
-      key: "pending", label: "Pending", width: "w-24", cellClass: "text-data",
+      key: "pending", label: "Submitted", width: "w-24", cellClass: "text-data",
       cell: (a) => a.hasPendingCandidate ? (
-        <Badge variant="outline" className="border-state-pending text-state-pending">pending</Badge>
+        <Badge variant="outline" className="border-state-pending text-state-pending">submitted</Badge>
       ) : (
         <span className="text-muted-foreground text-xs">—</span>
       ),
@@ -343,7 +349,7 @@ export function AccountsPanel() {
       {/* A filtered table that does not say so is a table that lies. This is a
           server-side filter, so the chips and counts below describe the frozen
           subset rather than the Guardian. */}
-      {pausedOnly && (
+      {frozenOnly && (
         <div className="flex items-center gap-2 rounded-lg border border-state-frozen/40 bg-state-frozen/10 px-3 py-2 text-data">
           <Snowflake className="h-3.5 w-3.5 shrink-0 text-state-frozen" />
           <span className="text-state-frozen">Showing frozen accounts only</span>
@@ -370,12 +376,12 @@ export function AccountsPanel() {
         ))}
         <span aria-hidden className="mx-1 h-4 w-px bg-border" />
         {([
-          ["all", "Any status"],
-          ["active", "Active"],
-          ["frozen", "Frozen"],
-          ["released", "Released"],
-        ] as const).map(([value, label]) => (
-          <FilterChip key={value} active={state === value} onClick={() => setState(value)}>
+          ["all", "Any status", undefined],
+          ["active", "Active", "Neither frozen nor released."],
+          ["released", "Released", "Moved to another Guardian, which now acknowledges their transactions."],
+          ["frozen", "Frozen", "Paused by the operator. No transaction is acknowledged until unfrozen."],
+        ] as const).map(([value, label, title]) => (
+          <FilterChip key={value} active={state === value} onClick={() => pickState(value)} title={title}>
             {label}
           </FilterChip>
         ))}
@@ -407,7 +413,7 @@ export function AccountsPanel() {
         // registered" to someone who arrived from the frozen count would be flatly
         // untrue. The banner above carries the way back.
         <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-data text-muted-foreground">
-          {pausedOnly ? "No accounts are frozen." : "No accounts registered on this Guardian yet."}
+          {frozenOnly ? "No accounts are frozen." : "No accounts registered on this Guardian yet."}
         </div>
       ) : (
         <Card>

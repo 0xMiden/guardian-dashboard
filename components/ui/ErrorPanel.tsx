@@ -32,6 +32,9 @@ export function describeError(error: unknown): ErrorShape {
 
 function describe(error: FetchError): ErrorShape {
   const { code, missingPermissions, retryAfterSecs } = error.body ?? {};
+  // The fetcher's "Request failed (503)" is a status, not a sentence; only a
+  // message the proxy or the Guardian actually wrote is worth repeating.
+  const said = /^Request failed \(\d+\)$/.test(error.message) ? "" : error.message;
 
   if (code === "insufficient_operator_permission" || error.status === 403) {
     const missing = missingPermissions?.length ? missingPermissions.join(", ") : null;
@@ -82,7 +85,7 @@ function describe(error: FetchError): ErrorShape {
     return {
       icon: <PlugZap className="h-4 w-4" />,
       title: "Guardian unavailable",
-      detail: error.message || "The Guardian did not answer.",
+      detail: said || "The Guardian did not answer.",
       retryable: true,
     };
   }
@@ -90,7 +93,7 @@ function describe(error: FetchError): ErrorShape {
   return {
     icon: <AlertTriangle className="h-4 w-4" />,
     title: "Something went wrong",
-    detail: error.message || "The request failed.",
+    detail: said || "The request failed.",
     retryable: true,
   };
 }

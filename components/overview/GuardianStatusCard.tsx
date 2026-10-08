@@ -11,6 +11,7 @@ import { fetcher } from "@/lib/utils";
 import { formatCount } from "@/lib/format";
 import { truncateId } from "@/lib/format";
 import { copyText } from "@/lib/clipboard";
+import { describeError } from "@/components/ui/ErrorPanel";
 
 interface HealthData {
   status: "up" | "down";
@@ -28,7 +29,7 @@ interface OverviewData {
 // The Guardian names what it cannot compute in its own vocabulary. An operator
 // should not have to know that `accounts_by_auth_method` is the auth split.
 const DEGRADED_LABELS: Record<string, string> = {
-  accounts_by_auth_method: "the account breakdown by auth method",
+  accounts_by_auth_method: "the account breakdown by signature scheme",
 };
 const describeDegraded = (keys: string[]) =>
   keys.map((k) => DEGRADED_LABELS[k] ?? k.replace(/_/g, " ")).join(", ");
@@ -161,7 +162,7 @@ function Row({ label, value, sub, info }: { label: string; value: React.ReactNod
 export function GuardianStatusCard() {
   const [showDetails, setShowDetails] = useState(false);
 
-  const { data: opInfo } = useSWR<OperatorInfo>("/api/operator-info", fetcher);
+  const { data: opInfo, error: opInfoError } = useSWR<OperatorInfo>("/api/operator-info", fetcher);
   const endpointUrl = opInfo?.url;
 
   // Read from storage as soon as the endpoint is known, and again if it changes.
@@ -174,7 +175,7 @@ export function GuardianStatusCard() {
     setSamples({ url: endpointUrl, list: readSamples(endpointUrl) });
   }
 
-  const { data: health } = useSWR<HealthData>("/api/health", fetcher, {
+  const { data: health, error: healthError } = useSWR<HealthData>("/api/health", fetcher, {
     refreshInterval: HEALTH_POLL_MS,
     // A sample that cannot be attributed to an endpoint is dropped rather than
     // guessed at. `opInfo` resolves alongside the first health poll, so at worst
@@ -216,7 +217,14 @@ export function GuardianStatusCard() {
           {/* Left: heartbeat + sparkline */}
           <div className="min-w-0">
             {!health ? (
-              <Skeleton className="h-10 w-32" />
+              healthError ? (
+                <div className="flex items-center gap-3">
+                  <Badge variant="destructive">Offline</Badge>
+                  <span className="text-label text-muted-foreground">{describeError(healthError).detail}</span>
+                </div>
+              ) : (
+                <Skeleton className="h-10 w-32" />
+              )
             ) : (
               <>
                 <div className="flex items-center gap-3">
@@ -257,7 +265,7 @@ export function GuardianStatusCard() {
                     <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     <p className="text-label text-muted-foreground">
                       The Guardian reports itself degraded: {describeDegraded(degradedAggregates)}{" "}
-                      stops computing above 1000 accounts (aggregation service is WIP).
+                      stops computing above 1,000 accounts.
                     </p>
                   </>
                 ) : (
@@ -299,7 +307,9 @@ export function GuardianStatusCard() {
           {/* Right: info rows */}
           <div className="divide-y">
             {!opInfo ? (
-              Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="my-2 h-5 w-full" />)
+              opInfoError
+                ? <p className="py-2 text-label text-muted-foreground">{describeError(opInfoError).detail}</p>
+                : Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="my-2 h-5 w-full" />)
             ) : (
               <>
                 <Row

@@ -8,7 +8,7 @@ function Placeholder() {
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-section text-muted-foreground">Compliance Provider</CardTitle>
+          <CardTitle className="text-section text-muted-foreground">Compliance provider</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <Skeleton className="h-9 w-64" />
@@ -17,13 +17,13 @@ function Placeholder() {
       </Card>
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-section text-muted-foreground">KYC &amp; Whitelist</CardTitle>
+          <CardTitle className="text-section text-muted-foreground">KYC and whitelist</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-xs text-muted-foreground">
-                {["Address", "KYC Status", "Whitelist", "Added"].map((h) => (
+                {["Address", "KYC status", "Whitelist", "Added"].map((h) => (
                   <th key={h} className="px-4 py-3 text-left font-medium">{h}</th>
                 ))}
               </tr>
@@ -44,7 +44,7 @@ function Placeholder() {
       </Card>
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-section text-muted-foreground">Policy Rules</CardTitle>
+          <CardTitle className="text-section text-muted-foreground">Policy rules</CardTitle>
         </CardHeader>
         <CardContent className="divide-y">
           {Array.from({ length: 4 }).map((_, i) => (

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { fetcher } from "@/lib/utils";
+import { ErrorPanel } from "@/components/ui/ErrorPanel";
 
 interface ClerkUser {
   id: string;
@@ -93,7 +94,7 @@ function EditModal({ user, onClose }: { user: ClerkUser; onClose: () => void }) 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="rounded-xl bg-popover border p-6 max-w-sm w-full mx-4 shadow-xl space-y-4">
-        <h2 className="text-sm font-semibold">Edit access — {name}</h2>
+        <h2 className="text-sm font-semibold">Edit access for {name}</h2>
 
         <div>
           <p className="text-xs text-muted-foreground mb-2">Role</p>
@@ -167,7 +168,9 @@ export default function AdminPage() {
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           {!data ? (
-            <p className="px-4 py-6 text-sm text-muted-foreground">Loading…</p>
+            error
+              ? <ErrorPanel error={error} />
+              : <p className="px-4 py-6 text-sm text-muted-foreground">Loading…</p>
           ) : (
             <table className="w-full text-sm">
               <thead>

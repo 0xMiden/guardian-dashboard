@@ -58,7 +58,7 @@ describe("GET /api/accounts/asset-totals", () => {
       }),
     );
     const body = await (await GET()).json();
-    expect(body).toEqual({ usd: 150_000, computedAt: ASOF, priced: 2, unpriced: 0 });
+    expect(body).toEqual({ usd: 150_000, priced: 2, unpriced: 0 });
   });
 
   // The fleet on 2026-10-07: devnet's hundred test mints and the reset testnet's
@@ -69,7 +69,7 @@ describe("GET /api/accounts/asset-totals", () => {
       stats({ fungible: [{ faucetId: "0xu1", totalAmount: "100000000000" }, { faucetId: "0xu2", totalAmount: "5" }] }),
     );
     const body = await (await GET()).json();
-    expect(body).toEqual({ usd: null, computedAt: ASOF, priced: 0, unpriced: 2 });
+    expect(body).toEqual({ usd: null, priced: 0, unpriced: 2 });
   });
 
   it("sums only the priced faucets of a mixed fleet and counts the rest", async () => {
@@ -77,7 +77,7 @@ describe("GET /api/accounts/asset-totals", () => {
       stats({ fungible: [{ faucetId: "0xa", totalAmount: "2000000" }, { faucetId: "0xu", totalAmount: "999000000" }] }),
     );
     const body = await (await GET()).json();
-    expect(body).toEqual({ usd: 2, computedAt: ASOF, priced: 1, unpriced: 1 });
+    expect(body).toEqual({ usd: 2, priced: 1, unpriced: 1 });
   });
 
   // All time, like every other Overview figure: a window would total the

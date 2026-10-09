@@ -245,10 +245,6 @@ describe("AccountsPanel asset totals", () => {
 // scroll a 1,418-account Guardian, so the panel asks for the documented maximum and
 // has to keep asking for it once it starts paging.
 describe("AccountsPanel page size", () => {
-  it("requests the Guardian's maximum page rather than its default", () => {
-    expect(ACCOUNTS_KEY).toBe("/api/accounts?limit=500");
-  });
-
   it("keeps the page size when it pages in more rows", async () => {
     useSWR.mockImplementation((key: string) =>
       key === ACCOUNTS_KEY

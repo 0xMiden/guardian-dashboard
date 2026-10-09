@@ -27,14 +27,14 @@ export function GET() {
     const outcome = await readStats(client);
     if (outcome.kind !== "ok") return { [outcome.kind]: true };
 
-    const { assets, asOf } = outcome.stats;
+    const { assets } = outcome.stats;
 
     // Publishing a partial sum would show a confidently wrong number, which is
     // the bug the old `complete` flag existed to prevent. The server now states
     // it directly, and names the accounts it could not decode in `skipped`.
     // `covered`/`eligible` keep the progress line in AssetsCard meaningful.
     if (!assets.complete) {
-      return { usd: null, computedAt: null, warming: true, done: assets.covered, total: assets.eligible };
+      return { usd: null, warming: true, done: assets.covered, total: assets.eligible };
     }
 
     const book = await priceBook(endpoint.network);
@@ -56,9 +56,6 @@ export function GET() {
       // Null when every held faucet is unpriced: a zero would claim the
       // Guardian holds nothing. An empty fleet is a genuine zero.
       usd: priced > 0 || unpriced === 0 ? usd : null,
-      // The server's walk time, not ours. Reporting `new Date()` here claimed
-      // the number was current when it was up to a refresh interval old.
-      computedAt: asOf,
       priced,
       unpriced,
     };

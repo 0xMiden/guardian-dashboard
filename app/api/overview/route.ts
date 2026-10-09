@@ -1,32 +1,37 @@
 import { guardianRoute } from "@/lib/guardian-route";
+import type { getGuardianClient } from "@/lib/guardian-client";
 
 export const dynamic = "force-dynamic";
 
+async function overview(client: ReturnType<typeof getGuardianClient>) {
+  const info = await client.getDashboardInfo();
+  // Above a per-Guardian account threshold the server stops computing this
+  // breakdown: it returns `accountsByAuthMethod: {}` and names the aggregate
+  // in `degradedAggregates`. `?? 0` reported that as zero Falcon and zero
+  // ECDSA accounts, which on the OZ Guardian (1,573 accounts) is a wrong number
+  // rather than a missing one. `null` means unavailable, and the card says so.
+  const degraded = info.degradedAggregates?.includes("accounts_by_auth_method") ?? false;
+  const count = (method: string) => (degraded ? null : info.accountsByAuthMethod[method] ?? 0);
+  return {
+    totalAccounts: info.totalAccountCount,
+    falcon: count("miden_falcon"),
+    ecdsa: count("miden_ecdsa"),
+    evm: count("evm"),
+    deltaStatusCounts: info.deltaStatusCounts,
+    inFlightProposalCount: info.inFlightProposalCount,
+    serviceStatus: info.serviceStatus,
+    // The Guardian's own verdict on itself, and what it is unhappy about. Both
+    // were being fetched and thrown away, so the page could only ever show
+    // our liveness ping and never the server's assessment.
+    degradedAggregates: info.degradedAggregates ?? [],
+    latestActivity: info.latestActivity,
+    build: info.build,
+  };
+}
+
+/** What the Overview cards read, typed once from what this route returns. */
+export type OverviewData = Awaited<ReturnType<typeof overview>>;
+
 export function GET() {
-  return guardianRoute(async (client) => {
-    const info = await client.getDashboardInfo();
-    // Above a per-Guardian account threshold the server stops computing this
-    // breakdown: it returns `accountsByAuthMethod: {}` and names the aggregate
-    // in `degradedAggregates`. `?? 0` reported that as zero Falcon and zero
-    // ECDSA accounts, which on the OZ Guardian (1,573 accounts) is a wrong number
-    // rather than a missing one. `null` means unavailable, and the card says so.
-    const degraded = info.degradedAggregates?.includes("accounts_by_auth_method") ?? false;
-    const count = (method: string) => (degraded ? null : info.accountsByAuthMethod[method] ?? 0);
-    return {
-      totalAccounts: info.totalAccountCount,
-      falcon: count("miden_falcon"),
-      ecdsa: count("miden_ecdsa"),
-      evm: count("evm"),
-      deltaStatusCounts: info.deltaStatusCounts,
-      inFlightProposalCount: info.inFlightProposalCount,
-      serviceStatus: info.serviceStatus,
-      // The Guardian's own verdict on itself, and what it is unhappy about. Both
-      // were being fetched and thrown away, so the page could only ever show
-      // our liveness ping and never the server's assessment.
-      degradedAggregates: info.degradedAggregates ?? [],
-      latestActivity: info.latestActivity,
-      environment: info.environment,
-      build: info.build,
-    };
-  });
+  return guardianRoute(overview);
 }

@@ -476,7 +476,7 @@ describe("AccountsPanel loaded note", () => {
   it("names the chips after their columns, without counts", () => {
     mock({
       items: [row("0xa"), row("0xb")],
-      stats: { total: 1418, count7d: 0, count30d: 0, counted: 1418, wallet: 1410, other: 8 },
+      stats: { total: 1418, count7d: 0, count30d: 0 },
     });
     render(<AccountsPanel />);
     expect(screen.getByText("Any type")).toBeInTheDocument();
@@ -489,7 +489,7 @@ describe("AccountsPanel loaded note", () => {
   it("says how much of the Guardian the table is showing", () => {
     mock({
       items: [row("0xa"), row("0xb")],
-      stats: { total: 1418, count7d: 0, count30d: 0, counted: 1418, wallet: 1410, other: 8 },
+      stats: { total: 1418, count7d: 0, count30d: 0 },
     });
     render(<AccountsPanel />);
     expect(screen.getByText(/Showing 2 of 1,418/)).toBeInTheDocument();
@@ -498,10 +498,10 @@ describe("AccountsPanel loaded note", () => {
   it("omits the loaded note once every account is on screen", () => {
     mock({
       items: [row("0xa"), row("0xb")],
-      stats: { total: 2, count7d: 0, count30d: 0, counted: 2, wallet: 2, other: 0 },
+      stats: { total: 2, count7d: 0, count30d: 0 },
     });
     render(<AccountsPanel />);
-    expect(screen.queryByText(/loaded$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Showing/)).not.toBeInTheDocument();
   });
 
   it("omits the note before the aggregate has answered", () => {

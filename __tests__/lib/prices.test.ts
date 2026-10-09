@@ -182,6 +182,8 @@ describe("priceBook", () => {
     const book = await priceBook("MidenTestnet");
     // Gaylord's Gateway account on 2026-10-07: 9,867 units, $0.0099 in Bread.
     expect(book.usd(NATIVE_HEX, "9867")).toBeCloseTo(0.009867, 9);
+    // The chain stores symbols upper case only; the token is called USDCx.
+    expect(book.token(NATIVE_HEX)).toEqual({ symbol: "USDCx", decimals: 6 });
   });
 
   it("leaves a native token with any other symbol unpriced", async () => {

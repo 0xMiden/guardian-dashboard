@@ -37,10 +37,9 @@ const HIDEABLE: readonly ColumnKey[] = ["status", "type", "signers", "pending", 
 // Coalescing window for rows scrolling into view.
 const SNAPSHOT_BATCH_MS = 150;
 
-// The Guardian's documented maximum page size, the same figure the server-side
-// inventory walk uses and verified there against every reachable Guardian. A page
-// costs one request whatever size it is, so leaving this to the Guardian's 50-row
-// default meant 29 round trips to scroll the 1,418-account Guardian instead of 3.
+// The Guardian's documented maximum page size, verified against every reachable
+// Guardian. A page costs one request whatever its size, so the 50-row default
+// meant 29 round trips to scroll a 1,418-account Guardian instead of 3.
 // Asset totals are still fetched per visible row, so a larger page pulls no
 // extra snapshots.
 const PAGE_SIZE = 500;
@@ -73,7 +72,7 @@ export function AccountsPanel() {
   const frozenOnly = stateParam === "frozen";
   const listKey = accountsKey(frozenOnly);
   const { data, error } = useSWR<AccountsPage>(listKey, fetcher, { refreshInterval: 30_000 });
-  // Same key StatStrip already polls, so SWR serves both from one request.
+  // Same key as StatStrip above the table, so SWR serves both from one request.
   const { data: stats } = useSWR<AccountStats>(STATS_KEY, fetcher);
   const router = useRouter();
   // A number is a dollar value, `null` a vault holding only tokens nothing
@@ -169,7 +168,7 @@ export function AccountsPanel() {
   useEffect(() => () => { if (flushTimerRef.current) clearTimeout(flushTimerRef.current); }, []);
 
   // Refresh is scoped to the rows on screen plus the aggregates. A full
-  // recompute cannot fit in one click: ~470 active accounts against a budget of
+  // recompute cannot fit in one click: hundreds of accounts against a budget of
   // 60 requests a minute is minutes of paced fetching, and attempting it as a
   // burst is what earns the 429s that leave the page with no numbers at all.
   const refresh = async () => {
@@ -236,16 +235,15 @@ export function AccountsPanel() {
   // What the Guardian holds, from the same aggregate that feeds the stat strip,
   // for the "showing N of M" note below the table. Under the frozen filter the
   // loaded rows *are* the whole set, because that filter is applied server-side.
-  const total = stats?.counted != null && !frozenOnly ? stats.counted : loaded.length;
+  const total = stats?.total != null && !frozenOnly ? stats.total : loaded.length;
 
   // Exports exactly what the table shows: same filter, same sort, same rows.
   // ponytail: loaded rows only, so an export after scrolling three pages holds
   // three pages. The empty state and the column ceilings say the same thing;
   // a whole-inventory export needs the Guardian-side paging this panel avoids.
-  // Upgrade path is the server-side walk in lib/account-cache.ts, which already
-  // pages the whole inventory for the stats route. Revisit when someone asks
-  // for an export that is not what they are looking at, or when the row count
-  // makes scrolling to collect it absurd; at 7,198 accounts it nearly is.
+  // Upgrade path is a server-side export route that pages the Guardian itself.
+  // Revisit when someone asks for an export that is not what they are looking
+  // at, or when the row count makes scrolling to collect it absurd.
   function exportCsv() {
     posthog.capture("accounts_exported", { row_count: items.length, filter: kind, state, sorted: !!sort });
     downloadCsv(`guardian-accounts-${new Date().toISOString().slice(0, 10)}.csv`, accountsToCsv(items, perAccount));

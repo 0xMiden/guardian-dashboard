@@ -55,6 +55,12 @@ const FIXED: Record<string, number> = { USDCX: 1 };
  * at ETH, IBTC at BTC). A listed symbol absent here is verified but unpriced.
  */
 const LISTED_AS: Record<string, string> = { IETH: "ETH", IBTC: "BTC", USDC: "USDC", USDCX: "USDCX" };
+/**
+ * How a symbol is written for people. A Miden token symbol is stored upper case
+ * only, so the chain says "USDCX" for the token whose name is "USDCx".
+ */
+const DISPLAY: Record<string, string> = { USDCX: "USDCx" };
+const shown = (symbol: string) => DISPLAY[symbol] ?? symbol;
 
 const BINANCE_URL =
   "https://api.binance.com/api/v3/ticker/price?symbols=" +
@@ -180,7 +186,7 @@ async function loadNativeFaucet(network: string): Promise<Allowlist> {
   const symbol = meta2.symbol().toString();
   const decimals = meta2.decimals();
   if (!isDecimals(decimals)) return {};
-  return { [faucetId]: { symbol, decimals, priceSymbol: symbol in FIXED ? symbol : undefined } };
+  return { [faucetId]: { symbol: shown(symbol), decimals, priceSymbol: symbol in FIXED ? symbol : undefined } };
 }
 
 async function loadTokenList(network: string): Promise<Allowlist> {
@@ -200,7 +206,7 @@ async function loadTokenList(network: string): Promise<Allowlist> {
     }
     if (token.network !== network) continue;
     // Every listed token is named; only the ones a market quotes get a price.
-    out[await toHexId(token.faucetId)] = { symbol: token.symbol, decimals: token.decimals, priceSymbol: LISTED_AS[token.symbol] };
+    out[await toHexId(token.faucetId)] = { symbol: shown(token.symbol), decimals: token.decimals, priceSymbol: LISTED_AS[token.symbol] };
   }
   return out;
 }

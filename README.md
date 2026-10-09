@@ -2,7 +2,7 @@
 
 A monitoring dashboard for [OpenZeppelin Guardian](https://github.com/OpenZeppelin/guardian/) servers.
 
-Guardian is a key-management service for [Miden](https://miden.xyz) accounts — it holds Falcon-512 signing keys, validates state transitions, and cosigns transactions on behalf of accounts. This dashboard gives operators a real-time view of a running Guardian: liveness, account inventory, and per-account details.
+Guardian is a key-management service for [Miden](https://miden.xyz) accounts — it holds Falcon-512 signing keys, validates state transitions, and acknowledges transactions on behalf of accounts. This dashboard gives operators a real-time view of a running Guardian: liveness, account inventory, and per-account details.
 
 ---
 
@@ -10,13 +10,15 @@ Guardian is a key-management service for [Miden](https://miden.xyz) accounts —
 
 | Page | Status | Data source |
 |---|---|---|
-| **Overview** — heartbeat, accounts / assets / activity stat cards, operator identity | ✅ Live | Guardian API + env vars |
-| **Accounts** — paginated list with status, signers, assets, pending candidates | ✅ Live | Guardian API (`listAccounts`) |
-| **Account detail** — fields, signers, vault snapshot, freeze / unfreeze | ✅ Live | Guardian API (`getAccount`, `getAccountSnapshot`, `pauseAccount`, `unpauseAccount`) |
-| **Account activity** — per-account delta + proposal feed, paginated | ✅ Live | Guardian API (`listAccountDeltas`, `listAccountProposals`) |
-| **Transaction detail** — balance changes, notes, storage diffs, proposal metadata | ✅ Live | Guardian API (`getAccountDeltaDetail`) |
-| **Activity feed** — global delta + proposal feed, status filters, paginated | ✅ Live | Guardian API (`listGlobalDeltas`, `listGlobalProposals`) |
-| **Compliance** — provider config, KYC/whitelist, policy rules | 🔶 Mock | Planned; no provider connected yet |
+| **Overview**: Guardian status and ping, accounts / assets / activity cards, active / released / frozen counts, last activity | ✅ Live | Guardian API (`getDashboardInfo`, `getDashboardStats`) + env vars |
+| **Accounts**: scroll-paged table with status and type chips, search, sort, column and density controls, CSV export | ✅ Live | Guardian API (`listAccounts`, `getDashboardStats`) |
+| **Account details**: status, signers, vault with token names and USD, freeze / unfreeze | ✅ Live | Guardian API (`getAccount`, `getAccountSnapshot`, `pauseAccount`, `unpauseAccount`) |
+| **Account activity**: one account's transactions and proposals, scroll-paged | ✅ Live | Guardian API (`listAccountDeltas`, `listAccountProposals`) |
+| **Transaction details**: balance changes, notes, storage diffs, proposal metadata | ✅ Live | Guardian API (`getAccountDeltaDetail`) |
+| **Activity**: every account's transactions and proposals, status chips, search, sort, CSV export, scroll-paged | ✅ Live | Guardian API (`listGlobalDeltas`, `listGlobalProposals`) |
+| **Compliance**: provider config, KYC/whitelist, policy rules | 🔶 Mock | Planned; no provider connected yet |
+
+Account ids are shown in bech32 everywhere, converted server-side from the hex the feeds return. Token symbols, decimals and USD prices come from the verified token list and Binance, the way the Miden wallet prices them (`lib/prices.ts`).
 
 ---
 

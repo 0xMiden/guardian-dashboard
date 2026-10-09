@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { AttentionCards } from "@/components/overview/AttentionCards";
+import { LifecycleCards } from "@/components/overview/LifecycleCards";
 
 vi.mock("swr", () => ({ default: vi.fn() }));
 
@@ -8,14 +8,14 @@ const useSWR = (await import("swr")).default as ReturnType<typeof vi.fn>;
 
 beforeEach(() => vi.clearAllMocks());
 
-describe("AttentionCards", () => {
+describe("LifecycleCards", () => {
   it("links each non-zero lifecycle count to the Accounts table filtered to it", () => {
     useSWR.mockImplementation((key: string) => ({
       data: key === "/api/accounts/stats"
         ? { active: 1200, frozen: 0, released: 3 }
         : { latestActivity: "2026-10-08T10:00:00Z" },
     }));
-    render(<AttentionCards />);
+    render(<LifecycleCards />);
     expect(screen.getByRole("link", { name: "1,200" })).toHaveAttribute("href", "/accounts?state=active");
     expect(screen.getByRole("link", { name: "3" })).toHaveAttribute("href", "/accounts?state=released");
     expect(screen.getByText("None")).toBeInTheDocument();
@@ -26,7 +26,7 @@ describe("AttentionCards", () => {
     useSWR.mockImplementation((key: string) => ({
       data: key === "/api/accounts/stats" ? { active: 1, frozen: 2, released: 0 } : { latestActivity: null },
     }));
-    render(<AttentionCards />);
+    render(<LifecycleCards />);
     expect(screen.getByRole("link", { name: "2" })).toHaveAttribute("href", "/accounts?state=frozen");
     expect(screen.getByText("Nothing recorded")).toBeInTheDocument();
   });
@@ -36,7 +36,7 @@ describe("AttentionCards", () => {
     useSWR.mockImplementation((key: string) => ({
       data: key === "/api/accounts/stats" ? { unsupported: true } : { latestActivity: null },
     }));
-    render(<AttentionCards />);
+    render(<LifecycleCards />);
     expect(screen.getAllByTitle("Needs Guardian 0.18.0")).toHaveLength(3);
     expect(screen.queryByText("None")).not.toBeInTheDocument();
   });
@@ -46,7 +46,7 @@ describe("AttentionCards", () => {
     useSWR.mockImplementation((key: string) => ({
       data: key === "/api/accounts/stats" ? { active: 1, frozen: 0, released: 0, asOf: "2026-10-08T10:05:00Z" } : { latestActivity: null },
     }));
-    render(<AttentionCards />);
+    render(<LifecycleCards />);
     expect(screen.getByText(/Statistics as of/)).toBeInTheDocument();
   });
 
@@ -54,7 +54,7 @@ describe("AttentionCards", () => {
   it("shows a dash with the reason when the Guardian did not answer", () => {
     const error = Object.assign(new Error("Request failed (503)"), { status: 503 });
     useSWR.mockImplementation(() => ({ data: undefined, error }));
-    render(<AttentionCards />);
+    render(<LifecycleCards />);
     expect(screen.getAllByText("—")).toHaveLength(4);
     expect(screen.queryByTestId("skeleton")).not.toBeInTheDocument();
   });

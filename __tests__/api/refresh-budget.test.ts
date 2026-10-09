@@ -110,7 +110,7 @@ beforeEach(() => {
 });
 
 describe("one Refresh click against a 1,500-account Guardian", () => {
-  it("costs the same on a cold instance as on a warm one", async () => {
+  it("costs one request per on-screen row and nothing per account", async () => {
     mockHeaders("ep-cold");
     const accounts = seedLargeNode();
 
@@ -118,8 +118,7 @@ describe("one Refresh click against a 1,500-account Guardian", () => {
 
     // 1 accounts page + 1 stats + 1 asset-totals + 20 on-screen rows. Asserted
     // exactly so a regression shows up as a number rather than as a
-    // still-passing inequality. There is no cold-start penalty left to pay:
-    // this was 1 + 1 + 3 + 470 + 20 when the aggregates were walked here.
+    // still-passing inequality.
     expect(calls).toBe(1 + 1 + 1 + 20);
   });
 

@@ -1,101 +1,40 @@
 "use client";
-import { useState } from "react";
 import useSWR from "swr";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { fetcher } from "@/lib/utils";
 import { formatCount } from "@/lib/format";
-import { InfoTip } from "@/components/ui/InfoTip";
-
-interface OverviewData {
-  // `retained` arrived in Guardian 0.16.1 (issue #345): candidates the worker
-  // gave up verifying, kept for background reconciliation rather than
-  // discarded. Optional because a Guardian on an older build omits it.
-  deltaStatusCounts: { candidate: number; canonical: number; discarded: number; retained?: number };
-  inFlightProposalCount: number;
-}
-
-function Row({ label, value, accent }: { label: string; value: React.ReactNode; accent?: string }) {
-  if (typeof value === "number") value = formatCount(value);
-  return (
-    <div className="flex items-center justify-between text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={`font-medium ${accent ?? ""}`}>{value}</span>
-    </div>
-  );
-}
+import { StatCard, StatRow, Absent } from "@/components/overview/StatCard";
+import type { OverviewData } from "@/app/api/overview/route";
 
 export function ActivityCard() {
   const { data, error } = useSWR<OverviewData>("/api/overview", fetcher, { refreshInterval: 30_000 });
-  const [expanded, setExpanded] = useState(false);
-  const loading = !data && !error;
-
-  const confirmed = data?.deltaStatusCounts?.canonical;
+  const counts = data?.deltaStatusCounts;
+  // Guardians below 0.16.1 do not report `retained` at all.
+  const recovering = counts?.retained ?? 0;
 
   return (
-    <Card>
-      <CardContent className="pt-4 pb-3">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
-              Activity
-              <InfoTip text="Transactions this Guardian has confirmed on chain, over its whole history. Expand for the other states and the proposals still collecting signatures." />
-            </p>
-            {loading ? (
-              <Skeleton className="h-8 w-12 mt-1" />
-            ) : (
-              <p className="text-stat">
-                {confirmed != null ? formatCount(confirmed) : "—"}
-              </p>
-            )}
-            {data && (
-              <p className="text-xs text-muted-foreground mt-1">confirmed transactions, all time</p>
-            )}
-          </div>
-          {data && (
-            <button
-              onClick={() => setExpanded((v) => !v)}
-              className="text-muted-foreground hover:text-foreground transition-colors mt-1"
-              title={expanded ? "Collapse" : "Expand"}
-              aria-label={expanded ? "Collapse" : "Expand"}
-            >
-              {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-          )}
-        </div>
-        {expanded && data && (
-          <div className="mt-3 pt-3 border-t space-y-1.5">
-            <Row
-              label="Confirmed"
-              value={data.deltaStatusCounts.canonical}
-              accent="text-state-active"
-            />
-            <Row
-              label="Submitted"
-              value={data.deltaStatusCounts.candidate}
-              accent={data.deltaStatusCounts.candidate > 0 ? "text-state-pending" : undefined}
-            />
-            {/* Shown only when there are any. A permanent "Recovering 0" adds a
-                row of noise to every Guardian that never has one, and Guardians
-                below 0.16.1 do not report this at all. */}
-            {(data.deltaStatusCounts.retained ?? 0) > 0 && (
-              <Row
-                label="Recovering"
-                value={data.deltaStatusCounts.retained}
-                accent="text-state-frozen"
-              />
-            )}
-            <Row label="Discarded" value={data.deltaStatusCounts.discarded} />
-            {/* The one row that is not a transaction state. */}
-            <Row
-              label="Proposals awaiting signatures"
-              value={data.inFlightProposalCount}
-              accent={data.inFlightProposalCount > 0 ? "text-state-pending" : undefined}
-            />
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <StatCard
+      label="Activity"
+      info="Transactions this Guardian has confirmed on chain, over its whole history. Expand for the other states and the proposals still collecting signatures."
+      sub={data && "confirmed transactions, all time"}
+      details={counts && data && (
+        <>
+          <StatRow label="Confirmed" value={counts.canonical} accent="text-state-active" />
+          <StatRow label="Submitted" value={counts.candidate} accent={counts.candidate > 0 ? "text-state-pending" : undefined} />
+          {/* Only when there are any: a permanent "Recovering 0" is a row of
+              noise on every Guardian that never has one. */}
+          {recovering > 0 && <StatRow label="Recovering" value={recovering} accent="text-state-frozen" />}
+          <StatRow label="Discarded" value={counts.discarded} />
+          {/* The one row that is not a transaction state. */}
+          <StatRow
+            label="Proposals awaiting signatures"
+            value={data.inFlightProposalCount}
+            accent={data.inFlightProposalCount > 0 ? "text-state-pending" : undefined}
+          />
+        </>
+      )}
+    >
+      {counts ? formatCount(counts.canonical) : error ? <Absent error={error} /> : <Skeleton className="mt-1 h-8 w-12" />}
+    </StatCard>
   );
 }

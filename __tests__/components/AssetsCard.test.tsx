@@ -15,7 +15,7 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("AssetsCard", () => {
   it("shows the total once it is published", () => {
-    mockData({ usd: 3911871.94, computedAt: "2026-08-04T12:00:00Z" });
+    mockData({ usd: 3911871.94 });
     render(<AssetsCard />);
     expect(screen.getByText("$3,911,871.94")).toBeInTheDocument();
   });
@@ -43,7 +43,7 @@ describe("AssetsCard", () => {
   // that was every faucet on the fleet. It is a different claim from "the
   // Guardian holds nothing", which is what a $0.00 would say.
   it("says so when holdings exist but nothing prices them", () => {
-    mockData({ usd: null, computedAt: "2026-10-07T12:00:00Z", priced: 0, unpriced: 104 });
+    mockData({ usd: null, priced: 0, unpriced: 104 });
     render(<AssetsCard />);
     expect(screen.getByText("Unpriced")).toBeInTheDocument();
     expect(screen.getByTitle(/104 token/)).toBeInTheDocument();
@@ -51,7 +51,7 @@ describe("AssetsCard", () => {
   });
 
   it("shows a genuine zero for a fleet holding nothing at all", () => {
-    mockData({ usd: 0, computedAt: "2026-10-07T12:00:00Z", priced: 0, unpriced: 0 });
+    mockData({ usd: 0, priced: 0, unpriced: 0 });
     render(<AssetsCard />);
     expect(screen.getByText("$0.00")).toBeInTheDocument();
   });
@@ -64,36 +64,12 @@ describe("AssetsCard", () => {
 });
 
 /**
- * Regression guard for b9c9bd9, which this card shipped twice.
- *
- * SWR keeps `refreshInterval` in its polling effect's dependency array and the
- * cleanup calls `clearTimeout`, so an inline arrow gives a new identity every
- * render, tears the timer down and schedules a fresh FULL-length one. A card
- * re-rendering more often than the interval then never polls at all, which was
- * the "stuck on Calculating… until I visit another tab" report.
- *
- * The tiered interval that made this trap reachable is gone: it polled three
- * times faster while the walk was incomplete, to keep a walk moving that only
- * advanced while something asked. The Guardian now refreshes its own aggregate
- * on a fixed cadence whether we poll or not, so one plain number does.
+ * Regression guard for b9c9bd9, which this card shipped twice. SWR keeps
+ * `refreshInterval` in its polling effect's dependencies, so an inline function
+ * gets a new identity every render, resets the timer, and a card re-rendering
+ * faster than the interval never polls. A plain number cannot.
  */
 describe("AssetsCard poll scheduling", () => {
-  it("passes a referentially stable refreshInterval across re-renders", () => {
-    mockData({ usd: null, warming: true, done: 10, total: 100 });
-    const { rerender } = render(<AssetsCard />);
-    rerender(<AssetsCard />);
-    rerender(<AssetsCard />);
-
-    expect(useSWR.mock.calls.length).toBeGreaterThanOrEqual(3);
-    const first = optionsFromCall(0).refreshInterval;
-    for (let i = 1; i < useSWR.mock.calls.length; i++) {
-      expect(optionsFromCall(i).refreshInterval).toBe(first);
-    }
-  });
-
-  // Stronger than the stability check above: a literal cannot acquire a new
-  // identity per render in the first place, so the trap is unreachable rather
-  // than merely avoided.
   it("polls on a plain number, not a function of the last answer", () => {
     mockData({ usd: null, warming: true, done: 10, total: 100 });
     render(<AssetsCard />);
@@ -103,7 +79,7 @@ describe("AssetsCard poll scheduling", () => {
 
 describe("AssetsCard expander", () => {
   it("expands into the priced and unpriced token counts", () => {
-    mockData({ usd: 2.32, computedAt: "2026-10-08T10:00:00Z", priced: 1, unpriced: 3 });
+    mockData({ usd: 2.32, priced: 1, unpriced: 3 });
     render(<AssetsCard />);
     fireEvent.click(screen.getByRole("button", { name: "Expand" }));
     expect(screen.getByText("Priced tokens")).toBeInTheDocument();

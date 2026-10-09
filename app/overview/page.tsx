@@ -1,5 +1,5 @@
 import { GuardianStatusCard } from "@/components/overview/GuardianStatusCard";
-import { AttentionCards } from "@/components/overview/AttentionCards";
+import { LifecycleCards } from "@/components/overview/LifecycleCards";
 import { AccountsCard } from "@/components/overview/AccountsCard";
 import { AssetsCard } from "@/components/overview/AssetsCard";
 import { ActivityCard } from "@/components/overview/ActivityCard";
@@ -20,7 +20,7 @@ export default function OverviewPage() {
       </div>
 
       {/* How it stands: every account by lifecycle, and when it last moved. */}
-      <AttentionCards />
+      <LifecycleCards />
     </div>
   );
 }

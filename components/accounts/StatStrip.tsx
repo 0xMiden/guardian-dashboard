@@ -6,13 +6,7 @@ export type AccountStats = {
   total?: number | null;
   count7d?: number;
   count30d?: number;
-  // All from one `GET /dashboard/stats` request, so the Accounts table labels
-  // its filters with what the Guardian holds rather than what it has paged in.
-  counted?: number;
-  wallet?: number;
-  other?: number;
-  // In the same aggregate, so Overview can answer "is anything frozen" without
-  // a query of its own.
+  // Mutually exclusive lifecycle counts, for the Overview cards.
   active?: number;
   frozen?: number;
   released?: number;
@@ -23,20 +17,16 @@ export type AccountStats = {
   /** A 0.18.0 Guardian that has not published its first aggregate yet. */
   warming?: boolean;
 };
-type AssetTotals = { usd?: number | null; computedAt?: string | null };
+type AssetTotals = { usd?: number | null };
 
 export const STATS_KEY = "/api/accounts/stats";
 const ASSETS_KEY = "/api/accounts/asset-totals";
 
 /**
- * Re-read both aggregates.
- *
- * `?refresh=1` is gone with the walk it used to trigger: neither route holds an
- * answer of its own any more, so revalidating asks the Guardian directly. What
- * comes back is the Guardian's current published aggregate, which it refreshes
- * on its own cadence (`asOf` says when). Forcing an out-of-cycle server-side
- * walk is possible in 0.18.0 but needs the `stats:refresh` permission granted
- * per Guardian, which we do not hold.
+ * Re-read both aggregates. What comes back is the Guardian's current published
+ * aggregate, which it refreshes on its own cadence (`asOf` says when). Forcing
+ * an out-of-cycle refresh needs the `stats:refresh` permission granted per
+ * Guardian, which we do not hold.
  */
 export async function refreshStatStrip(): Promise<void> {
   await Promise.all([mutate(STATS_KEY), mutate(ASSETS_KEY)]);

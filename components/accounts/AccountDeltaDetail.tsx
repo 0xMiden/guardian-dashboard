@@ -7,9 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
+import { DetailRow as Row } from "@/components/ui/DetailRow";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
-import { formatAmount, formatAsset, formatCount, storageSlotLabel, type TokenInfo } from "@/lib/format";
+import { formatAsset, formatCount, storageSlotLabel, type TokenInfo } from "@/lib/format";
 import { fetcher } from "@/lib/utils";
 import { activityLabel, deltaStatusBadge } from "@/components/transactions/activity-cells";
 import type {
@@ -48,15 +49,6 @@ const NOTE_TAG_LABELS: Record<string, string> = {
   burn: "Burn",
   custom: "Custom script",
 };
-
-function Row({ label, value, title }: { label: React.ReactNode; value: React.ReactNode; title?: string }) {
-  return (
-    <div className="flex items-start justify-between gap-4 py-2 text-sm">
-      <span className="text-muted-foreground shrink-0" title={title}>{label}</span>
-      <span className="font-medium text-right break-all">{value}</span>
-    </div>
-  );
-}
 
 function VaultChangeRow({ change }: { change: DashboardDeltaVaultChange & TokenInfo }) {
   if (change.kind === "fungible") {

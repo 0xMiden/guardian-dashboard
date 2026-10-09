@@ -55,7 +55,6 @@ describe("GET /api/overview", () => {
       deltaStatusCounts: { candidate: 1, canonical: 10, discarded: 0 },
       inFlightProposalCount: 3,
       serviceStatus: "healthy",
-      environment: "testnet",
       build: expect.objectContaining({ version: "1.0.0", gitCommit: "abc" }),
     }));
   });

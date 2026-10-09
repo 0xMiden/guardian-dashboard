@@ -26,7 +26,7 @@ type ActivityRow = {
   assets: AssetLike[] | undefined;
   counterparty: DeltasPage["items"][number]["counterparty"];
   timestamp: string;
-  isDelta: boolean;
+  isPending: boolean;
   nonce: number;
 };
 
@@ -80,7 +80,7 @@ export function AccountTransactions({ accountId }: Props) {
       assets: undefined,
       counterparty: undefined,
       timestamp: p.originatingTimestamp,
-      isDelta: false,
+      isPending: true,
       nonce: p.nonce,
     })),
     ...allDeltas.map((d) => ({
@@ -90,7 +90,7 @@ export function AccountTransactions({ accountId }: Props) {
       assets: d.assets,
       counterparty: d.counterparty,
       timestamp: d.statusTimestamp,
-      isDelta: true,
+      isPending: false,
       nonce: d.nonce,
     })),
   ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -156,7 +156,7 @@ export function AccountTransactions({ accountId }: Props) {
               rowKey={(r) => r.key}
               density={density}
               // A proposal has no delta page yet; its row opens the account, as on Activity.
-              onRowClick={(r) => router.push(`/accounts/${encoded}${r.isDelta ? `/transactions/${r.nonce}` : ""}`)}
+              onRowClick={(r) => router.push(`/accounts/${encoded}${r.isPending ? "" : `/transactions/${r.nonce}`}`)}
             />
           </CardContent>
         </Card>

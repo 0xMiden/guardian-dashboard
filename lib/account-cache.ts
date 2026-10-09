@@ -20,14 +20,8 @@ import { priceBook, type PriceBook } from "@/lib/prices";
  * cached figure would freeze a price for as long as the account was quiet.
  * Pricing happens at read time through lib/prices.ts.
  *
- * This file used to also hold the aggregate machinery behind the stat strip and
- * the assets card: a paged walk of the whole inventory, a snapshot per 7-day
- * active account, a 45-second pass deadline, rate-limit detection and a
- * `complete` flag so a partial sum was never published. All of it existed
- * because the Guardian had no cross-account aggregate. `GET /dashboard/stats`
- * shipped in 0.18.0 and does it in one request, so that half is gone; see
- * lib/dashboard-stats.ts. What remains is per-account and has no server-side
- * equivalent.
+ * Cross-account totals are the Guardian's job (lib/dashboard-stats.ts); this
+ * file is per-account, which has no server-side equivalent.
  *
  * // ponytail: an in-process Map with a size cap, no new infrastructure. Known
  * // ceiling: Vercel runs many instances and each cold one starts empty, so the
@@ -44,7 +38,7 @@ const MAX_SNAPSHOT_ENTRIES = 20_000;
 // Measured 60/sec with zero 429s on a prod-profile Guardian. A paced Guardian is
 // serialised by `reserveSlot` regardless, so this only speeds up the ones that
 // can take it.
-const WALK_CONCURRENCY = 10;
+const SNAPSHOT_CONCURRENCY = 10;
 
 type Fungible = { faucetId: string; amount: string }[];
 
@@ -112,7 +106,7 @@ export async function getSnapshotTotals(
   // ten at once only queues ten slot reservations. On a Guardian mid-lockout
   // that means spending ~13s to collect ten 429s instead of one, which delays
   // the recovery it is supposed to protect.
-  const batchSize = concurrency ?? (client.pacingIntervalMs?.() ? 1 : WALK_CONCURRENCY);
+  const batchSize = concurrency ?? (client.pacingIntervalMs?.() ? 1 : SNAPSHOT_CONCURRENCY);
   const book = await priceBook(network);
   const result: Record<string, number | null> = {};
   const misses: { accountId: string; key: string | null }[] = [];

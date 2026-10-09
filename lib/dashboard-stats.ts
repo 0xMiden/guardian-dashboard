@@ -43,19 +43,3 @@ export async function readStats(client: StatsReader, options?: DashboardStatsOpt
     throw err;
   }
 }
-
-/**
- * How many of these accounts the dashboard calls wallets.
- *
- * `isWalletAccount` (lib/format.ts) reads the per-account `authScheme` and
- * `authorizedSignerCount` off the list endpoint. The aggregate groups by
- * `(authMethod, authorizedSignerCount)` for exactly this purpose ("lets a
- * consumer reproduce its own account-shape heuristics"), labelling the same
- * scheme `miden_ecdsa`. Verified equal on openzeppelin_devnet 2026-10-06: 218
- * wallets of 270 accounts, both ways.
- */
-export function walletCount(stats: DashboardStatsResponse): number {
-  return stats.accounts.byAuthMethodAndSignerCount
-    .filter((row) => row.authMethod === "miden_ecdsa" && row.authorizedSignerCount === 2)
-    .reduce((n, row) => n + row.count, 0);
-}

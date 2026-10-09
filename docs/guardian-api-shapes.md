@@ -1,5 +1,9 @@
 # Guardian Operator Dashboard API — Raw Response Shapes
 
+> Historical snapshot from Guardian v0.1.0. The fleet now runs 0.18.0, which adds
+> `GET /dashboard/stats`, the `retained` delta status, per-delta `vaultChanges` and
+> more. For current shapes read `node_modules/@openzeppelin/guardian-operator-client/dist/types.d.ts`.
+
 All examples are live responses from the OpenZeppelin devnet Guardian (v0.1.0), then
 reachable at `guardian-stg.openzeppelin.com` and now at `guardian-devnet.openzeppelin.com`.
 Raw JSON files are in `docs/api-shapes/`.

@@ -1,16 +1,12 @@
 "use client";
-import { useState } from "react";
 import useSWR from "swr";
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetcher } from "@/lib/utils";
 import { formatCount } from "@/lib/format";
-import { InfoTip } from "@/components/ui/InfoTip";
+import { StatCard, StatRow, Absent } from "@/components/overview/StatCard";
 
 type AssetTotals = {
   usd?: number | null;
-  computedAt?: string | null;
   /** The Guardian has not published its first aggregate since starting up. */
   warming?: boolean;
   /** The Guardian predates `GET /dashboard/stats`, which shipped in 0.18.0. */
@@ -23,98 +19,49 @@ type AssetTotals = {
 };
 
 export function AssetsCard() {
-  // One request to the Guardian per poll, answered from an aggregate it
-  // refreshes on its own cadence. This used to chase a walk, polling three
-  // times faster while it was incomplete; there is no walk left to chase.
-  const { data, error } = useSWR<AssetTotals>("/api/accounts/asset-totals", fetcher, {
-    refreshInterval: 60_000,
-  });
-  const [expanded, setExpanded] = useState(false);
+  // One request per poll, answered from an aggregate the Guardian refreshes on its own cadence.
+  const { data, error } = useSWR<AssetTotals>("/api/accounts/asset-totals", fetcher, { refreshInterval: 60_000 });
   const split = data?.priced != null && data.unpriced != null;
 
   return (
-    <Card>
-      <CardContent className="pt-4 pb-3">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
-              Assets
-              <InfoTip text="Dollar value of everything the accounts on this Guardian hold, for tokens on the verified token list with a market price. Anything else is unpriced." />
-            </p>
-            {!data && !error ? (
-              <Skeleton className="h-8 w-20 mt-1" />
-            ) : data?.usd != null ? (
-              <p className="text-stat text-foreground">
-                ${data.usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-            ) : data?.unsupported ? (
-              // Names the reason rather than showing the same dash a dead Guardian
-              // would. Nothing here will change until this Guardian's operator
-              // upgrades, so there is no progress to report.
-              <p
-                className="text-section text-muted-foreground"
-                title="This Guardian computes no cross-account totals. The endpoint the dashboard reads them from arrived in Guardian 0.18.0."
-              >
-                Needs Guardian 0.18.0
-              </p>
-            ) : data?.unpriced && !data.priced ? (
-              // Holdings exist, and none of them has a market. Priced the way the
-              // Miden wallet does (lib/prices.ts): a test mint or an unlisted token
-              // gets no dollar figure rather than an invented one.
-              <p
-                className="text-section text-muted-foreground"
-                title={`Holdings in ${data.unpriced.toLocaleString()} token(s) with no price: not on the verified token list, or the price feed is unreachable. The Miden wallet shows the same holdings with no dollar figure.`}
-              >
-                Unpriced
-              </p>
-            ) : data?.warming ? (
-              // A 0.18.0 Guardian that has not finished its first pass, or one whose
-              // pass could not decode every vault. It says how far it got, and the
-              // number climbing is the only evidence that waiting will end.
-              <p
-                className="text-section text-muted-foreground"
-                title="The Guardian is still computing its first asset aggregate. This clears within one refresh interval."
-              >
-                Calculating…
-                {data.done != null && data.total != null && (
-                  <span className="ml-1 text-data">
-                    {data.done.toLocaleString()} of {data.total.toLocaleString()}
-                  </span>
-                )}
-              </p>
-            ) : (
-              <p
-                className="text-stat text-muted-foreground"
-                title={error ? "The Guardian did not answer." : "Not computed yet."}
-              >
-                —
-              </p>
+    <StatCard
+      label="Assets"
+      info="Dollar value of everything the accounts on this Guardian hold, for tokens on the verified token list with a market price. Anything else is unpriced."
+      details={split && (
+        <>
+          <StatRow label="Priced tokens" value={data.priced!} />
+          <StatRow label="Unpriced tokens" value={data.unpriced!} />
+        </>
+      )}
+    >
+      {!data && !error ? (
+        <Skeleton className="mt-1 h-8 w-20" />
+      ) : data?.usd != null ? (
+        `$${data.usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      ) : data?.unsupported ? (
+        // Nothing here changes until this Guardian's operator upgrades.
+        <Absent title="This Guardian computes no cross-account totals. The endpoint the dashboard reads them from arrived in Guardian 0.18.0.">
+          <span className="text-section">Needs Guardian 0.18.0</span>
+        </Absent>
+      ) : data?.unpriced && !data.priced ? (
+        // Holdings exist and none has a market: a test mint or an unlisted
+        // token gets no dollar figure rather than an invented one (lib/prices.ts).
+        <Absent title={`Holdings in ${formatCount(data.unpriced)} token(s) with no price: not on the verified token list, or the price feed is unreachable. The Miden wallet shows the same holdings with no dollar figure.`}>
+          <span className="text-section">Unpriced</span>
+        </Absent>
+      ) : data?.warming ? (
+        // The number climbing is the only evidence that waiting will end.
+        <Absent title="The Guardian is still computing its first asset aggregate. This clears within one refresh interval.">
+          <span className="text-section">
+            Calculating…
+            {data.done != null && data.total != null && (
+              <span className="ml-1 text-data">{formatCount(data.done)} of {formatCount(data.total)}</span>
             )}
-          </div>
-          {split && (
-            <button
-              onClick={() => setExpanded((v) => !v)}
-              className="text-muted-foreground hover:text-foreground transition-colors mt-1"
-              title={expanded ? "Collapse" : "Expand"}
-              aria-label={expanded ? "Collapse" : "Expand"}
-            >
-              {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-          )}
-        </div>
-        {expanded && split && (
-          <div className="mt-3 pt-3 border-t space-y-1.5">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Priced tokens</span>
-              <span className="font-medium">{formatCount(data.priced!)}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Unpriced tokens</span>
-              <span className="font-medium">{formatCount(data.unpriced!)}</span>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          </span>
+        </Absent>
+      ) : (
+        <Absent error={error} />
+      )}
+    </StatCard>
   );
 }

@@ -66,64 +66,18 @@ describe("GET /api/accounts/stats", () => {
   // The whole mapping in one assertion, against the numbers the live devnet
   // Guardian returned. temp/parity-stats.mjs proved these equal to what the
   // paged walk this route used to run produced for the same Guardian.
-  it("maps the aggregate onto the fields the stat strip reads", async () => {
+  it("maps the aggregate onto the fields the pages read", async () => {
     mockGetDashboardStats.mockResolvedValue(stats());
     const body = await (await GET()).json();
     expect(body).toEqual({
       total: 270,
-      counted: 270,
       count7d: 201,
       count30d: 270,
-      wallet: 218,
-      other: 52,
       active: 269,
       frozen: 0,
       released: 1,
       asOf: "2026-10-06T16:29:12.837967517+00:00",
     });
-  });
-
-  // A wallet is ECDSA with two signers. Neither a third signer nor a Falcon
-  // account with two may be counted, or the table's filter labels stop matching
-  // the rows the filter actually selects.
-  it("counts only ECDSA accounts with two signers as wallets", async () => {
-    mockGetDashboardStats.mockResolvedValue(
-      stats({
-        accounts: {
-          total: 10,
-          byLifecycle: { active: 10, paused: 0, released: 0 },
-          byAuthMethod: { miden_ecdsa: 7, miden_falcon: 3 },
-          byAuthMethodAndSignerCount: [
-            { authMethod: "miden_ecdsa", authorizedSignerCount: 2, count: 4 },
-            { authMethod: "miden_ecdsa", authorizedSignerCount: 3, count: 3 },
-            { authMethod: "miden_falcon", authorizedSignerCount: 2, count: 3 },
-          ],
-          updatedWithin7d: 10,
-          updatedWithin30d: 10,
-        },
-      }),
-    );
-    const body = await (await GET()).json();
-    expect(body.wallet).toBe(4);
-    expect(body.other).toBe(6);
-  });
-
-  it("reports no wallets when the breakdown is empty rather than guessing", async () => {
-    mockGetDashboardStats.mockResolvedValue(
-      stats({
-        accounts: {
-          total: 5,
-          byLifecycle: { active: 5, paused: 0, released: 0 },
-          byAuthMethod: {},
-          byAuthMethodAndSignerCount: [],
-          updatedWithin7d: 5,
-          updatedWithin30d: 5,
-        },
-      }),
-    );
-    const body = await (await GET()).json();
-    expect(body.wallet).toBe(0);
-    expect(body.other).toBe(5);
   });
 
   // openzeppelin (23,303 accounts) and koda were still on 0.17.0 on 2026-10-06.

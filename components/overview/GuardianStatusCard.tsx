@@ -8,10 +8,10 @@ import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
 import { ChevronDown, ChevronUp, AlertTriangle, Check, Info } from "lucide-react";
 import { InfoTip } from "@/components/ui/InfoTip";
 import { fetcher } from "@/lib/utils";
-import { formatCount } from "@/lib/format";
-import { truncateId } from "@/lib/format";
+import { formatCount, truncateId } from "@/lib/format";
 import { copyText } from "@/lib/clipboard";
 import { describeError } from "@/components/ui/ErrorPanel";
+import type { OverviewData } from "@/app/api/overview/route";
 
 interface HealthData {
   status: "up" | "down";
@@ -19,12 +19,6 @@ interface HealthData {
   checkedAt: string;
 }
 
-interface OverviewData {
-  environment?: string;
-  build?: { version: string; gitCommit: string; startedAt: string; profile: string };
-  serviceStatus?: "healthy" | "degraded";
-  degradedAggregates?: string[];
-}
 
 // The Guardian names what it cannot compute in its own vocabulary. An operator
 // should not have to know that `accounts_by_auth_method` is the auth split.
@@ -346,7 +340,7 @@ export function GuardianStatusCard() {
                   />
                 )}
 
-                {/* Expandable details: Commit + Commitment */}
+                {/* Expandable details: commit and public key */}
                 {hasDetails && (
                   <>
                     <button

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { AccountDeltaDetail } from "@/components/accounts/AccountDeltaDetail";
 
 vi.mock("swr", () => ({ default: vi.fn() }));
@@ -110,5 +110,23 @@ describe("AccountDeltaDetail labels, as the table labels them", () => {
     mockDetail({ status: "retained", statusReason: "retry_exhausted" });
     render(<AccountDeltaDetail accountId="0xabc123" nonce={7} />);
     expect(screen.getByTitle(/ran out of retries/)).toBeInTheDocument();
+  });
+});
+
+// Through Guardian 0.18.0 the TypeScript SDK keyed rows by `Date.now()`.
+describe("AccountDeltaDetail nonce", () => {
+  it("numbers a transaction by its nonce", () => {
+    mockDetail();
+    render(<AccountDeltaDetail accountId="0xabc123" nonce={7} />);
+    expect(screen.getByText("Transaction #7")).toBeInTheDocument();
+  });
+
+  it("names no nonce for a row keyed by a timestamp", () => {
+    mockDetail({ nonce: 1791519179942 });
+    render(<AccountDeltaDetail accountId="0xabc123" nonce={1791519179942} />);
+    expect(screen.getByText("Transaction")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Technical details"));
+    expect(screen.queryByText("Nonce")).not.toBeInTheDocument();
+    expect(screen.queryByText(/1791519179942/)).not.toBeInTheDocument();
   });
 });

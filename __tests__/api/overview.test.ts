@@ -87,6 +87,18 @@ describe("GET /api/overview", () => {
     expect(body.evm).toBeNull();
   });
 
+  it("passes on how many transactions one account may queue", async () => {
+    mockHeaders("testnet");
+    mockGetDashboardInfo.mockResolvedValue(makeDashboardInfo({
+      backend: {
+        storage: "postgres", supportedAckSchemes: [],
+        canonicalization: { checkIntervalSeconds: 10, maxRetries: 48, submissionGracePeriodSeconds: 600, maxPendingCandidatesPerAccount: 1 },
+      },
+    }));
+    const body = await (await GET()).json();
+    expect(body.queueDepth).toBe(1);
+  });
+
   it("returns 503 when guardian client throws", async () => {
     mockHeaders("testnet");
     mockGetDashboardInfo.mockRejectedValue(new Error("Connection refused"));

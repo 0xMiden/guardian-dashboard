@@ -84,7 +84,7 @@ function toRows(
       if (filter === "awaiting" && isReady) continue;
       if (filter === "ready" && !isReady) continue;
       rows.push({
-        key: `proposal-${p.accountId}-${p.nonce}`,
+        key: `proposal-${p.accountId}-${p.commitment}`,
         accountId: p.accountId,
         accountIdBech32: p.accountIdBech32,
         label: activityLabel(undefined, p.proposalType),

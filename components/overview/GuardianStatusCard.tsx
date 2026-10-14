@@ -17,6 +17,7 @@ interface HealthData {
   status: "up" | "down";
   latencyMs: number;
   checkedAt: string;
+  sessionMaxTtlSeconds?: number;
 }
 
 
@@ -199,7 +200,10 @@ export function GuardianStatusCard() {
   const uptimeSecs = Number.isFinite(startedMs) && Number.isFinite(checkedMs)
     ? Math.max(0, Math.floor((checkedMs - startedMs) / 1000))
     : null;
-  const hasDetails = !!(build?.gitCommit && build.gitCommit !== "unknown") || !!opInfo?.publicKey;
+  const queueDepth = overview?.queueDepth;
+  const sessionTtl = health?.sessionMaxTtlSeconds;
+  const hasDetails = !!(build?.gitCommit && build.gitCommit !== "unknown") || !!opInfo?.publicKey
+    || queueDepth !== undefined || sessionTtl !== undefined;
 
   return (
     <Card>
@@ -340,7 +344,7 @@ export function GuardianStatusCard() {
                   />
                 )}
 
-                {/* Expandable details: commit and public key */}
+                {/* Expandable details: commit, Guardian settings and public key */}
                 {hasDetails && (
                   <>
                     <button
@@ -357,6 +361,20 @@ export function GuardianStatusCard() {
                             label="Commit"
                             value={<CopyableHash value={build.gitCommit} short />}
                             info="Git commit SHA of the Guardian build currently running. Click to copy the full hash."
+                          />
+                        )}
+                        {queueDepth !== undefined && (
+                          <Row
+                            label="Queue"
+                            value={`${queueDepth} per account`}
+                            info="How many submitted transactions one account can have waiting for the chain at once."
+                          />
+                        )}
+                        {sessionTtl !== undefined && (
+                          <Row
+                            label="Sessions"
+                            value={`up to ${formatUptime(sessionTtl)}`}
+                            info="Longest a wallet session lasts before the wallet must approve again."
                           />
                         )}
                         {opInfo.publicKey && (

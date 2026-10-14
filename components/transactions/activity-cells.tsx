@@ -91,6 +91,8 @@ const STATUS_REASONS: Record<string, string> = {
   retry_exhausted: "the Guardian ran out of retries verifying it",
   diverged: "the Guardian found it no longer matches the chain",
   client_abandoned: "the client stopped before submitting it",
+  // Only on a Guardian that queues transactions (0.18.1, off by default).
+  orphaned: "the transaction queued before it did not go through",
 };
 
 /** What a status means, for the badge of a row that has no reason to give. */

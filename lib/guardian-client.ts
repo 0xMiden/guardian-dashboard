@@ -203,8 +203,17 @@ export function getGuardianClient(endpointId: string) {
       // turn behind a snapshot burst would report a healthy Guardian as down.
       chargeSlot(state);
       try {
-        const res = await fetch(`${ep.url.replace(/\/$/, "")}/pubkey`, { signal: AbortSignal.timeout(2000) });
-        return { status: res.ok ? "up" : "down" as const, latencyMs: Date.now() - start, checkedAt: new Date().toISOString() };
+        // `/status` is the Guardian's documented liveness route, and since 0.18.1
+        // it also states how long a wallet session may last.
+        const res = await fetch(`${ep.url.replace(/\/$/, "")}/status`, { signal: AbortSignal.timeout(2000) });
+        const latencyMs = Date.now() - start;
+        const body = res.ok ? await res.json().catch(() => null) : null;
+        return {
+          status: res.ok ? "up" : "down" as const,
+          latencyMs,
+          checkedAt: new Date().toISOString(),
+          sessionMaxTtlSeconds: body?.sessions?.max_ttl_seconds as number | undefined,
+        };
       } catch {
         return { status: "down" as const, latencyMs: Date.now() - start, checkedAt: new Date().toISOString() };
       }

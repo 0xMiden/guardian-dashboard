@@ -14,11 +14,12 @@ describe("ActivityCard", () => {
       data: { deltaStatusCounts: { candidate: 0, canonical: 717, discarded: 4, retained: 15 }, inFlightProposalCount: 2 },
     });
     render(<ActivityCard />);
-    expect(screen.getByText("717")).toBeInTheDocument();
+    expect(screen.getByText("717", { selector: ".text-stat" })).toBeInTheDocument();
     expect(screen.getByText("confirmed transactions, all time")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+    expect(screen.getByText("Discarded")).not.toBeVisible();
+    fireEvent.click(screen.getByLabelText("Breakdown"));
     for (const label of ["Confirmed", "Submitted", "Recovering", "Discarded", "Proposals awaiting signatures"]) {
-      expect(screen.getByText(label)).toBeInTheDocument();
+      expect(screen.getByText(label)).toBeVisible();
     }
     expect(screen.getByText("4")).toBeInTheDocument();
   });

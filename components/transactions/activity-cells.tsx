@@ -2,7 +2,12 @@
 import { Badge } from "@/components/ui/badge";
 import { CopyableId } from "@/components/ui/CopyableId";
 import { formatAsset, type TokenInfo } from "@/lib/format";
-import type { DashboardDeltaEntry } from "@openzeppelin/guardian-operator-client";
+import type {
+  DashboardDeltaEntry,
+  DashboardDeltaStatus,
+  DashboardGlobalDeltaEntry,
+  DashboardGlobalProposalEntry,
+} from "@openzeppelin/guardian-operator-client";
 
 export const CATEGORY_LABELS: Record<string, string> = {
   asset_transfer: "Asset transfer",
@@ -46,14 +51,14 @@ const PROPOSAL_TYPE_LABELS: Record<string, string> = {
 };
 
 /**
- * Types that are a fixed prefix plus an encoded payload, where the payload must
+ * A type that is a fixed prefix plus an encoded payload, where the payload must
  * not reach the label. `usdcx_v1_` is followed by ~1,500 characters of base32
  * holding a JSON recipe (`{"recipeVersion":1,"action":"set_max_supply",...}`);
  * 6 of 1,448 fleet deltas on 2026-10-06 were these, carrying `set_max_supply`
  * and `set_min_burn`. The label names the application, which is as much as can
  * be said without decoding base32 in the browser.
  */
-const PROPOSAL_TYPE_PREFIXES: [prefix: string, label: string][] = [["usdcx_v1_", "USDCx"]];
+const USDCX_PREFIX = "usdcx_v1_";
 
 /**
  * A wire name that looks like a deliberate snake_case token, in sentence case
@@ -77,8 +82,7 @@ export function activityLabel(category?: string, proposalType?: string): string 
   if (proposalType) {
     const curated = PROPOSAL_TYPE_LABELS[proposalType];
     if (curated) return curated;
-    const prefixed = PROPOSAL_TYPE_PREFIXES.find(([prefix]) => proposalType.startsWith(prefix));
-    if (prefixed) return prefixed[1];
+    if (proposalType.startsWith(USDCX_PREFIX)) return "USDCx";
     const derived = derivedLabel(proposalType);
     if (derived) return derived;
   }
@@ -177,4 +181,75 @@ export function CounterpartyCell({ counterparty }: { counterparty?: DashboardDel
       <CopyableId id={counterparty.accountIdBech32 ?? counterparty.accountId} prefixLen={8} suffixLen={4} />
     </span>
   );
+}
+
+// What lib/enrich.ts adds server-side: the bech32 spelling beside each hex id,
+// and the token's name and scale beside each asset.
+type Spelled = { accountIdBech32?: string };
+export type ActivityDelta = DashboardGlobalDeltaEntry & Spelled & { counterparty?: Spelled; assets?: AssetLike[] };
+export type ActivityProposal = DashboardGlobalProposalEntry & Spelled;
+
+export type FilterValue = "" | "awaiting" | "ready" | DashboardDeltaStatus;
+
+export type ActivityRow = {
+  key: string;
+  accountId: string;
+  accountIdBech32?: string;
+  label: string;
+  status: string;
+  statusNode: React.ReactNode;
+  assets: AssetLike[] | undefined;
+  counterparty: (DashboardDeltaEntry["counterparty"] & Spelled) | undefined;
+  timestamp: string;
+  isPending: boolean;
+  nonce: number;
+};
+
+export const PROPOSALS_ONLY: FilterValue[] = ["awaiting", "ready"];
+
+/** Proposals and deltas as one list, newest first: the Activity table, and one account's feed. */
+export function toRows(deltas: ActivityDelta[], proposals: ActivityProposal[], filter: FilterValue = ""): ActivityRow[] {
+  const rows: ActivityRow[] = [];
+
+  if (filter === "" || PROPOSALS_ONLY.includes(filter)) {
+    for (const p of proposals) {
+      const isReady = p.signaturesCollected >= p.signaturesRequired;
+      if (filter === "awaiting" && isReady) continue;
+      if (filter === "ready" && !isReady) continue;
+      rows.push({
+        key: `proposal-${p.accountId}-${p.commitment}`,
+        accountId: p.accountId,
+        accountIdBech32: p.accountIdBech32,
+        label: activityLabel(undefined, p.proposalType),
+        status: proposalStatusLabel(p.signaturesCollected, p.signaturesRequired),
+        statusNode: proposalStatusBadge(p.signaturesCollected, p.signaturesRequired),
+        assets: undefined,
+        counterparty: undefined,
+        timestamp: p.originatingTimestamp,
+        isPending: true,
+        nonce: p.nonce,
+      });
+    }
+  }
+
+  if (!PROPOSALS_ONLY.includes(filter)) {
+    for (const d of deltas) {
+      rows.push({
+        key: `delta-${d.accountId}-${d.nonce}`,
+        accountId: d.accountId,
+        accountIdBech32: d.accountIdBech32,
+        label: activityLabel(d.category, d.proposalType),
+        status: deltaStatusLabel(d.status),
+        statusNode: deltaStatusBadge(d.status, d.statusReason),
+        assets: d.assets,
+        counterparty: d.counterparty,
+        timestamp: d.statusTimestamp,
+        isPending: false,
+        nonce: d.nonce,
+      });
+    }
+  }
+
+  rows.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  return rows;
 }

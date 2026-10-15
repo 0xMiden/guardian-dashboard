@@ -2,14 +2,6 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
-  webpack(config) {
-    // Parent /Code/package.json confuses enhanced-resolve — pin tailwindcss to this project.
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      tailwindcss: path.resolve(__dirname, "node_modules/tailwindcss"),
-    };
-    return config;
-  },
   serverExternalPackages: ["@miden-sdk/miden-sdk"],
   outputFileTracingIncludes: {
     "/api/**": ["./node_modules/@miden-sdk/miden-sdk/dist/st/assets/*.wasm"],

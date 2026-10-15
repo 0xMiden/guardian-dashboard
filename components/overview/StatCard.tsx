@@ -1,6 +1,5 @@
 "use client";
-import { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { InfoTip } from "@/components/ui/InfoTip";
 import { describeError } from "@/components/ui/ErrorPanel";
@@ -29,33 +28,31 @@ export function StatCard({
   /** The figure wants an operator, and takes Frozen's tone. */
   attention?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
   return (
     <Card>
-      <CardContent className="pt-4 pb-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="mb-1 flex items-center gap-1.5 text-label text-muted-foreground">
-              {icon}
-              {label}
-              <InfoTip text={info} />
-            </p>
-            <div className={`text-stat ${attention ? "text-state-frozen" : ""}`}>{children}</div>
-            {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
-          </div>
-          {details && (
-            <button
-              onClick={() => setOpen((v) => !v)}
-              className="mt-1 text-muted-foreground transition-colors hover:text-foreground"
-              title={open ? "Collapse" : "Expand"}
-              aria-label={open ? "Collapse" : "Expand"}
-              aria-expanded={open}
-            >
-              {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-          )}
+      <CardContent className="relative pt-4 pb-3">
+        <div className={`min-w-0 ${details ? "pr-6" : ""}`}>
+          <p className="mb-1 flex items-center gap-1.5 text-label text-muted-foreground">
+            {icon}
+            {label}
+            <InfoTip text={info} />
+          </p>
+          <div className={`text-stat ${attention ? "text-state-frozen" : ""}`}>{children}</div>
+          {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
         </div>
-        {open && details && <div className="mt-3 space-y-1.5 border-t pt-3">{details}</div>}
+        {details && (
+          <details className="group">
+            {/* Pinned to the corner, where the figure leaves room for it. */}
+            <summary
+              className="absolute right-4 top-5 cursor-pointer list-none text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden"
+              title="Breakdown"
+              aria-label="Breakdown"
+            >
+              <ChevronDown className="h-4 w-4 group-open:rotate-180" />
+            </summary>
+            <div className="mt-3 space-y-1.5 border-t pt-3">{details}</div>
+          </details>
+        )}
       </CardContent>
     </Card>
   );

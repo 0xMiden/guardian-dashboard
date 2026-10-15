@@ -19,24 +19,13 @@ import { StatStrip, refreshStatStrip } from "@/components/accounts/StatStrip";
 import { fetcher, downloadCsv } from "@/lib/utils";
 import { matchesAccountId, activityToCsv, formatCount } from "@/lib/format";
 import {
-  activityLabel, deltaStatusBadge, deltaStatusLabel, proposalStatusBadge, proposalStatusLabel, AmountCell, CounterpartyCell,
-  type AssetLike,
+  AmountCell, CounterpartyCell, toRows, PROPOSALS_ONLY,
+  type ActivityDelta, type ActivityProposal, type ActivityRow, type FilterValue,
 } from "@/components/transactions/activity-cells";
-import type {
-  DashboardGlobalDeltaEntry,
-  DashboardGlobalProposalEntry,
-  DashboardDeltaStatus,
-  DashboardDeltaEntry,
-  PagedResult,
-} from "@openzeppelin/guardian-operator-client";
+import type { DashboardDeltaStatus, PagedResult } from "@openzeppelin/guardian-operator-client";
 
-// What lib/enrich.ts adds server-side: the bech32 spelling beside each hex id,
-// and the token's name and scale beside each asset.
-type Spelled = { accountIdBech32?: string };
-type GlobalDeltasPage = PagedResult<DashboardGlobalDeltaEntry & Spelled & { counterparty?: Spelled; assets?: AssetLike[] }>;
-type GlobalProposalsPage = PagedResult<DashboardGlobalProposalEntry & Spelled>;
-
-type FilterValue = "" | "awaiting" | "ready" | DashboardDeltaStatus;
+type GlobalDeltasPage = PagedResult<ActivityDelta>;
+type GlobalProposalsPage = PagedResult<ActivityProposal>;
 
 type ColumnKey = "account" | "counterparty" | "activity" | "amount" | "status" | "date";
 type SortKey = "activity" | "status" | "date";
@@ -54,72 +43,6 @@ const FILTERS: Array<{ label: string; value: FilterValue; title?: string }> = [
   { label: "Recovering", value: "retained", title: "Transactions the Guardian gave up verifying and keeps for later reconciliation." },
   { label: "Discarded", value: "discarded", title: "Transactions the Guardian dropped." },
 ];
-
-type ActivityRow = {
-  key: string;
-  accountId: string;
-  accountIdBech32?: string;
-  label: string;
-  status: string;
-  statusNode: React.ReactNode;
-  assets: AssetLike[] | undefined;
-  counterparty: (DashboardDeltaEntry["counterparty"] & Spelled) | undefined;
-  timestamp: string;
-  isPending: boolean;
-  nonce: number;
-};
-
-const PROPOSALS_ONLY: FilterValue[] = ["awaiting", "ready"];
-
-function toRows(
-  deltas: GlobalDeltasPage["items"],
-  proposals: GlobalProposalsPage["items"],
-  filter: FilterValue,
-): ActivityRow[] {
-  const rows: ActivityRow[] = [];
-
-  if (filter === "" || PROPOSALS_ONLY.includes(filter)) {
-    for (const p of proposals) {
-      const isReady = p.signaturesCollected >= p.signaturesRequired;
-      if (filter === "awaiting" && isReady) continue;
-      if (filter === "ready" && !isReady) continue;
-      rows.push({
-        key: `proposal-${p.accountId}-${p.commitment}`,
-        accountId: p.accountId,
-        accountIdBech32: p.accountIdBech32,
-        label: activityLabel(undefined, p.proposalType),
-        status: proposalStatusLabel(p.signaturesCollected, p.signaturesRequired),
-        statusNode: proposalStatusBadge(p.signaturesCollected, p.signaturesRequired),
-        assets: undefined,
-        counterparty: undefined,
-        timestamp: p.originatingTimestamp,
-        isPending: true,
-        nonce: p.nonce,
-      });
-    }
-  }
-
-  if (!PROPOSALS_ONLY.includes(filter)) {
-    for (const d of deltas) {
-      rows.push({
-        key: `delta-${d.accountId}-${d.nonce}`,
-        accountId: d.accountId,
-        accountIdBech32: d.accountIdBech32,
-        label: activityLabel(d.category, d.proposalType),
-        status: deltaStatusLabel(d.status),
-        statusNode: deltaStatusBadge(d.status, d.statusReason),
-        assets: d.assets,
-        counterparty: d.counterparty,
-        timestamp: d.statusTimestamp,
-        isPending: false,
-        nonce: d.nonce,
-      });
-    }
-  }
-
-  rows.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  return rows;
-}
 
 // ponytail: sorts the entries paged in, like Accounts. The feeds take a cursor
 // and a status and nothing else, so a whole-feed sort would page the whole

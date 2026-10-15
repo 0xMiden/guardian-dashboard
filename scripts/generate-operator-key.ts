@@ -1,37 +1,18 @@
-import { readFileSync } from "fs";
-import { join } from "path";
-
-type SDK = typeof import("@miden-sdk/miden-sdk") & {
-  initSync: (opts: { module: BufferSource | WebAssembly.Module }) => void;
-};
+import { loadSdk, getPublicKey } from "../lib/falcon";
 
 async function main() {
-  const mod = (await import("@miden-sdk/miden-sdk/lazy")) as SDK;
-  const wasmPath = join(
-    process.cwd(),
-    "node_modules/@miden-sdk/miden-sdk/dist/st/assets/miden_client_web.wasm"
-  );
-  mod.initSync({ module: readFileSync(wasmPath) });
+  const { AuthSecretKey } = await loadSdk();
+  const secretKey = AuthSecretKey.rpoFalconWithRNG();
+  const privateKeyHex = Buffer.from(secretKey.serialize()).toString("hex");
+  const commitment = secretKey.publicKey().toCommitment().toHex();
 
-  function bytesToHex(bytes: Uint8Array): string {
-    return Array.from(bytes)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-  }
-
-  const secretKey = mod.AuthSecretKey.rpoFalconWithRNG();
-  const publicKey = secretKey.publicKey();
-
-  const privateKeyHex = bytesToHex(secretKey.serialize());
-  const publicKeyHex = "0x" + bytesToHex(publicKey.serialize().slice(1));
-  const commitment = publicKey.toCommitment().toHex();
-
-  console.log("# ── Paste into dashboard .env.local ──────────────────────────");
-  console.log(`GUARDIAN_OPERATOR_PRIVATE_KEY=${privateKeyHex}`);
-  console.log(`GUARDIAN_OPERATOR_COMMITMENT=${commitment}`);
+  console.log("# ── Paste into dashboard .env.local (and Vercel) ──────────────");
+  console.log("# <ID> is the endpoint's id, upper-cased, non-alphanumerics as _");
+  console.log(`GUARDIAN_PRIVATE_KEY_<ID>=${privateKeyHex}`);
+  console.log(`# "commitment" in its GUARDIAN_ENDPOINTS entry: ${commitment}`);
   console.log("");
   console.log("# ── Add to Guardian operator-public-keys.json ────────────────");
-  console.log(`["${publicKeyHex}"]`);
+  console.log(`["${await getPublicKey(privateKeyHex)}"]`);
 }
 
 main().catch(console.error);

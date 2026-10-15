@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getSnapshotTotals, countSnapshotMisses, __resetAccountCaches } from "@/lib/account-cache";
+import { getSnapshotTotals, __resetAccountCaches } from "@/lib/account-cache";
 
 /**
  * What is left of this module after Guardian 0.18.0.
@@ -76,7 +76,6 @@ describe("snapshot cache", () => {
     await getSnapshotTotals(client, "ep", "MidenTestnet", rows);
     await getSnapshotTotals(client, "ep", "MidenTestnet", rows);
     expect(getAccountSnapshot).toHaveBeenCalledTimes(2);
-    expect(countSnapshotMisses("ep", rows)).toBe(1);
   });
 
   it("refresh bypasses a warm entry", async () => {

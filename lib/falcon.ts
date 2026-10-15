@@ -26,30 +26,18 @@ export function loadSdk(): Promise<SDK> {
   return _sdk;
 }
 
-export function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-export function hexToBytes(hex: string): Uint8Array {
-  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
-  const out = new Uint8Array(clean.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    out[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
-  }
-  return out;
-}
+const fromHex = (hex: string) => Buffer.from(hex.replace(/^0x/, ""), "hex");
+const toHex = (bytes: Uint8Array) => Buffer.from(bytes).toString("hex");
 
 export async function getPublicKey(privateKeyHex: string): Promise<string> {
   const { AuthSecretKey } = await loadSdk();
-  const secretKey = AuthSecretKey.deserialize(hexToBytes(privateKeyHex));
-  return "0x" + bytesToHex(secretKey.publicKey().serialize().slice(1));
+  const secretKey = AuthSecretKey.deserialize(fromHex(privateKeyHex));
+  return "0x" + toHex(secretKey.publicKey().serialize().slice(1));
 }
 
 export async function signDigest(privateKeyHex: string, digestHex: string): Promise<string> {
   const { AuthSecretKey, Word } = await loadSdk();
-  const secretKey = AuthSecretKey.deserialize(hexToBytes(privateKeyHex));
+  const secretKey = AuthSecretKey.deserialize(fromHex(privateKeyHex));
   const signature = secretKey.sign(Word.fromHex(digestHex));
-  return "0x" + bytesToHex(signature.serialize().slice(1));
+  return "0x" + toHex(signature.serialize().slice(1));
 }

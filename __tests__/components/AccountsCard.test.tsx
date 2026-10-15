@@ -14,7 +14,7 @@ describe("AccountsCard", () => {
   it("shows the auth-method split when the Guardian computes it", () => {
     mockData({ totalAccounts: 6, falcon: 4, ecdsa: 2, evm: 0 });
     render(<AccountsCard />);
-    fireEvent.click(screen.getByRole("button"));
+    fireEvent.click(screen.getByLabelText("Breakdown"));
     expect(screen.getByText("Falcon")).toBeInTheDocument();
     expect(screen.getByText("4")).toBeInTheDocument();
     expect(screen.getByText("ECDSA")).toBeInTheDocument();
@@ -23,7 +23,7 @@ describe("AccountsCard", () => {
   it("hides the EVM row when there are none", () => {
     mockData({ totalAccounts: 6, falcon: 4, ecdsa: 2, evm: 0 });
     render(<AccountsCard />);
-    fireEvent.click(screen.getByRole("button"));
+    fireEvent.click(screen.getByLabelText("Breakdown"));
     expect(screen.queryByText("EVM")).not.toBeInTheDocument();
   });
 
@@ -34,7 +34,7 @@ describe("AccountsCard", () => {
     mockData({ totalAccounts: 1573, falcon: null, ecdsa: null, evm: null });
     render(<AccountsCard />);
     expect(screen.getByText("1,573")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button"));
+    fireEvent.click(screen.getByLabelText("Breakdown"));
     expect(screen.getByText(/unavailable on this Guardian/i)).toBeInTheDocument();
     expect(screen.queryByText("Falcon")).not.toBeInTheDocument();
     expect(screen.queryByText("0")).not.toBeInTheDocument();

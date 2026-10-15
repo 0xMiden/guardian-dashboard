@@ -23,21 +23,13 @@ const badgeVariants = cva(
 // A span with classes on it. The shadcn original routed this through base-ui's
 // `useRender` so a caller could swap the tag with a `render` prop; nothing in
 // this app ever did, and that prop was the only reason @base-ui/react was a
-// dependency. `data-slot` and `data-variant` are kept because they are what the
-// rendered markup carried before.
+// dependency.
 function Badge({
   className,
-  variant = "default",
+  variant,
   ...props
 }: React.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
-  return (
-    <span
-      data-slot="badge"
-      data-variant={variant}
-      className={cn(badgeVariants({ variant }), className)}
-      {...props}
-    />
-  )
+  return <span className={cn(badgeVariants({ variant }), className)} {...props} />
 }
 
 export { Badge }

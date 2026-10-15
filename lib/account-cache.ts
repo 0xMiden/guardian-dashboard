@@ -100,13 +100,13 @@ export async function getSnapshotTotals(
   endpointId: string,
   network: string,
   accounts: { accountId: string; updatedAt: string }[],
-  { concurrency, refresh = false }: { concurrency?: number; refresh?: boolean } = {},
+  { refresh = false }: { refresh?: boolean } = {},
 ): Promise<Record<string, number | null>> {
   // A paced Guardian has its requests serialised by `reserveSlot`, so asking for
   // ten at once only queues ten slot reservations. On a Guardian mid-lockout
   // that means spending ~13s to collect ten 429s instead of one, which delays
   // the recovery it is supposed to protect.
-  const batchSize = concurrency ?? (client.pacingIntervalMs?.() ? 1 : SNAPSHOT_CONCURRENCY);
+  const batchSize = client.pacingIntervalMs?.() ? 1 : SNAPSHOT_CONCURRENCY;
   const book = await priceBook(network);
   const result: Record<string, number | null> = {};
   const misses: { accountId: string; key: string | null }[] = [];
@@ -134,14 +134,4 @@ export async function getSnapshotTotals(
   }
 
   return result;
-}
-
-/** How many of these accounts would hit the Guardian right now. Used by tests. */
-export function countSnapshotMisses(
-  endpointId: string,
-  accounts: { accountId: string; updatedAt: string }[],
-): number {
-  return accounts.filter(
-    (a) => !a.updatedAt || !snapshotCache.has(snapshotKey(endpointId, a.accountId, a.updatedAt)),
-  ).length;
 }

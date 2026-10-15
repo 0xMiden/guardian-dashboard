@@ -1,6 +1,6 @@
 import { loadSdk } from "@/lib/falcon";
 
-const HEX_ID = /^0x[0-9a-f]{30}$/i;
+export const HEX_ID = /^0x[0-9a-f]{30}$/i;
 
 /** The Guardian's spelling of a faucet or account id: lowercase hex, from bech32 if needed. */
 export async function toHexId(id: string): Promise<string> {

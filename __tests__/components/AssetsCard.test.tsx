@@ -81,9 +81,10 @@ describe("AssetsCard expander", () => {
   it("expands into the priced and unpriced token counts", () => {
     mockData({ usd: 2.32, priced: 1, unpriced: 3 });
     render(<AssetsCard />);
-    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
-    expect(screen.getByText("Priced tokens")).toBeInTheDocument();
-    expect(screen.getByText("Unpriced tokens")).toBeInTheDocument();
+    expect(screen.getByText("Priced tokens")).not.toBeVisible();
+    fireEvent.click(screen.getByLabelText("Breakdown"));
+    expect(screen.getByText("Priced tokens")).toBeVisible();
+    expect(screen.getByText("Unpriced tokens")).toBeVisible();
     expect(screen.getByText("3")).toBeInTheDocument();
   });
 });

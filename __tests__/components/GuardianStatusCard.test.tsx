@@ -106,23 +106,23 @@ describe("GuardianStatusCard", () => {
   it("hides details section by default", () => {
     mockSWR();
     render(<GuardianStatusCard />);
-    expect(screen.queryByText(/abc1234/)).not.toBeInTheDocument();
+    expect(screen.getByText("abc1234")).not.toBeVisible();
   });
 
   it("shows commit and public key after expanding details", () => {
     mockSWR();
     render(<GuardianStatusCard />);
     fireEvent.click(screen.getByText("Show details"));
-    expect(screen.getByText("abc1234")).toBeInTheDocument();
-    expect(screen.getByTitle("0xdeadbeef00112233")).toBeInTheDocument();
+    expect(screen.getByText("abc1234")).toBeVisible();
+    expect(screen.getByText("0xdeadbe…112233")).toHaveAttribute("title", "0xdeadbeef00112233");
   });
 
   it("shows the queue depth and session limit in the details", () => {
     mockSWR({ health: { ...healthUp, sessionMaxTtlSeconds: 28800 }, overview: { ...overview, queueDepth: 1 } });
     render(<GuardianStatusCard />);
     fireEvent.click(screen.getByText("Show details"));
-    expect(screen.getByText("1 per account")).toBeInTheDocument();
-    expect(screen.getByText("up to 8h 0m")).toBeInTheDocument();
+    expect(screen.getByText("1 per account")).toBeVisible();
+    expect(screen.getByText("up to 8h 0m")).toBeVisible();
   });
 
   it("collapses details again on second click", () => {
@@ -130,7 +130,7 @@ describe("GuardianStatusCard", () => {
     render(<GuardianStatusCard />);
     fireEvent.click(screen.getByText("Show details"));
     fireEvent.click(screen.getByText("Hide details"));
-    expect(screen.queryByText("abc1234")).not.toBeInTheDocument();
+    expect(screen.getByText("abc1234")).not.toBeVisible();
   });
 
   it("hides Show details when no commit and no public key", () => {
@@ -195,7 +195,7 @@ describe("GuardianStatusCard", () => {
     mockSWR();
     render(<GuardianStatusCard />);
     fireEvent.click(screen.getByText("Show details"));
-    const btn = screen.getByTitle("0xdeadbeef00112233");
+    const btn = screen.getByRole("button", { name: "Copy 0xdeadbeef00112233" });
     await act(async () => { fireEvent.click(btn); });
     expect(document.execCommand).toHaveBeenCalledWith("copy");
   });

@@ -1,6 +1,7 @@
 "use client";
 import { AlertTriangle, Lock, Clock, SearchX, PlugZap } from "lucide-react";
 import { FetchError } from "@/lib/utils";
+import { Button } from "@/components/ui/Button";
 
 export type ErrorShape = {
   icon: React.ReactNode;
@@ -20,17 +21,12 @@ export type ErrorShape = {
  * Exported because the freeze/unfreeze modal needs the same wording in a space
  * far too small for the panel below.
  */
-export function describeError(error: unknown): ErrorShape {
+export function describeError(err: unknown): ErrorShape {
   // Anything not raised by `fetcher` has no status to reason about, so it lands
   // on the generic branch rather than being guessed at.
-  return describe(
-    error instanceof FetchError
-      ? error
-      : new FetchError(error instanceof Error ? error.message : "The request failed.", 0),
-  );
-}
-
-function describe(error: FetchError): ErrorShape {
+  const error = err instanceof FetchError
+    ? err
+    : new FetchError(err instanceof Error ? err.message : "The request failed.", 0);
   const { code, missingPermissions, retryAfterSecs } = error.body ?? {};
   // The fetcher's "Request failed (503)" is a status, not a sentence; only a
   // message the proxy or the Guardian actually wrote is worth repeating.
@@ -98,29 +94,16 @@ function describe(error: FetchError): ErrorShape {
   };
 }
 
-export function ErrorPanel({
-  error,
-  onRetry,
-  className = "",
-}: {
-  error: unknown;
-  onRetry?: () => void;
-  className?: string;
-}) {
+export function ErrorPanel({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const shape = describeError(error);
 
   return (
-    <div role="alert" className={`flex flex-col items-center gap-2 px-4 py-8 text-center ${className}`}>
+    <div role="alert" className="flex flex-col items-center gap-2 px-4 py-8 text-center">
       <span className="text-muted-foreground">{shape.icon}</span>
       <p className="text-sm font-medium">{shape.title}</p>
       <p className="max-w-md text-xs text-muted-foreground">{shape.detail}</p>
       {shape.retryable && onRetry && (
-        <button
-          onClick={onRetry}
-          className="mt-1 rounded-lg border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          Try again
-        </button>
+        <Button onClick={onRetry} className="mt-1">Try again</Button>
       )}
     </div>
   );

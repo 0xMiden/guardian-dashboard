@@ -2,11 +2,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { SWRConfig } from "swr";
-import { NavItem } from "./NavItem";
 import { ThemeToggle } from "./ThemeToggle";
-import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useClerk, useAuth, useUser } from "@clerk/nextjs";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { usePathname } from "next/navigation";
@@ -18,6 +16,7 @@ import {
   Settings2,
 } from "lucide-react";
 import posthog from "posthog-js";
+import { cn } from "@/lib/utils";
 
 
 const NO_SHELL_PATHS = ["/sign-in", "/sign-up", "/select-endpoint"];
@@ -37,7 +36,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { signOut } = useClerk();
   const router = useRouter();
   const isAdmin = (user?.publicMetadata as { role?: string })?.role === "admin";
-  const [confirmSignOut, setConfirmSignOut] = useState(false);
 
   useEffect(() => {
     if (userId && user) {
@@ -48,6 +46,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [userId, user]);
 
   async function handleSignOut() {
+    if (!confirm("Sign out?")) return;
     posthog.capture("sign_out_confirmed");
     posthog.reset();
     await fetch("/api/select-endpoint", { method: "DELETE" });
@@ -58,6 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
   const navItems = [
     { href: "/overview", label: "Overview", icon: <LayoutDashboard className="h-4 w-4" /> },
     { href: "/accounts", label: "Accounts", icon: <Users className="h-4 w-4" /> },
@@ -69,24 +69,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <SWRConfig value={SWR_CONFIG}>
     <div className="flex h-screen overflow-hidden bg-background">
-      {confirmSignOut && (
-        <ConfirmModal
-          title="Sign out?"
-          message="You'll be redirected to the login page."
-          confirmLabel="Sign out"
-          confirmClass="bg-secondary text-secondary-foreground hover:brightness-110"
-          onConfirm={handleSignOut}
-          onCancel={() => setConfirmSignOut(false)}
-        />
-      )}
-
       {/* Mobile top bar */}
       <div className="fixed top-0 inset-x-0 flex md:hidden items-center justify-between bg-sidebar px-4 py-3 border-b z-50">
         <div className="flex items-center gap-2">
           <Image src="/orangerobot.png" alt="Guardian" width={16} height={16} className="shrink-0" />
           <span className="font-heading text-subtitle leading-tight text-foreground">Guardian Dashboard</span>
         </div>
-        <button onClick={() => setConfirmSignOut(true)} className="text-muted-foreground hover:text-foreground transition-colors" title="Sign out" aria-label="Sign out">
+        <button onClick={handleSignOut} className="text-muted-foreground hover:text-foreground transition-colors" title="Sign out" aria-label="Sign out">
           <LogOut className="h-4 w-4" />
         </button>
       </div>
@@ -101,13 +90,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         <nav className="flex flex-col gap-1 flex-1">
           {navItems.map(({ href, label, icon }) => (
-            <NavItem key={href} href={href} label={label} icon={icon} />
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 font-heading text-section transition-colors",
+                isActive(href) ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+              )}
+            >
+              {icon}
+              {label}
+            </Link>
           ))}
         </nav>
         <div className="pt-4 border-t">
           <ThemeToggle />
           <button
-            onClick={() => setConfirmSignOut(true)}
+            onClick={handleSignOut}
             className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             <LogOut className="h-4 w-4" />
@@ -121,21 +120,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile bottom tab bar */}
       <nav className="fixed bottom-0 inset-x-0 flex md:hidden bg-sidebar border-t px-2 py-2 z-50 justify-around">
-        {navItems.map(({ href, label, icon }) => {
-          const active = pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-                active ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {icon}
-              {active && <span className="text-xs font-medium">{label}</span>}
-            </Link>
-          );
-        })}
+        {navItems.map(({ href, label, icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors",
+              isActive(href) ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {icon}
+            {isActive(href) && <span className="text-xs font-medium">{label}</span>}
+          </Link>
+        ))}
       </nav>
     </div>
     </SWRConfig>

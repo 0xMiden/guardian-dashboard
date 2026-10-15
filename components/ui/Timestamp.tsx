@@ -24,14 +24,14 @@ const onServer = () => false;
  * than the granularity the label shows, and a per-row interval across a full
  * 500-row page would cost more than it buys.
  */
-export function Timestamp({ iso, className }: { iso: string; className?: string }) {
+export function Timestamp({ iso }: { iso: string }) {
   const hydrated = useSyncExternalStore(subscribe, onClient, onServer);
 
   const absolute = formatTimestamp(iso);
   const relative = hydrated ? relativeTime(iso) : null;
 
   return (
-    <time dateTime={iso} title={absolute} className={className}>
+    <time dateTime={iso} title={absolute}>
       {relative ?? absolute}
     </time>
   );

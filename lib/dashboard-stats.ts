@@ -1,5 +1,5 @@
 import { GuardianOperatorHttpError } from "@openzeppelin/guardian-operator-client";
-import type { DashboardStatsOptions, DashboardStatsResponse } from "@openzeppelin/guardian-operator-client";
+import type { DashboardStatsResponse } from "@openzeppelin/guardian-operator-client";
 
 /**
  * `GET /dashboard/stats` and its two degraded answers.
@@ -29,12 +29,12 @@ export type StatsOutcome =
   | { kind: "warming" };
 
 export type StatsReader = {
-  getDashboardStats(options?: DashboardStatsOptions): Promise<DashboardStatsResponse>;
+  getDashboardStats(): Promise<DashboardStatsResponse>;
 };
 
-export async function readStats(client: StatsReader, options?: DashboardStatsOptions): Promise<StatsOutcome> {
+export async function readStats(client: StatsReader): Promise<StatsOutcome> {
   try {
-    return { kind: "ok", stats: await client.getDashboardStats(options) };
+    return { kind: "ok", stats: await client.getDashboardStats() };
   } catch (err) {
     if (err instanceof GuardianOperatorHttpError) {
       if (err.status === 404) return { kind: "unsupported" };

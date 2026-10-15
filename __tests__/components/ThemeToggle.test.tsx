@@ -8,28 +8,20 @@ beforeEach(() => {
 });
 
 describe("ThemeToggle", () => {
-  it("offers the theme you are not in", () => {
+  // Which icon and label show is CSS (`dark:`), which jsdom does not apply, so
+  // these check what the click does to the document.
+  it("switches the document and remembers the choice", () => {
     render(<ThemeToggle />);
-    expect(screen.getByRole("button", { name: /switch to light theme/i })).toBeInTheDocument();
-  });
-
-  // The label is read back off the document rather than from a second copy of
-  // the truth in component state, so it cannot drift from what is rendered.
-  // MutationObserver delivers on a microtask, hence the await; in a browser
-  // that is one frame and invisible.
-  it("switches the document and remembers the choice", async () => {
-    render(<ThemeToggle />);
-    fireEvent.click(screen.getByRole("button", { name: /switch to light/i }));
+    fireEvent.click(screen.getByRole("button"));
 
     expect(document.documentElement.classList.contains("dark")).toBe(false);
     expect(localStorage.getItem(THEME_KEY)).toBe("light");
-    expect(await screen.findByRole("button", { name: /switch to dark/i })).toBeInTheDocument();
   });
 
-  it("goes back", async () => {
+  it("goes back", () => {
     render(<ThemeToggle />);
-    fireEvent.click(screen.getByRole("button", { name: /switch to light/i }));
-    fireEvent.click(await screen.findByRole("button", { name: /switch to dark/i }));
+    fireEvent.click(screen.getByRole("button"));
+    fireEvent.click(screen.getByRole("button"));
 
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(localStorage.getItem(THEME_KEY)).toBe("dark");

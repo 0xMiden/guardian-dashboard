@@ -1,4 +1,3 @@
-"use client";
 import { TransactionsPanel } from "@/components/transactions/TransactionsPanel";
 
 export default function ActivityPage() {

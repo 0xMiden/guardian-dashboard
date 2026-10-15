@@ -1,9 +1,8 @@
 "use client";
-import { useState } from "react";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowLeft, AlertTriangle, ChevronRight } from "lucide-react";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
@@ -12,7 +11,7 @@ import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { accountNonce, formatAsset, formatCount, storageSlotLabel, type TokenInfo } from "@/lib/format";
 import { fetcher } from "@/lib/utils";
-import { activityLabel, deltaStatusBadge } from "@/components/transactions/activity-cells";
+import { activityLabel, deltaStatusBadge, AmountCell } from "@/components/transactions/activity-cells";
 import type {
   DashboardDeltaDetail,
   DashboardDeltaVaultChange,
@@ -52,15 +51,10 @@ const NOTE_TAG_LABELS: Record<string, string> = {
 
 function VaultChangeRow({ change }: { change: DashboardDeltaVaultChange & TokenInfo }) {
   if (change.kind === "fungible") {
-    const positive = !change.change.startsWith("-");
-    const formatted = formatAsset(change.change, change);
-    const display = positive && !formatted.startsWith("+") ? "+" + formatted : formatted;
     return (
       <div className="flex items-center justify-between gap-4 py-2 text-sm">
         <AssetName id={change.assetId} token={change} />
-        <span className={`font-medium shrink-0 ${positive ? "text-state-active" : "text-state-error"}`}>
-          {display}
-        </span>
+        <span className="font-medium shrink-0"><AmountCell assets={[{ ...change, amount: change.change }]} /></span>
       </div>
     );
   }
@@ -123,7 +117,6 @@ interface Props {
 export function AccountDeltaDetail({ accountId, nonce }: Props) {
   const router = useRouter();
   const encoded = encodeURIComponent(accountId);
-  const [showTechnical, setShowTechnical] = useState(false);
 
   const { data, error, mutate: revalidate } = useSWR<DetailResponse>(
     `/api/accounts/${encoded}/deltas/${nonce}`,
@@ -159,9 +152,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
           )}
 
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-section text-muted-foreground">Transaction{accountNonce(nonce) !== undefined && ` #${nonce}`}</CardTitle>
-            </CardHeader>
+            <CardTitle>Transaction{accountNonce(nonce) !== undefined && ` #${nonce}`}</CardTitle>
             <CardContent className="divide-y">
               <Row label="Account" value={<CopyableId id={data!.accountIdBech32 ?? data!.accountId} prefixLen={14} suffixLen={8} />} />
               <Row label="Status" value={deltaStatusBadge(data!.status, data!.statusReason)} />
@@ -178,9 +169,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
 
           {data!.vaultChanges.length > 0 && (
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-section text-muted-foreground">Balance changes</CardTitle>
-              </CardHeader>
+              <CardTitle>Balance changes</CardTitle>
               <CardContent className="divide-y">
                 {data!.vaultChanges.map((c, i) => <VaultChangeRow key={i} change={c} />)}
               </CardContent>
@@ -189,35 +178,23 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
 
           {(data!.inputNotes.length > 0 || data!.outputNotes.length > 0) && (
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-section text-muted-foreground">Notes</CardTitle>
-              </CardHeader>
+              <CardTitle>Notes</CardTitle>
               <CardContent className="space-y-3">
-                {data!.inputNotes.length > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-2">Consumed ({data!.inputNotes.length})</p>
+                {([["Consumed", data!.inputNotes, "in"], ["Created", data!.outputNotes, "out"]] as const).map(([label, notes, direction]) => notes.length > 0 && (
+                  <div key={label}>
+                    <p className="text-xs text-muted-foreground mb-2">{label} ({notes.length})</p>
                     <div className="space-y-2">
-                      {data!.inputNotes.map((n) => <NoteCard key={n.noteId} note={n} direction="in" />)}
+                      {notes.map((n) => <NoteCard key={n.noteId} note={n} direction={direction} />)}
                     </div>
                   </div>
-                )}
-                {data!.outputNotes.length > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-2">Created ({data!.outputNotes.length})</p>
-                    <div className="space-y-2">
-                      {data!.outputNotes.map((n) => <NoteCard key={n.noteId} note={n} direction="out" />)}
-                    </div>
-                  </div>
-                )}
+                ))}
               </CardContent>
             </Card>
           )}
 
           {data!.storageChanges.length > 0 && (
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-section text-muted-foreground">Account state changes</CardTitle>
-              </CardHeader>
+              <CardTitle>Account state changes</CardTitle>
               <CardContent className="divide-y">
                 {data!.storageChanges.map((s, i) => (
                   <div key={i} className="py-2 text-xs space-y-1">
@@ -233,9 +210,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
 
           {data!.proposal && (
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-section text-muted-foreground">Details</CardTitle>
-              </CardHeader>
+              <CardTitle>Details</CardTitle>
               <CardContent className="divide-y">
                 {data!.proposal.recipientId && (
                   <Row
@@ -289,14 +264,11 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
             </Card>
           )}
 
-          <button
-            onClick={() => setShowTechnical((v) => !v)}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {showTechnical ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            Technical details
-          </button>
-          {showTechnical && (
+          <details className="group space-y-4">
+            <summary className="flex cursor-pointer list-none items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors [&::-webkit-details-marker]:hidden">
+              <ChevronRight className="h-3 w-3 group-open:rotate-90" />
+              Technical details
+            </summary>
             <Card>
               <CardContent className="pt-4 divide-y">
                 {accountNonce(data!.nonce) !== undefined && (
@@ -316,7 +288,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
                 />
               </CardContent>
             </Card>
-          )}
+          </details>
         </>
       )}
     </div>

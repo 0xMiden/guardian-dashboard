@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Bitter } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { AppShell } from "@/components/layout/AppShell";
-import { PostHogPageView } from "@/components/analytics/PostHogPageView";
-import { Suspense } from "react";
 import { THEME_INIT_SCRIPT } from "@/components/layout/ThemeToggle";
 import "./globals.css";
 
@@ -36,17 +34,8 @@ export const metadata: Metadata = {
   title: "Miden Guardian Dashboard",
   description: "Monitor your Guardian service running on Miden",
   icons: { icon: "/orangerobot.png" },
-  openGraph: {
-    title: "Miden Guardian Dashboard",
-    description: "Monitor your Guardian service running on Miden",
-    siteName: "Miden Guardian Dashboard",
-    type: "website",
-  },
-  twitter: {
-    card: "summary",
-    title: "Miden Guardian Dashboard",
-    description: "Monitor your Guardian service running on Miden",
-  },
+  // Next copies the title and description into the og: and twitter: tags.
+  openGraph: { siteName: "Miden Guardian Dashboard", type: "website" },
 };
 
 export default function RootLayout({
@@ -63,9 +52,6 @@ export default function RootLayout({
       </head>
       <body className="h-full">
         <ClerkProvider>
-          <Suspense fallback={null}>
-            <PostHogPageView />
-          </Suspense>
           <AppShell>{children}</AppShell>
         </ClerkProvider>
       </body>

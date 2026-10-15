@@ -1,5 +1,4 @@
 "use client";
-import { useSyncExternalStore } from "react";
 import { Sun, Moon } from "lucide-react";
 
 export const THEME_KEY = "guardian:theme";
@@ -25,30 +24,20 @@ function apply(theme: Theme) {
   }
 }
 
-// Reads the class the pre-paint script already set, rather than keeping a
-// second copy of the truth in React state that could disagree with the DOM.
-const subscribe = (cb: () => void) => {
-  const o = new MutationObserver(cb);
-  o.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-  return () => o.disconnect();
-};
-const getSnapshot = (): Theme => (document.documentElement.classList.contains("dark") ? "dark" : "light");
-// Dark is what the server renders, so that is what hydration must agree with.
-const getServerSnapshot = (): Theme => "dark";
-
+// The icon and label follow the `dark` class the pre-paint script set, in CSS,
+// so React keeps no copy of the theme that could disagree with the page.
 export function ThemeToggle() {
-  const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  const next: Theme = theme === "dark" ? "light" : "dark";
-
   return (
     <button
-      onClick={() => apply(next)}
-      title={`Switch to ${next} theme`}
-      aria-label={`Switch to ${next} theme`}
+      onClick={() => apply(document.documentElement.classList.contains("dark") ? "light" : "dark")}
       className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-data text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-      {theme === "dark" ? "Light" : "Dark"}
+      <Sun className="hidden h-4 w-4 dark:block" />
+      <Moon className="h-4 w-4 dark:hidden" />
+      <span className="sr-only">Switch to </span>
+      <span className="hidden dark:inline">Light</span>
+      <span className="dark:hidden">Dark</span>
+      <span className="sr-only"> theme</span>
     </button>
   );
 }

@@ -13,23 +13,12 @@ import { DataTable } from "@/components/ui/DataTable";
 import { TableControls, useTablePrefs, usePaging, LoadMoreSentinel, type TableColumn } from "@/components/ui/TableControls";
 import { fetcher } from "@/lib/utils";
 import { accountNonce } from "@/lib/format";
-import { activityLabel, deltaStatusBadge, proposalStatusBadge, AmountCell, CounterpartyCell, type AssetLike } from "@/components/transactions/activity-cells";
+import { AmountCell, CounterpartyCell, toRows, type ActivityRow, type AssetLike } from "@/components/transactions/activity-cells";
 import type { DashboardDeltaEntry, DashboardProposalEntry, PagedResult } from "@openzeppelin/guardian-operator-client";
 
 // What lib/enrich.ts adds server-side beside the hex ids and the asset ids.
 type DeltasPage = PagedResult<DashboardDeltaEntry & { counterparty?: { accountIdBech32?: string }; assets?: AssetLike[] }>;
 type ProposalsPage = PagedResult<DashboardProposalEntry>;
-
-type ActivityRow = {
-  key: string;
-  label: string;
-  statusNode: React.ReactNode;
-  assets: AssetLike[] | undefined;
-  counterparty: DeltasPage["items"][number]["counterparty"];
-  timestamp: string;
-  isPending: boolean;
-  nonce: number;
-};
 
 type ColumnKey = "nonce" | "counterparty" | "activity" | "amount" | "status" | "date";
 // Everything but the nonce, which is what identifies a row.
@@ -76,32 +65,11 @@ export function AccountTransactions({ accountId }: Props) {
     }
   };
 
-  const allDeltas = paging.items;
-  const allProposals = proposalsData?.items ?? [];
-
-  const rows: ActivityRow[] = [
-    ...allProposals.map((p) => ({
-      // Not the nonce: proposals racing for the same next nonce share it.
-      key: `proposal-${p.commitment}`,
-      label: activityLabel(undefined, p.proposalType),
-      statusNode: proposalStatusBadge(p.signaturesCollected, p.signaturesRequired),
-      assets: undefined,
-      counterparty: undefined,
-      timestamp: p.originatingTimestamp,
-      isPending: true,
-      nonce: p.nonce,
-    })),
-    ...allDeltas.map((d) => ({
-      key: `delta-${d.nonce}`,
-      label: activityLabel(d.category, d.proposalType),
-      statusNode: deltaStatusBadge(d.status, d.statusReason),
-      assets: d.assets,
-      counterparty: d.counterparty,
-      timestamp: d.statusTimestamp,
-      isPending: false,
-      nonce: d.nonce,
-    })),
-  ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  // The same rows as the Activity table, with this account filled in where the global feeds carry one.
+  const rows = toRows(
+    paging.items.map((d) => ({ ...d, accountId })),
+    (proposalsData?.items ?? []).map((p) => ({ ...p, accountId })),
+  );
 
   // A feed that failed has settled, so it must not hold the skeleton up.
   const loading = (!deltasData && !deltasError) || (!proposalsData && !proposalsError);

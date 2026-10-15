@@ -6,6 +6,7 @@ import type {
 } from "@openzeppelin/guardian-operator-client";
 import { toBech32Id } from "@/lib/account-id";
 import { priceBook, type PriceBook } from "@/lib/prices";
+import type { TokenInfo } from "@/lib/format";
 
 /**
  * What the Guardian leaves to the dashboard, added to its feeds before they
@@ -14,7 +15,6 @@ import { priceBook, type PriceBook } from "@/lib/prices";
  * eye), and the verified list's symbol and decimals beside every faucet id.
  * Both need the SDK, which only runs server-side.
  */
-export type TokenInfo = { symbol?: string; decimals?: number };
 
 const tokenOf = (book: PriceBook, faucetId: string | undefined): TokenInfo =>
   (faucetId && book.token(faucetId)) || {};

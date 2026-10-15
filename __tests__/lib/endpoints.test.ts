@@ -27,41 +27,8 @@ describe("getEndpoints", () => {
 
   it("returns empty array when GUARDIAN_ENDPOINTS is not set", async () => {
     delete process.env.GUARDIAN_ENDPOINTS;
-    delete process.env.GUARDIAN_URL;
     const { getEndpoints } = await importEndpoints();
     expect(getEndpoints()).toEqual([]);
-  });
-
-  it("falls back to legacy single-endpoint env vars", async () => {
-    delete process.env.GUARDIAN_ENDPOINTS;
-    process.env.GUARDIAN_URL = "https://legacy.example.com";
-    process.env.GUARDIAN_OPERATOR_COMMITMENT = "0xlegacy";
-    process.env.GUARDIAN_OPERATOR_PRIVATE_KEY = "legacykey";
-    process.env.GUARDIAN_NETWORK = "MidenLocal";
-    const { getEndpoints } = await importEndpoints();
-    const result = getEndpoints();
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("__legacy__");
-    expect(result[0].url).toBe("https://legacy.example.com");
-    // cleanup
-    delete process.env.GUARDIAN_URL;
-    delete process.env.GUARDIAN_OPERATOR_COMMITMENT;
-    delete process.env.GUARDIAN_OPERATOR_PRIVATE_KEY;
-  });
-
-  it("uses 'Guardian' and 'Unknown' as defaults when GUARDIAN_NETWORK is not set", async () => {
-    delete process.env.GUARDIAN_ENDPOINTS;
-    delete process.env.GUARDIAN_NETWORK;
-    process.env.GUARDIAN_URL = "https://legacy.example.com";
-    process.env.GUARDIAN_OPERATOR_COMMITMENT = "0xlegacy";
-    process.env.GUARDIAN_OPERATOR_PRIVATE_KEY = "legacykey";
-    const { getEndpoints } = await importEndpoints();
-    const result = getEndpoints();
-    expect(result[0].label).toBe("Guardian");
-    expect(result[0].network).toBe("Unknown");
-    delete process.env.GUARDIAN_URL;
-    delete process.env.GUARDIAN_OPERATOR_COMMITMENT;
-    delete process.env.GUARDIAN_OPERATOR_PRIVATE_KEY;
   });
 
   it("returns cached result on second call", async () => {

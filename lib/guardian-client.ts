@@ -4,8 +4,6 @@ import {
   type ListAccountsOptions,
   type PaginationOptions,
   type GlobalDeltasOptions,
-  type DeltaDetailOptions,
-  type DashboardStatsOptions,
 } from "@openzeppelin/guardian-operator-client";
 import { signDigest } from "./falcon";
 import { getEndpoint } from "./endpoints";
@@ -186,6 +184,7 @@ async function withRetry<T>(state: ClientState, endpointId: string, fn: () => Pr
 
 export function getGuardianClient(endpointId: string) {
   const state = getState(endpointId);
+  const call = <T,>(fn: (c: GuardianOperatorHttpClient) => Promise<T>) => withRetry(state, endpointId, () => fn(state.client));
   return {
     /**
      * How far apart this Guardian's requests are being spaced, 0 when unpaced.
@@ -218,48 +217,24 @@ export function getGuardianClient(endpointId: string) {
         return { status: "down" as const, latencyMs: Date.now() - start, checkedAt: new Date().toISOString() };
       }
     },
-    async listAccounts(options?: ListAccountsOptions) {
-      return withRetry(state, endpointId, () => state.client.listAccounts(options));
-    },
-    async getDashboardInfo() {
-      return withRetry(state, endpointId, () => state.client.getDashboardInfo());
-    },
+    listAccounts: (options?: ListAccountsOptions) => call((c) => c.listAccounts(options)),
+    getDashboardInfo: () => call((c) => c.getDashboardInfo()),
     /**
      * Cross-account aggregates in one request (Guardian 0.18.0, issue #371).
      * 404s on an older server and answers `data_unavailable` before its first
      * publication; lib/dashboard-stats.ts turns both into a stated condition
      * rather than an error.
      */
-    async getDashboardStats(options?: DashboardStatsOptions) {
-      return withRetry(state, endpointId, () => state.client.getDashboardStats(options));
-    },
-    async getAccount(accountId: string) {
-      return withRetry(state, endpointId, () => state.client.getAccount(accountId));
-    },
-    async getAccountSnapshot(accountId: string) {
-      return withRetry(state, endpointId, () => state.client.getAccountSnapshot(accountId));
-    },
-    async listAccountDeltas(accountId: string, options?: PaginationOptions) {
-      return withRetry(state, endpointId, () => state.client.listAccountDeltas(accountId, options));
-    },
-    async listAccountProposals(accountId: string, options?: PaginationOptions) {
-      return withRetry(state, endpointId, () => state.client.listAccountProposals(accountId, options));
-    },
-    async listGlobalDeltas(options?: GlobalDeltasOptions) {
-      return withRetry(state, endpointId, () => state.client.listGlobalDeltas(options));
-    },
-    async listGlobalProposals(options?: PaginationOptions) {
-      return withRetry(state, endpointId, () => state.client.listGlobalProposals(options));
-    },
-    async getAccountDeltaDetail(accountId: string, nonce: number, options?: DeltaDetailOptions) {
-      return withRetry(state, endpointId, () => state.client.getAccountDeltaDetail(accountId, nonce, options));
-    },
-    async pauseAccount(accountId: string, reason: string) {
-      return withRetry(state, endpointId, () => state.client.pauseAccount(accountId, reason));
-    },
-    async unpauseAccount(accountId: string, reason?: string) {
-      return withRetry(state, endpointId, () => state.client.unpauseAccount(accountId, reason));
-    },
+    getDashboardStats: () => call((c) => c.getDashboardStats()),
+    getAccount: (accountId: string) => call((c) => c.getAccount(accountId)),
+    getAccountSnapshot: (accountId: string) => call((c) => c.getAccountSnapshot(accountId)),
+    listAccountDeltas: (accountId: string, options?: PaginationOptions) => call((c) => c.listAccountDeltas(accountId, options)),
+    listAccountProposals: (accountId: string, options?: PaginationOptions) => call((c) => c.listAccountProposals(accountId, options)),
+    listGlobalDeltas: (options?: GlobalDeltasOptions) => call((c) => c.listGlobalDeltas(options)),
+    listGlobalProposals: (options?: PaginationOptions) => call((c) => c.listGlobalProposals(options)),
+    getAccountDeltaDetail: (accountId: string, nonce: number) => call((c) => c.getAccountDeltaDetail(accountId, nonce)),
+    pauseAccount: (accountId: string, reason: string) => call((c) => c.pauseAccount(accountId, reason)),
+    unpauseAccount: (accountId: string, reason?: string) => call((c) => c.unpauseAccount(accountId, reason)),
   };
 }
 

@@ -1,5 +1,5 @@
 import { loadSdk } from "@/lib/falcon";
-import { toHexId } from "@/lib/account-id";
+import { HEX_ID, toHexId } from "@/lib/account-id";
 
 /**
  * What a faucet's amount is worth in US dollars, the way the Miden wallet
@@ -74,8 +74,6 @@ const FAUCET_API = (network: string) => `https://faucet-api.${network}.miden.io/
 const PRICE_TTL_MS = 5 * 60_000;
 const LIST_TTL_MS = 60 * 60_000;
 const FETCH_TIMEOUT_MS = 10_000;
-
-const HEX_ID = /^0x[0-9a-f]{30}$/i;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);

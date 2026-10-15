@@ -136,8 +136,6 @@ export function AccountsPanel() {
     }
   }, []);
 
-  const fetchSnapshotsRef = useRef(fetchSnapshots);
-  useEffect(() => { fetchSnapshotsRef.current = fetchSnapshots; }, [fetchSnapshots]);
 
   // Asset totals are fetched for rows the user can actually see. Loading a
   // 100-row page used to cost 100 Guardian requests up front; a viewport holds
@@ -161,9 +159,9 @@ export function AccountsPanel() {
       flushTimerRef.current = null;
       const rows = [...pendingRef.current].map(([accountId, updatedAt]) => ({ accountId, updatedAt }));
       pendingRef.current.clear();
-      fetchSnapshotsRef.current(rows);
+      fetchSnapshots(rows);
     }, SNAPSHOT_BATCH_MS);
-  }, []);
+  }, [fetchSnapshots]);
 
   useEffect(() => () => { if (flushTimerRef.current) clearTimeout(flushTimerRef.current); }, []);
 
@@ -189,7 +187,7 @@ export function AccountsPanel() {
         .map((a) => ({ accountId: a.accountId, updatedAt: a.updatedAt }));
       // Let the observer re-queue these once the new versions are rendered.
       for (const r of rows) requestedRef.current.delete(`${r.accountId}@${r.updatedAt}`);
-      await Promise.all([refreshStatStrip(), fetchSnapshotsRef.current(rows, true)]);
+      await Promise.all([refreshStatStrip(), fetchSnapshots(rows, true)]);
     } finally {
       setRefreshing(false);
     }

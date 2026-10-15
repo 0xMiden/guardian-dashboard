@@ -1,6 +1,6 @@
 export function truncateId(id: string, prefixLen = 10, suffixLen = 6): string {
   if (id.length <= prefixLen + suffixLen + 1) return id;
-  return `${id.slice(0, prefixLen)}…${id.slice(-suffixLen)}`;
+  return `${id.slice(0, prefixLen)}…${suffixLen ? id.slice(-suffixLen) : ""}`;
 }
 
 /** What the verified token list says about a faucet, when it names it. */

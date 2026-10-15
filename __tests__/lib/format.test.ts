@@ -24,6 +24,10 @@ describe("truncateId", () => {
     expect(truncateId("abc123", 10, 6)).toBe("abc123");
   });
 
+  it("keeps only the prefix when the suffix length is 0", () => {
+    expect(truncateId("abc1234567890def", 7, 0)).toBe("abc1234…");
+  });
+
   it("truncates long strings with ellipsis", () => {
     const id = "0x1234567890abcdef1234567890abcdef";
     const result = truncateId(id, 10, 6);

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CopyableId } from "@/components/ui/CopyableId";
@@ -12,7 +12,7 @@ import { DetailRow as Row } from "@/components/ui/DetailRow";
 import { stateBadge } from "@/components/accounts/StateBadge";
 import { ErrorPanel, describeError } from "@/components/ui/ErrorPanel";
 import Link from "next/link";
-import { ArrowLeft, Snowflake, Sun, ArrowLeftRight, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Snowflake, Sun, ArrowLeftRight, ChevronRight } from "lucide-react";
 import type { DashboardAccountDetail } from "@openzeppelin/guardian-operator-client";
 import posthog from "posthog-js";
 import { fetcher, FetchError } from "@/lib/utils";
@@ -32,9 +32,6 @@ type AccountSnapshot = {
 interface Props {
   accountId: string;
 }
-
-type AccountResponse = DashboardAccountDetail;
-type SnapshotResponse = AccountSnapshot;
 
 const PAUSE_MODAL_COPY = {
   freeze: {
@@ -134,13 +131,14 @@ function PauseModal({
           <Button onClick={onClose} disabled={loading}>
             Cancel
           </Button>
-          <button
+          <Button
+            variant="primary"
             onClick={handleSubmit}
             disabled={loading || (needsReason && !reason.trim())}
-            className={`px-3 py-1.5 text-sm rounded-lg text-white transition-colors disabled:opacity-50 ${copy.buttonClass}`}
+            className={copy.buttonClass}
           >
             {loading ? copy.busy : copy.title}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -149,17 +147,16 @@ function PauseModal({
 
 export function AccountDetail({ accountId }: Props) {
   const encoded = encodeURIComponent(accountId);
-  const { data, error, mutate } = useSWR<AccountResponse>(
+  const { data, error, mutate } = useSWR<DashboardAccountDetail>(
     `/api/accounts/${encoded}`,
     fetcher
   );
-  const { data: snapshot } = useSWR<SnapshotResponse>(
+  const { data: snapshot } = useSWR<AccountSnapshot>(
     data ? `/api/accounts/${encoded}/snapshot` : null,
     fetcher
   );
   const router = useRouter();
   const [modal, setModal] = useState<"freeze" | "unfreeze" | null>(null);
-  const [showTechnical, setShowTechnical] = useState(false);
 
   const isPaused = !!data?.pausedAt;
 
@@ -197,33 +194,20 @@ export function AccountDetail({ accountId }: Props) {
             Activity
           </Button>
           {data && (
-            isPaused ? (
-              <Button
-                onClick={() => {
-                  posthog.capture("account_unfreeze_clicked", { account_id: accountId });
-                  setModal("unfreeze");
-                }}
-                // The colour classes share tailwind-merge's "text-" group with a
-                // font-size override, which is how this button grew: the size
-                // comes from the variant instead.
-                size="sm"
-                className="border-state-active text-state-active hover:bg-state-active/10"
-              >
-                <Sun className="h-3.5 w-3.5" />
-                Unfreeze
-              </Button>
-            ) : (
-              <Button
-                onClick={() => {
-                  posthog.capture("account_freeze_clicked", { account_id: accountId });
-                  setModal("freeze");
-                }}
-                size="sm"
-              >
-                <Snowflake className="h-3.5 w-3.5" />
-                Freeze
-              </Button>
-            )
+            <Button
+              onClick={() => {
+                posthog.capture(isPaused ? "account_unfreeze_clicked" : "account_freeze_clicked", { account_id: accountId });
+                setModal(isPaused ? "unfreeze" : "freeze");
+              }}
+              // The colour classes share tailwind-merge's "text-" group with a
+              // font-size override, which is how this button grew: the size
+              // comes from the variant instead.
+              size="sm"
+              className={isPaused ? "border-state-active text-state-active hover:bg-state-active/10" : undefined}
+            >
+              {isPaused ? <Sun className="h-3.5 w-3.5" /> : <Snowflake className="h-3.5 w-3.5" />}
+              {isPaused ? "Unfreeze" : "Freeze"}
+            </Button>
           )}
         </div>
       </div>
@@ -237,13 +221,11 @@ export function AccountDetail({ accountId }: Props) {
       ) : (
         <>
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-section text-muted-foreground">
-                {data!.accountIdBech32
-                  ? <CopyableId id={data!.accountIdBech32} prefixLen={20} suffixLen={8} />
-                  : <CopyableId id={data!.accountId} />}
-              </CardTitle>
-            </CardHeader>
+            <CardTitle>
+              {data!.accountIdBech32
+                ? <CopyableId id={data!.accountIdBech32} prefixLen={20} suffixLen={8} />
+                : <CopyableId id={data!.accountId} />}
+            </CardTitle>
             <CardContent className="divide-y">
               <Row
                 label="Status"
@@ -304,15 +286,12 @@ export function AccountDetail({ accountId }: Props) {
                 </div>
               )}
 
-              <button
-                onClick={() => setShowTechnical((v) => !v)}
-                className="flex items-center gap-1 w-full py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {showTechnical ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                Technical details
-              </button>
-              {showTechnical && (
-                <div className="pt-1 pb-2 space-y-2">
+              <details className="group">
+                <summary className="flex cursor-pointer list-none items-center gap-1 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors [&::-webkit-details-marker]:hidden">
+                  <ChevronRight className="h-3 w-3 group-open:rotate-90" />
+                  Technical details
+                </summary>
+                <div className="border-t pt-1 pb-2 space-y-2">
                   <div className="flex items-start justify-between gap-4 text-xs">
                     <span className="text-muted-foreground shrink-0" title="A hash of the account's full current state.">Commitment</span>
                     {data!.currentCommitment ? <CopyableId id={data!.currentCommitment} prefixLen={12} suffixLen={8} /> : <span className="text-muted-foreground">—</span>}
@@ -330,15 +309,13 @@ export function AccountDetail({ accountId }: Props) {
                     </div>
                   )}
                 </div>
-              )}
+              </details>
             </CardContent>
           </Card>
 
           {snapshot && (
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-section text-muted-foreground">Assets</CardTitle>
-              </CardHeader>
+              <CardTitle>Assets</CardTitle>
               <CardContent className="divide-y">
                 {snapshot.hasPendingCandidate && (
                   <p className="pb-2 text-xs text-state-pending">A submitted transaction is awaiting confirmation, so balances may be slightly out of date.</p>

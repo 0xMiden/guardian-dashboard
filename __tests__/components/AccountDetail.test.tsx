@@ -92,9 +92,9 @@ describe("AccountDetail", () => {
     expect(screen.getByText("1,500 units")).toBeInTheDocument();
     expect(screen.getByText("Non-fungible assets")).toBeInTheDocument();
 
-    expect(screen.queryByText("Commitment")).not.toBeInTheDocument();
+    expect(screen.getByText("Commitment")).not.toBeVisible();
     fireEvent.click(screen.getByText("Technical details"));
-    expect(screen.getByText("Commitment")).toBeInTheDocument();
+    expect(screen.getByText("Commitment")).toBeVisible();
     expect(screen.getByText("State created")).toBeInTheDocument();
   });
 

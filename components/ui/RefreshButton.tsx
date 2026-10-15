@@ -7,17 +7,9 @@ import { Button } from "@/components/ui/Button";
  * quickly enough that a cache must never be the only way to get a current
  * number, so every polling panel gets one of these.
  */
-export function RefreshButton({
-  onClick,
-  busy,
-  title = "Refetch from the Guardian, ignoring caches",
-}: {
-  onClick: () => void;
-  busy: boolean;
-  title?: string;
-}) {
+export function RefreshButton({ onClick, busy }: { onClick: () => void; busy: boolean }) {
   return (
-    <Button onClick={onClick} disabled={busy} title={title} size="sm">
+    <Button onClick={onClick} disabled={busy} title="Refetch from the Guardian, ignoring caches" size="sm">
       <RefreshCw className={`h-3 w-3 ${busy ? "animate-spin" : ""}`} />
       {busy ? "Refreshing…" : "Refresh"}
     </Button>

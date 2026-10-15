@@ -1,24 +1,20 @@
 "use client";
 import { ComingSoon } from "@/components/ui/ComingSoon";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function Placeholder() {
   return (
     <div className="flex flex-col gap-6">
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-section text-muted-foreground">Compliance provider</CardTitle>
-        </CardHeader>
+        <CardTitle>Compliance provider</CardTitle>
         <CardContent className="flex flex-col gap-3">
           <Skeleton className="h-9 w-64" />
           <Skeleton className="h-5 w-32" />
         </CardContent>
       </Card>
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-section text-muted-foreground">KYC and whitelist</CardTitle>
-        </CardHeader>
+        <CardTitle>KYC and whitelist</CardTitle>
         <CardContent className="p-0">
           <table className="w-full text-sm">
             <thead>
@@ -43,9 +39,7 @@ function Placeholder() {
         </CardContent>
       </Card>
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-section text-muted-foreground">Policy rules</CardTitle>
-        </CardHeader>
+        <CardTitle>Policy rules</CardTitle>
         <CardContent className="divide-y">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="flex items-center justify-between py-3 gap-4">

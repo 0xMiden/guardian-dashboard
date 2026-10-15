@@ -1,6 +1,7 @@
 "use client";
 import useSWR, { mutate } from "swr";
 import { fetcher } from "@/lib/utils";
+import { formatCount } from "@/lib/format";
 
 export type AccountStats = {
   total?: number | null;
@@ -64,28 +65,19 @@ export function StatStrip() {
     );
   }
 
+  const figures: [string, string | null][] = [
+    ["Accounts", stats.total != null ? formatCount(stats.total) : null],
+    ["Updated (last 7d)", stats.count7d != null ? formatCount(stats.count7d) : null],
+    ["Updated (last 30d)", stats.count30d != null ? formatCount(stats.count30d) : null],
+    ["Assets", assets?.usd != null ? `$${assets.usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : null],
+  ];
   return (
     <div className="flex flex-wrap gap-8 text-sm">
-      {stats.total != null && (
-        <span className="text-muted-foreground">
-          Accounts&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.total.toLocaleString()}</span>
+      {figures.map(([label, value]) => value !== null && (
+        <span key={label} className="text-muted-foreground">
+          {label}&nbsp;&nbsp;<span className="font-semibold text-foreground">{value}</span>
         </span>
-      )}
-      {stats.count7d != null && (
-        <span className="text-muted-foreground">
-          Updated (last 7d)&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.count7d.toLocaleString()}</span>
-        </span>
-      )}
-      {stats.count30d != null && (
-        <span className="text-muted-foreground">
-          Updated (last 30d)&nbsp;&nbsp;<span className="font-semibold text-foreground">{stats.count30d.toLocaleString()}</span>
-        </span>
-      )}
-      {assets?.usd != null && (
-        <span className="text-muted-foreground">
-          Assets&nbsp;&nbsp;<span className="font-semibold text-foreground">${assets.usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </span>
-      )}
+      ))}
     </div>
   );
 }

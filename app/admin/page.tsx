@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/Button";
 import useSWR, { mutate } from "swr";
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { fetcher } from "@/lib/utils";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
@@ -13,14 +13,6 @@ interface ClerkUser {
   firstName: string | null;
   lastName: string | null;
   publicMetadata: { endpointIds?: string[]; role?: string };
-}
-
-function EndpointTag({ id }: { id: string }) {
-  return (
-    <span className="inline-block rounded-lg bg-primary/15 border border-brand/40 px-2 py-0.5 text-xs font-mono text-brand">
-      {id}
-    </span>
-  );
 }
 
 function UserRow({ user, onEdit }: { user: ClerkUser; onEdit: (u: ClerkUser) => void }) {
@@ -41,7 +33,9 @@ function UserRow({ user, onEdit }: { user: ClerkUser; onEdit: (u: ClerkUser) => 
         <div className="flex flex-wrap gap-1">
           {endpointIds.length === 0
             ? <span className="text-xs text-muted-foreground">No access</span>
-            : endpointIds.map((id) => <EndpointTag key={id} id={id} />)
+            : endpointIds.map((id) => (
+              <span key={id} className="inline-block rounded-lg bg-primary/15 border border-brand/40 px-2 py-0.5 text-xs font-mono text-brand">{id}</span>
+            ))
           }
         </div>
       </td>
@@ -160,12 +154,10 @@ export default function AdminPage() {
       {editing && <EditModal user={editing} onClose={() => setEditing(null)} />}
 
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-section text-muted-foreground">
-            Registered users
-            <span className="ml-2 text-xs font-normal text-muted-foreground">Manage endpoint access and roles</span>
-          </CardTitle>
-        </CardHeader>
+        <CardTitle>
+          Registered users
+          <span className="ml-2 text-xs font-normal text-muted-foreground">Manage endpoint access and roles</span>
+        </CardTitle>
         <CardContent className="p-0 overflow-x-auto">
           {!data ? (
             error
@@ -183,7 +175,7 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {(data as ClerkUser[]).map((u) => (
+                {data.map((u) => (
                   <UserRow key={u.id} user={u} onEdit={setEditing} />
                 ))}
               </tbody>

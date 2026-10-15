@@ -1,15 +1,15 @@
 "use client";
 import { useState } from "react";
 import useSWR from "swr";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
-import { ChevronDown, ChevronUp, AlertTriangle, Check, Info } from "lucide-react";
+import { ChevronDown, AlertTriangle, Check, Info } from "lucide-react";
 import { InfoTip } from "@/components/ui/InfoTip";
 import { fetcher } from "@/lib/utils";
-import { formatCount, truncateId } from "@/lib/format";
-import { copyText } from "@/lib/clipboard";
+import { formatCount } from "@/lib/format";
+import { CopyableId } from "@/components/ui/CopyableId";
 import { describeError } from "@/components/ui/ErrorPanel";
 import type { OverviewData } from "@/app/api/overview/route";
 
@@ -55,12 +55,7 @@ interface OperatorInfo {
 // MidenTestnet was amber, which also meant "submitted" and "pending" elsewhere.
 // Mainnet keeps a tint, because which chain you are pointed at is worth a
 // glance before an irreversible action.
-const networkColor: Record<string, string> = {
-  MidenLocal: "bg-state-neutral",
-  MidenDevnet: "bg-state-neutral",
-  MidenTestnet: "bg-state-neutral",
-  MidenMainnet: "bg-state-active",
-};
+const networkColor = (network: string) => (network === "MidenMainnet" ? "bg-state-active" : "bg-state-neutral");
 
 // Named because the card states the cadence to the reader, and a figure in
 // the copy that can drift from the actual interval is a lie waiting to happen.
@@ -122,23 +117,6 @@ function formatUptime(secs: number): string {
   return `${m}m`;
 }
 
-function CopyableHash({ value, short }: { value: string; short?: boolean }) {
-  const [copied, setCopied] = useState(false);
-  function copy() {
-    copyText(value).then((ok) => {
-      if (!ok) return;
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }
-  const display = short ? value.slice(0, 7) : truncateId(value, 8, 6);
-  return (
-    <button onClick={copy} title={value} className="font-mono text-xs text-muted-foreground hover:text-foreground transition-colors">
-      {copied ? "copied!" : display}
-    </button>
-  );
-}
-
 function Row({ label, value, sub, info }: { label: string; value: React.ReactNode; sub?: React.ReactNode; info?: string }) {
   return (
     <div className="flex items-start gap-3 py-1 text-sm">
@@ -155,7 +133,6 @@ function Row({ label, value, sub, info }: { label: string; value: React.ReactNod
 }
 
 export function GuardianStatusCard() {
-  const [showDetails, setShowDetails] = useState(false);
 
   const { data: opInfo, error: opInfoError } = useSWR<OperatorInfo>("/api/operator-info", fetcher);
   const endpointUrl = opInfo?.url;
@@ -207,9 +184,7 @@ export function GuardianStatusCard() {
 
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-section text-muted-foreground">Guardian status</CardTitle>
-      </CardHeader>
+      <CardTitle>Guardian status</CardTitle>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Left: heartbeat + sparkline */}
@@ -318,7 +293,7 @@ export function GuardianStatusCard() {
                 <Row
                   label="Network"
                   value={
-                    <Badge className={`${networkColor[opInfo.network] ?? "bg-state-neutral"} text-white`}>
+                    <Badge className={`${networkColor(opInfo.network)} text-white`}>
                       {opInfo.network}
                     </Badge>
                   }
@@ -346,47 +321,41 @@ export function GuardianStatusCard() {
 
                 {/* Expandable details: commit, Guardian settings and public key */}
                 {hasDetails && (
-                  <>
-                    <button
-                      onClick={() => setShowDetails((v) => !v)}
-                      className="flex items-center gap-1 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
-                    >
-                      {showDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                      {showDetails ? "Hide details" : "Show details"}
-                    </button>
-                    {showDetails && (
-                      <>
-                        {build?.gitCommit && build.gitCommit !== "unknown" && (
-                          <Row
-                            label="Commit"
-                            value={<CopyableHash value={build.gitCommit} short />}
-                            info="Git commit SHA of the Guardian build currently running. Click to copy the full hash."
-                          />
-                        )}
-                        {queueDepth !== undefined && (
-                          <Row
-                            label="Queue"
-                            value={`${queueDepth} per account`}
-                            info="How many submitted transactions one account can have waiting for the chain at once."
-                          />
-                        )}
-                        {sessionTtl !== undefined && (
-                          <Row
-                            label="Sessions"
-                            value={`up to ${formatUptime(sessionTtl)}`}
-                            info="Longest a wallet session lasts before the wallet must approve again."
-                          />
-                        )}
-                        {opInfo.publicKey && (
-                          <Row
-                            label="Public key"
-                            value={<CopyableHash value={opInfo.publicKey} />}
-                            info="Your dashboard Falcon-512 public key as registered with this Guardian. Click to copy."
-                          />
-                        )}
-                      </>
+                  <details className="group">
+                    <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors [&::-webkit-details-marker]:hidden">
+                      <ChevronDown className="w-3 h-3 group-open:rotate-180" />
+                      <span className="group-open:hidden">Show details</span>
+                      <span className="hidden group-open:inline">Hide details</span>
+                    </summary>
+                    {build?.gitCommit && build.gitCommit !== "unknown" && (
+                      <Row
+                        label="Commit"
+                        value={<CopyableId id={build.gitCommit} prefixLen={7} suffixLen={0} />}
+                        info="Git commit SHA of the Guardian build currently running."
+                      />
                     )}
-                  </>
+                    {queueDepth !== undefined && (
+                      <Row
+                        label="Queue"
+                        value={`${queueDepth} per account`}
+                        info="How many submitted transactions one account can have waiting for the chain at once."
+                      />
+                    )}
+                    {sessionTtl !== undefined && (
+                      <Row
+                        label="Sessions"
+                        value={`up to ${formatUptime(sessionTtl)}`}
+                        info="Longest a wallet session lasts before the wallet must approve again."
+                      />
+                    )}
+                    {opInfo.publicKey && (
+                      <Row
+                        label="Public key"
+                        value={<CopyableId id={opInfo.publicKey} prefixLen={8} />}
+                        info="Your dashboard Falcon-512 public key as registered with this Guardian."
+                      />
+                    )}
+                  </details>
                 )}
               </>
             )}

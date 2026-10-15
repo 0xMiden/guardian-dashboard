@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { AppShell } from "@/components/layout/AppShell";
 
 vi.mock("@clerk/nextjs", () => ({
@@ -17,7 +17,7 @@ vi.mock("next/image", () => ({
   default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => <img {...props} />,
 }));
 
-const { useAuth, useUser } = await import("@clerk/nextjs");
+const { useAuth, useUser, useClerk } = await import("@clerk/nextjs");
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -38,6 +38,25 @@ describe("AppShell", () => {
     } as any);
     render(<AppShell><div>content</div></AppShell>);
     expect(screen.queryByText("Admin")).not.toBeInTheDocument();
+  });
+
+  it("signs out only once the browser's confirm is accepted", async () => {
+    const signOut = vi.fn();
+    vi.mocked(useClerk).mockReturnValue({ signOut } as any);
+    vi.mocked(useAuth).mockReturnValue({ userId: "viewer_123" } as any);
+    vi.mocked(useUser).mockReturnValue({ user: { publicMetadata: {} } } as any);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null)));
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    render(<AppShell><div>content</div></AppShell>);
+    const [button] = screen.getAllByRole("button", { name: "Sign out" });
+
+    fireEvent.click(button);
+    expect(confirm).toHaveBeenCalledWith("Sign out?");
+    expect(signOut).not.toHaveBeenCalled();
+
+    fireEvent.click(button);
+    await waitFor(() => expect(signOut).toHaveBeenCalled());
+    vi.unstubAllGlobals();
   });
 
   it("renders children without sidebar on auth pages", async () => {

@@ -175,7 +175,7 @@ describe("per-endpoint pacing", () => {
     const client = getGuardianClient("health-paced");
     await expect(client.listAccounts()).rejects.toMatchObject({ status: 429 });
 
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true }) as never));
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({}) }) as never));
     const started = Date.now();
     const health = await client.checkHealth();
     const elapsed = Date.now() - started;
@@ -185,5 +185,16 @@ describe("per-endpoint pacing", () => {
     // A health check that queued behind a snapshot burst would report a healthy
     // Guardian as down, so it never waits, it only spends a slot.
     expect(elapsed).toBeLessThan(200);
+  });
+});
+
+describe("checkHealth", () => {
+  it("pings /status and passes on the session limit it states", async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ version: "0.18.1", sessions: { max_ttl_seconds: 28800 } }) }) as never);
+    vi.stubGlobal("fetch", fetchMock);
+    const health = await getGuardianClient("status-ping").checkHealth();
+    vi.unstubAllGlobals();
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/\/status$/), expect.anything());
+    expect(health).toMatchObject({ status: "up", sessionMaxTtlSeconds: 28800 });
   });
 });

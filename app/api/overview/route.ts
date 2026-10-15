@@ -26,6 +26,9 @@ async function overview(client: ReturnType<typeof getGuardianClient>) {
     degradedAggregates: info.degradedAggregates ?? [],
     latestActivity: info.latestActivity,
     build: info.build,
+    // Transactions one account may have waiting on the chain at once (0.18.1).
+    // Absent before it, and in optimistic-commit mode, which has no candidates.
+    queueDepth: info.backend.canonicalization?.maxPendingCandidatesPerAccount,
   };
 }
 

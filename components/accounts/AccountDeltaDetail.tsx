@@ -10,7 +10,7 @@ import { CopyableId } from "@/components/ui/CopyableId";
 import { DetailRow as Row } from "@/components/ui/DetailRow";
 import { Timestamp } from "@/components/ui/Timestamp";
 import { ErrorPanel } from "@/components/ui/ErrorPanel";
-import { formatAsset, formatCount, storageSlotLabel, type TokenInfo } from "@/lib/format";
+import { accountNonce, formatAsset, formatCount, storageSlotLabel, type TokenInfo } from "@/lib/format";
 import { fetcher } from "@/lib/utils";
 import { activityLabel, deltaStatusBadge } from "@/components/transactions/activity-cells";
 import type {
@@ -160,7 +160,7 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-section text-muted-foreground">Transaction #{nonce}</CardTitle>
+              <CardTitle className="text-section text-muted-foreground">Transaction{accountNonce(nonce) !== undefined && ` #${nonce}`}</CardTitle>
             </CardHeader>
             <CardContent className="divide-y">
               <Row label="Account" value={<CopyableId id={data!.accountIdBech32 ?? data!.accountId} prefixLen={14} suffixLen={8} />} />
@@ -299,7 +299,9 @@ export function AccountDeltaDetail({ accountId, nonce }: Props) {
           {showTechnical && (
             <Card>
               <CardContent className="pt-4 divide-y">
-                <Row label="Nonce" title="The account's transaction counter. Each transaction takes the next number." value={<span className="font-mono">{data!.nonce}</span>} />
+                {accountNonce(data!.nonce) !== undefined && (
+                  <Row label="Nonce" title="The account's transaction counter. Each transaction takes the next number." value={<span className="font-mono">{data!.nonce}</span>} />
+                )}
                 <Row
                   label="Previous state"
                   title="Hash of the account's state before this transaction."

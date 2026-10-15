@@ -117,6 +117,14 @@ describe("GuardianStatusCard", () => {
     expect(screen.getByTitle("0xdeadbeef00112233")).toBeInTheDocument();
   });
 
+  it("shows the queue depth and session limit in the details", () => {
+    mockSWR({ health: { ...healthUp, sessionMaxTtlSeconds: 28800 }, overview: { ...overview, queueDepth: 1 } });
+    render(<GuardianStatusCard />);
+    fireEvent.click(screen.getByText("Show details"));
+    expect(screen.getByText("1 per account")).toBeInTheDocument();
+    expect(screen.getByText("up to 8h 0m")).toBeInTheDocument();
+  });
+
   it("collapses details again on second click", () => {
     mockSWR();
     render(<GuardianStatusCard />);

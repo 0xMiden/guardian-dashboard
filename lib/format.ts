@@ -70,6 +70,17 @@ export function accountState(
   return status;
 }
 
+// The account nonce a delta or proposal carries, or undefined when it carries a
+// timestamp instead. The Guardian keys rows by the client's label, and through
+// Guardian 0.18.0 the TypeScript SDK labelled them `Date.now()`. 0.18.1 labels
+// them with the account's nonce and migrates nothing (#486), so an account can
+// hold both. No account nonce gets near 10^12, and a millisecond timestamp has
+// been past it since 2001. The key still addresses the row; only the reader
+// is spared a 13-digit "nonce".
+export function accountNonce(key: number): number | undefined {
+  return key < 1e12 ? key : undefined;
+}
+
 // Counts carry a thousands separator wherever they are shown. Left to each
 // call site this drifts: the stat strip formatted and the overview cards did
 // not, so the same Guardian read "1,813" in one place and "1813" in another.

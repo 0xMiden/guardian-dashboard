@@ -12,6 +12,7 @@ import { ErrorPanel } from "@/components/ui/ErrorPanel";
 import { DataTable } from "@/components/ui/DataTable";
 import { TableControls, useTablePrefs, usePaging, LoadMoreSentinel, type TableColumn } from "@/components/ui/TableControls";
 import { fetcher } from "@/lib/utils";
+import { accountNonce } from "@/lib/format";
 import { activityLabel, deltaStatusBadge, proposalStatusBadge, AmountCell, CounterpartyCell, type AssetLike } from "@/components/transactions/activity-cells";
 import type { DashboardDeltaEntry, DashboardProposalEntry, PagedResult } from "@openzeppelin/guardian-operator-client";
 
@@ -47,7 +48,13 @@ interface Props {
 export function AccountTransactions({ accountId }: Props) {
   const router = useRouter();
   const encoded = encodeURIComponent(accountId);
-  const deltasKey = `/api/accounts/${encoded}/deltas`;
+  // The Guardian lists an account's deltas by key, and a timestamp key (see
+  // accountNonce) sorts above every real nonce, so the first page of 50 can be
+  // an account's oldest rows. 500, the most the Guardian serves, brings them all
+  // in with the first page on every account checked: the busiest held 84 of
+  // them under 119 newer rows (Gateway, 2026-10-14).
+  // ponytail: past 500, the oldest rows sit under the newest until the rest pages in.
+  const deltasKey = `/api/accounts/${encoded}/deltas?limit=500`;
   const proposalsKey = `/api/accounts/${encoded}/proposals`;
 
   const { data: deltasData, error: deltasError } = useSWR<DeltasPage>(deltasKey, fetcher, { refreshInterval: 30_000 });
@@ -55,7 +62,7 @@ export function AccountTransactions({ accountId }: Props) {
   // The URL carries hex; the account page just visited holds the bech32 spelling.
   const { data: account } = useSWR<{ accountIdBech32?: string }>(`/api/accounts/${encoded}`, fetcher);
 
-  const paging = usePaging(deltasKey, deltasData, (cursor) => fetcher(`${deltasKey}?cursor=${encodeURIComponent(cursor)}`), (d) => String(d.nonce));
+  const paging = usePaging(deltasKey, deltasData, (cursor) => fetcher(`${deltasKey}&cursor=${encodeURIComponent(cursor)}`), (d) => String(d.nonce));
   const [refreshing, setRefreshing] = useState(false);
   const { density, hidden, setDensity, toggleColumn } = useTablePrefs<ColumnKey>("account-activity", HIDEABLE);
 
@@ -74,7 +81,8 @@ export function AccountTransactions({ accountId }: Props) {
 
   const rows: ActivityRow[] = [
     ...allProposals.map((p) => ({
-      key: `proposal-${p.nonce}`,
+      // Not the nonce: proposals racing for the same next nonce share it.
+      key: `proposal-${p.commitment}`,
       label: activityLabel(undefined, p.proposalType),
       statusNode: proposalStatusBadge(p.signaturesCollected, p.signaturesRequired),
       assets: undefined,
@@ -101,7 +109,7 @@ export function AccountTransactions({ accountId }: Props) {
   const unavailable = deltasError && !deltasData;
 
   const columns: TableColumn<ActivityRow, ColumnKey>[] = [
-    { key: "nonce", label: "Nonce", title: "The account's transaction counter. Each transaction takes the next number.", width: "w-20", align: "right", cellClass: "text-data text-muted-foreground tabular-nums", cell: (r) => r.nonce },
+    { key: "nonce", label: "Nonce", title: "The account's transaction counter. Each transaction takes the next number.", width: "w-20", align: "right", cellClass: "text-data text-muted-foreground tabular-nums", cell: (r) => accountNonce(r.nonce) },
     { key: "counterparty", label: "To / From", width: "w-36", cellClass: "text-data", cell: (r) => <CounterpartyCell counterparty={r.counterparty} /> },
     { key: "activity", label: "Activity", width: "w-40", cellClass: "text-data", cell: (r) => r.label },
     { key: "amount", label: "Amount", width: "w-32", align: "right", cellClass: "text-figure", cell: (r) => <AmountCell assets={r.assets} /> },

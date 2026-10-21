@@ -42,6 +42,7 @@ CLERK_SECRET_KEY=sk_...
 
 # Guardian endpoints — JSON array, one entry per Guardian
 # Each user's allowed endpoint IDs and role are set in Clerk user public metadata
+# "network" is the Guardian's GUARDIAN_NETWORK_TYPE: MidenTestnet, MidenCedar, MidenDevnet, ...
 GUARDIAN_ENDPOINTS=[{
   "id": "testnet",
   "label": "Guardian Testnet",

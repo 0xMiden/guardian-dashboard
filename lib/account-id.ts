@@ -13,7 +13,9 @@ export async function toHexId(id: string): Promise<string> {
 async function networkId(network: string) {
   const { NetworkId } = await loadSdk();
   switch (network) {
-    case "MidenMainnet": return NetworkId.mainnet();
+    // Cedar addresses carry the mainnet prefix, `mm`, as the Guardian spells them.
+    case "MidenMainnet":
+    case "MidenCedar": return NetworkId.mainnet();
     case "MidenTestnet": return NetworkId.testnet();
     // Both carry the `mdev` prefix, as the Guardian documents for `accountIdBech32`.
     case "MidenDevnet":

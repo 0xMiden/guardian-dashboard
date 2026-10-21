@@ -53,9 +53,10 @@ interface OperatorInfo {
 
 // The network is a label, not a state, so it no longer borrows status hues.
 // MidenTestnet was amber, which also meant "submitted" and "pending" elsewhere.
-// Mainnet keeps a tint, because which chain you are pointed at is worth a
-// glance before an irreversible action.
-const networkColor = (network: string) => (network === "MidenMainnet" ? "bg-state-active" : "bg-state-neutral");
+// Mainnet and Cedar, its gated forerunner, keep a tint, because which chain you
+// are pointed at is worth a glance before an irreversible action.
+const networkColor = (network: string) =>
+  (network === "MidenMainnet" || network === "MidenCedar" ? "bg-state-active" : "bg-state-neutral");
 
 // Named because the card states the cadence to the reader, and a figure in
 // the copy that can drift from the actual interval is a lie waiting to happen.

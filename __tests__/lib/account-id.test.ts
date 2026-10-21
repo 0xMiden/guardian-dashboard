@@ -16,6 +16,10 @@ describe("toBech32Id", () => {
     expect(await toBech32Id(HEX, "MidenLocal")).toBe(await toBech32Id(HEX, "MidenDevnet"));
   });
 
+  it("uses the mainnet prefix for Cedar, as the Guardian does", async () => {
+    expect((await toBech32Id(HEX, "MidenCedar"))?.startsWith("mm1")).toBe(true);
+  });
+
   // An EVM address is not a Miden account, and a network the SDK cannot spell
   // gets no guess: the caller shows hex in both cases.
   it("declines what it cannot spell", async () => {

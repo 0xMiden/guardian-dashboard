@@ -1,18 +1,23 @@
 import { loadSdk } from "@/lib/falcon";
 import { HEX_ID, toHexId } from "@/lib/account-id";
+import mainnetTokens from "@/lib/mainnet-tokens.json";
 
 /**
  * What a faucet's amount is worth in US dollars, the way the Miden wallet
  * (Bread, 0xMiden/wallet) answers it. There is no oracle. Read from its source
- * on 2026-10-07:
+ * on 2026-10-07, mainnet tokens added 2026-10-22:
  *
- * - Spot prices come from Binance's public ticker for three pairs, ETHUSD,
- *   BTCUSD and USDCUSD (`src/lib/prices/binance.ts`, `KNOWN_SYMBOLS`). No key.
+ * - Spot prices come from Binance's public ticker, no key. Bread looks up
+ *   every listed symbol (against USDT or USDC, Kraken as a fallback); this asks
+ *   for the fixed set of pairs in `PAIRS`, which covers what the lists name.
  * - A faucet is priced by its id, never by the symbol it declares, because
  *   anyone can mint a token called ETH (wallet #1131). The ids come from the
  *   verified token list (`0xMiden/token-list`, one JSON per network) and from
  *   `0xMiden/wallet-config`'s Epoch USDC faucet. USDCX is fixed at $1
  *   (`src/lib/prices/fixed.ts`).
+ * - Mainnet has no file in `0xMiden/token-list` yet, so `mainnet-tokens.json`
+ *   stands in for it: Miden's official asset ids as of 2026-10-21, plus the
+ *   USDCx faucet mainnet accounts hold.
  * - Everything else has no dollar value. Not zero: `usd` says `undefined`, and
  *   a caller that sums must count those separately rather than fold them in.
  *
@@ -46,15 +51,30 @@ export type PriceBook = {
 type Token = { symbol: string; decimals: number; priceSymbol?: string };
 type Allowlist = Record<string, Token>;
 
-/** Bread's `KNOWN_SYMBOLS`: the price symbol and the Binance pair that quotes it. */
-const PAIRS: Record<string, string> = { ETH: "ETHUSD", BTC: "BTCUSD", USDC: "USDCUSD" };
-/** Quotes that never come from the feed. */
-const FIXED: Record<string, number> = { USDCX: 1 };
+/**
+ * Bread's `KNOWN_SYMBOLS` plus the mainnet tokens: the price symbol and the
+ * Binance pair that quotes it. Binance has no USD pair for NEAR or PAXG, so
+ * those are quoted in USDT and converted at USDTUSD, as Bread's feed does.
+ */
+const PAIRS: Record<string, string> = {
+  ETH: "ETHUSD", BTC: "BTCUSD", USDC: "USDCUSD", USDT: "USDTUSD",
+  SOL: "SOLUSD", BNB: "BNBUSD", NEAR: "NEARUSDT", PAXG: "PAXGUSDT",
+};
+/**
+ * Quotes that never come from the feed.
+ * ponytail: PYUSD at $1 because Binance has no PYUSD market (Gaylord,
+ * 2026-10-22, to check later). Kraken quotes it, as Bread's fallback does.
+ */
+const FIXED: Record<string, number> = { USDCX: 1, PYUSD: 1 };
 /**
  * What a verified-list symbol stands for, as Bread's swap registry has it (IETH
- * at ETH, IBTC at BTC). A listed symbol absent here is verified but unpriced.
+ * at ETH, IBTC at BTC; on mainnet WBTC at BTC, WBNB at BNB). A listed symbol
+ * absent here is verified but unpriced.
  */
-const LISTED_AS: Record<string, string> = { IETH: "ETH", IBTC: "BTC", USDC: "USDC", USDCX: "USDCX" };
+const LISTED_AS: Record<string, string> = {
+  IETH: "ETH", IBTC: "BTC", USDC: "USDC", USDCX: "USDCX",
+  ETH: "ETH", WBTC: "BTC", SOL: "SOL", WBNB: "BNB", NEAR: "NEAR", USDT: "USDT", PAXG: "PAXG", PYUSD: "PYUSD",
+};
 /**
  * How a symbol is written for people. A Miden token symbol is stored upper case
  * only, so the chain says "USDCX" for the token whose name is "USDCx".
@@ -143,10 +163,13 @@ async function fetchJson(url: string): Promise<unknown> {
 async function loadPrices(): Promise<Record<string, number>> {
   const body = await fetchJson(BINANCE_URL);
   if (!Array.isArray(body)) throw new Error("Binance: unexpected body");
+  const quote = (pair: string) => {
+    const ticker = body.find((t) => isRecord(t) && t.symbol === pair);
+    return isRecord(ticker) ? parseFloat(String(ticker.price)) : NaN;
+  };
   const bySymbol: Record<string, number> = {};
   for (const [symbol, pair] of Object.entries(PAIRS)) {
-    const ticker = body.find((t) => isRecord(t) && t.symbol === pair);
-    const price = isRecord(ticker) ? parseFloat(String(ticker.price)) : NaN;
+    const price = pair.endsWith("USDT") ? quote(pair) * quote(PAIRS.USDT) : quote(pair);
     // A zero or unparseable price is no quote, not a free token.
     if (price > 0) bySymbol[symbol] = price;
   }
@@ -184,11 +207,17 @@ async function loadNativeFaucet(network: string): Promise<Allowlist> {
   const symbol = meta2.symbol().toString();
   const decimals = meta2.decimals();
   if (!isDecimals(decimals)) return {};
-  return { [faucetId]: { symbol: shown(symbol), decimals, priceSymbol: symbol in FIXED ? symbol : undefined } };
+  return { [faucetId]: { symbol: shown(symbol), decimals, priceSymbol: symbol === "USDCX" ? symbol : undefined } };
 }
 
+/**
+ * Lists kept here for networks `0xMiden/token-list` does not cover yet.
+ * ponytail: the published list wins as soon as it exists; delete the file then.
+ */
+const OWN_LISTS: Record<string, unknown> = { mainnet: mainnetTokens };
+
 async function loadTokenList(network: string): Promise<Allowlist> {
-  const body = await fetchJson(`${RAW}/token-list/main/${encodeURIComponent(network)}.json`);
+  const body = (await fetchJson(`${RAW}/token-list/main/${encodeURIComponent(network)}.json`)) ?? OWN_LISTS[network] ?? null;
   if (body === null) return {};
   if (!isRecord(body) || !Array.isArray(body.tokens)) throw new Error("token-list: unexpected body");
   const out: Allowlist = {};

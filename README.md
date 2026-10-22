@@ -60,7 +60,7 @@ Optional extras:
 
 - `GUARDIAN_PRIVATE_KEY_{ID}` (e.g. `GUARDIAN_PRIVATE_KEY_TESTNET`) — supply an endpoint's `privateKey` separately to keep `GUARDIAN_ENDPOINTS` under Vercel's 4KB env var limit
 
-Dollar values follow the Miden wallet (see `lib/prices.ts`): Binance spot prices for the faucets named by `0xMiden/token-list` and `0xMiden/wallet-config`, the network's native asset read from chain (fixed at $1 when it is USDCX), and no figure for anything else. Nothing about tokens is configured here.
+Dollar values follow the Miden wallet (see `lib/prices.ts`): Binance spot prices for the faucets named by `0xMiden/token-list` and `0xMiden/wallet-config`, the network's native asset read from chain (fixed at $1 when it is USDCX), and no figure for anything else. The one token configured here is mainnet's USDCx (`lib/mainnet-tokens.json`), which the published mainnet list leaves out and the dashboard cannot read from chain.
 
 ### 3. User access
 

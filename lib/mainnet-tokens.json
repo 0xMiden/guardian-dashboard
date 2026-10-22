@@ -2,14 +2,6 @@
   "name": "Miden Mainnet Tokens (dashboard copy)",
   "timestamp": "2026-10-22T00:00:00.000Z",
   "tokens": [
-    { "network": "mainnet", "faucetId": "mm1arnfum9xuwwlrvgvrefejwvlavn3vk24", "symbol": "USDCX", "name": "USDCx", "decimals": 6 },
-    { "network": "mainnet", "faucetId": "mm1apqelr6tlaeftyfj4f7w59dycysmtawe", "symbol": "ETH", "name": "Ether", "decimals": 8 },
-    { "network": "mainnet", "faucetId": "mm1aqcgf57r38kwe52lm2thp5vv3g4af6h4", "symbol": "WBTC", "name": "Wrapped BTC", "decimals": 8 },
-    { "network": "mainnet", "faucetId": "mm1ar608hfk0zvhsy2jy9jryzlyhcdy7fv7", "symbol": "SOL", "name": "Wrapped SOL (Wormhole)", "decimals": 8 },
-    { "network": "mainnet", "faucetId": "mm1apu7sttfmxwe7yt0g094cp3uqsea655m", "symbol": "WBNB", "name": "Wrapped BNB (Wormhole)", "decimals": 8 },
-    { "network": "mainnet", "faucetId": "mm1ap0uegkszh85f52a5xnyr4xsdgtxucvm", "symbol": "NEAR", "name": "NEAR (Rainbow)", "decimals": 8 },
-    { "network": "mainnet", "faucetId": "mm1apwt08ff2p7n45tmkmwxqfu73y70hydp", "symbol": "USDT", "name": "Tether USD", "decimals": 6 },
-    { "network": "mainnet", "faucetId": "mm1aqjtjhhz4fwz45t8ngp3v93nw5my0ngd", "symbol": "PAXG", "name": "PAX Gold", "decimals": 8 },
-    { "network": "mainnet", "faucetId": "mm1ar45yekfgjfmpyfcpvjnf87a6vnu3arq", "symbol": "PYUSD", "name": "PayPal USD", "decimals": 6 }
+    { "network": "mainnet", "faucetId": "mm1arnfum9xuwwlrvgvrefejwvlavn3vk24", "symbol": "USDCX", "name": "USDCx", "decimals": 6 }
   ]
 }

@@ -7,17 +7,18 @@ import mainnetTokens from "@/lib/mainnet-tokens.json";
  * (Bread, 0xMiden/wallet) answers it. There is no oracle. Read from its source
  * on 2026-10-07, mainnet tokens added 2026-10-22:
  *
- * - Spot prices come from Binance's public ticker, no key. Bread looks up
- *   every listed symbol (against USDT or USDC, Kraken as a fallback); this asks
- *   for the fixed set of pairs in `PAIRS`, which covers what the lists name.
+ * - Spot prices come from Binance's public ticker on Bread's host, no key.
+ *   Bread looks up every listed symbol (against USDT or USDC, Kraken as a
+ *   fallback); this asks for the fixed set of pairs in `PAIRS`, which covers
+ *   what the lists name. A list entry's price symbol is its `binanceAsset`,
+ *   else its own symbol, as Bread reads the list (`src/lib/token-list/parse.ts`).
  * - A faucet is priced by its id, never by the symbol it declares, because
  *   anyone can mint a token called ETH (wallet #1131). The ids come from the
  *   verified token list (`0xMiden/token-list`, one JSON per network) and from
  *   `0xMiden/wallet-config`'s Epoch USDC faucet. USDCX is fixed at $1
  *   (`src/lib/prices/fixed.ts`).
- * - Mainnet has no file in `0xMiden/token-list` yet, so `mainnet-tokens.json`
- *   stands in for it: Miden's official asset ids as of 2026-10-21, plus the
- *   USDCx faucet mainnet accounts hold.
+ * - Mainnet's list (published 2026-10-22) leaves out USDCx, so
+ *   `mainnet-tokens.json` names the USDCx faucet mainnet accounts hold.
  * - Everything else has no dollar value. Not zero: `usd` says `undefined`, and
  *   a caller that sums must count those separately rather than fold them in.
  *
@@ -47,7 +48,7 @@ export type PriceBook = {
   token(faucetId: string): { symbol: string; decimals: number } | undefined;
 };
 
-/** A faucet a list names. `priceSymbol` only where a market quotes it. */
+/** A faucet a list names. `priceSymbol` is what a market would quote it as, if any does. */
 type Token = { symbol: string; decimals: number; priceSymbol?: string };
 type Allowlist = Record<string, Token>;
 
@@ -67,14 +68,10 @@ const PAIRS: Record<string, string> = {
  */
 const FIXED: Record<string, number> = { USDCX: 1, PYUSD: 1 };
 /**
- * What a verified-list symbol stands for, as Bread's swap registry has it (IETH
- * at ETH, IBTC at BTC; on mainnet WBTC at BTC, WBNB at BNB). A listed symbol
- * absent here is verified but unpriced.
+ * What a testnet-list symbol stands for, as Bread's swap registry has it (IETH
+ * at ETH, IBTC at BTC): the testnet list gives no `binanceAsset`.
  */
-const LISTED_AS: Record<string, string> = {
-  IETH: "ETH", IBTC: "BTC", USDC: "USDC", USDCX: "USDCX",
-  ETH: "ETH", WBTC: "BTC", SOL: "SOL", WBNB: "BNB", NEAR: "NEAR", USDT: "USDT", PAXG: "PAXG", PYUSD: "PYUSD",
-};
+const LISTED_AS: Record<string, string> = { IETH: "ETH", IBTC: "BTC" };
 /**
  * How a symbol is written for people. A Miden token symbol is stored upper case
  * only, so the chain says "USDCX" for the token whose name is "USDCx".
@@ -83,7 +80,7 @@ const DISPLAY: Record<string, string> = { USDCX: "USDCx" };
 const shown = (symbol: string) => DISPLAY[symbol] ?? symbol;
 
 const BINANCE_URL =
-  "https://api.binance.com/api/v3/ticker/price?symbols=" +
+  "https://data-api.binance.vision/api/v3/ticker/price?symbols=" +
   encodeURIComponent(JSON.stringify(Object.values(PAIRS)));
 const RAW = "https://raw.githubusercontent.com/0xMiden";
 // The wallet's per-network endpoints (src/lib/miden-chain/networks-config.ts).
@@ -211,13 +208,18 @@ async function loadNativeFaucet(network: string): Promise<Allowlist> {
 }
 
 /**
- * Lists kept here for networks `0xMiden/token-list` does not cover yet.
- * ponytail: the published list wins as soon as it exists; delete the file then.
+ * Tokens the published list leaves out, in its format. Mainnet's USDCx is the
+ * native asset, which Bread learns from its chain sync; here there is no
+ * faucet service on mainnet and SDK 0.17's RpcClient cannot read the fee asset.
+ * ponytail: delete once token-list names USDCx or the SDK can read it.
  */
 const OWN_LISTS: Record<string, unknown> = { mainnet: mainnetTokens };
 
 async function loadTokenList(network: string): Promise<Allowlist> {
-  const body = (await fetchJson(`${RAW}/token-list/main/${encodeURIComponent(network)}.json`)) ?? OWN_LISTS[network] ?? null;
+  return parseTokenList(await fetchJson(`${RAW}/token-list/main/${encodeURIComponent(network)}.json`), network);
+}
+
+async function parseTokenList(body: unknown, network: string): Promise<Allowlist> {
   if (body === null) return {};
   if (!isRecord(body) || !Array.isArray(body.tokens)) throw new Error("token-list: unexpected body");
   const out: Allowlist = {};
@@ -233,7 +235,8 @@ async function loadTokenList(network: string): Promise<Allowlist> {
     }
     if (token.network !== network) continue;
     // Every listed token is named; only the ones a market quotes get a price.
-    out[await toHexId(token.faucetId)] = { symbol: shown(token.symbol), decimals: token.decimals, priceSymbol: LISTED_AS[token.symbol] };
+    const asset = typeof token.binanceAsset === "string" ? token.binanceAsset : LISTED_AS[token.symbol] ?? token.symbol;
+    out[await toHexId(token.faucetId)] = { symbol: shown(token.symbol), decimals: token.decimals, priceSymbol: asset };
   }
   return out;
 }
@@ -258,13 +261,14 @@ const empty = <T,>(): Record<string, T> => ({});
 
 export async function priceBook(network: string): Promise<PriceBook> {
   const net = repoNetwork(network);
-  const [list, config, native, prices] = await Promise.all([
+  const [own, list, config, native, prices] = await Promise.all([
+    cached(`own:${net}`, LIST_TTL_MS, () => parseTokenList(OWN_LISTS[net] ?? null, net)).catch(empty<Token>),
     cached(`list:${net}`, LIST_TTL_MS, () => loadTokenList(net)).catch(empty<Token>),
     cached(`config:${net}`, LIST_TTL_MS, () => loadWalletConfig(net)).catch(empty<Token>),
     cached(`native:${net}`, LIST_TTL_MS, () => loadNativeFaucet(net)).catch(empty<Token>),
     cached("prices", PRICE_TTL_MS, loadPrices).catch(empty<number>),
   ]);
-  const faucets: Allowlist = { ...list, ...config, ...native };
+  const faucets: Allowlist = { ...own, ...list, ...config, ...native };
   return {
     token(faucetId) {
       const entry = faucets[faucetId.toLowerCase()];

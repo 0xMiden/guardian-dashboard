@@ -286,12 +286,57 @@ describe("priceBook", () => {
     expect(binance).toHaveLength(1);
   });
 
-  it("asks Binance for exactly Bread's three pairs", async () => {
+  it("asks Binance for Bread's three pairs and the mainnet tokens' in one request", async () => {
     const fetch = mockFetch(defaultRoutes());
     const { priceBook } = await freshModule();
     await priceBook("MidenTestnet");
     const url = decodeURIComponent(String(fetch.mock.calls.find((c) => String(c[0]).includes("binance"))![0]));
-    expect(url).toBe('https://api.binance.com/api/v3/ticker/price?symbols=["ETHUSD","BTCUSD","USDCUSD"]');
+    expect(url).toBe(
+      'https://api.binance.com/api/v3/ticker/price?symbols=["ETHUSD","BTCUSD","USDCUSD","USDTUSD","SOLUSD","BNBUSD","NEARUSDT","PAXGUSDT"]',
+    );
+  });
+});
+
+describe("priceBook on mainnet", () => {
+  // Live quotes on 2026-10-22, and ids from lib/mainnet-tokens.json in the
+  // Guardian's hex spelling.
+  const MAINNET_TICKER = [
+    { symbol: "BTCUSD", price: "81842.44000000" },
+    { symbol: "USDTUSD", price: "0.99877000" },
+    { symbol: "NEARUSDT", price: "4.95300000" },
+  ];
+  const USDCX = "0xe69e6ca6e39df1b10c1e5399399feb";
+  const WBTC = "0x3084d3c389ececd15fda9770d18c8a";
+  const NEAR = "0x5fcca2d015cf44d15da1a641d4d06a";
+  const PYUSD = "0xeb4266c94493b091380b25349fddd3";
+
+  // 0xMiden/token-list has no mainnet.json, so every mainnet token was unpriced.
+  it("prices mainnet from the dashboard's own list while token-list has none", async () => {
+    mockFetch({ "api.binance.com": MAINNET_TICKER });
+    const { priceBook } = await freshModule();
+    const book = await priceBook("MidenMainnet");
+    expect(book.usd(USDCX, "10000")).toBe(0.01);
+    expect(book.token(USDCX)).toEqual({ symbol: "USDCx", decimals: 6 });
+    expect(book.usd(WBTC, "100000000")).toBeCloseTo(81842.44, 6);
+    expect(book.usd(PYUSD, "2000000")).toBe(2);
+  });
+
+  it("converts a USDT quote at USDTUSD, and drops it without one", async () => {
+    mockFetch({ "api.binance.com": MAINNET_TICKER });
+    const { priceBook } = await freshModule();
+    expect((await priceBook("MidenMainnet")).usd(NEAR, "100000000")).toBeCloseTo(4.953 * 0.99877, 9);
+
+    mockFetch({ "api.binance.com": MAINNET_TICKER.filter((t) => t.symbol !== "USDTUSD") });
+    const { priceBook: again } = await freshModule();
+    expect((await again("MidenMainnet")).usd(NEAR, "100000000")).toBeUndefined();
+  });
+
+  it("lets a published mainnet list replace the dashboard's own", async () => {
+    mockFetch({ "token-list/main/mainnet.json": { tokens: [] }, "api.binance.com": MAINNET_TICKER });
+    const { priceBook } = await freshModule();
+    const book = await priceBook("MidenMainnet");
+    expect(book.token(USDCX)).toBeUndefined();
+    expect(book.usd(WBTC, "100000000")).toBeUndefined();
   });
 });
 

@@ -84,7 +84,7 @@ function mockFetch(routes: Routes) {
 const defaultRoutes = (): Routes => ({
   "token-list/main/testnet.json": TOKEN_LIST,
   "wallet-config/main/testnet.json": WALLET_CONFIG,
-  "api.binance.com": TICKER,
+  "binance.vision": TICKER,
 });
 
 async function freshModule() {
@@ -140,7 +140,7 @@ describe("priceBook", () => {
   });
 
   it("fixes USDCX at one dollar without asking the feed", async () => {
-    const fetch = mockFetch({ ...defaultRoutes(), "api.binance.com": () => { throw new Error("down"); } });
+    const fetch = mockFetch({ ...defaultRoutes(), "binance.vision": () => { throw new Error("down"); } });
     const { priceBook } = await freshModule();
     const book = await priceBook("MidenTestnet");
     expect(book.usd("0x1111111111111111111111111111aa", "2500000")).toBe(2.5);
@@ -159,14 +159,14 @@ describe("priceBook", () => {
   });
 
   it("leaves a listed faucet unpriced while the feed is unreachable", async () => {
-    mockFetch({ ...defaultRoutes(), "api.binance.com": () => { throw new Error("down"); } });
+    mockFetch({ ...defaultRoutes(), "binance.vision": () => { throw new Error("down"); } });
     const { priceBook } = await freshModule();
     const book = await priceBook("MidenTestnet");
     expect(book.usd(IETH_HEX, "100000000")).toBeUndefined();
   });
 
   it("treats a zero quote as no quote", async () => {
-    mockFetch({ ...defaultRoutes(), "api.binance.com": [{ symbol: "ETHUSD", price: "0.00000000" }] });
+    mockFetch({ ...defaultRoutes(), "binance.vision": [{ symbol: "ETHUSD", price: "0.00000000" }] });
     const { priceBook } = await freshModule();
     const book = await priceBook("MidenTestnet");
     expect(book.usd(IETH_HEX, "100000000")).toBeUndefined();
@@ -251,7 +251,7 @@ describe("priceBook", () => {
   // Devnet today: the repo has no devnet.json. That is a network with nothing
   // listed, not a failure to be retried or logged.
   it("reads a 404 list as an empty one", async () => {
-    const fetch = mockFetch({ "api.binance.com": TICKER });
+    const fetch = mockFetch({ "binance.vision": TICKER });
     const { priceBook } = await freshModule();
     const book = await priceBook("MidenDevnet");
     expect(book.usd(IETH_HEX, "100000000")).toBeUndefined();
@@ -266,7 +266,7 @@ describe("priceBook", () => {
     vi.useFakeTimers();
     try {
       let feedUp = true;
-      mockFetch({ ...defaultRoutes(), "api.binance.com": () => { if (!feedUp) throw new Error("down"); return TICKER; } });
+      mockFetch({ ...defaultRoutes(), "binance.vision": () => { if (!feedUp) throw new Error("down"); return TICKER; } });
       const { priceBook } = await freshModule();
       expect((await priceBook("MidenTestnet")).usd(IETH_HEX, "100000000")).toBeCloseTo(2693.61, 6);
 
@@ -292,51 +292,67 @@ describe("priceBook", () => {
     await priceBook("MidenTestnet");
     const url = decodeURIComponent(String(fetch.mock.calls.find((c) => String(c[0]).includes("binance"))![0]));
     expect(url).toBe(
-      'https://api.binance.com/api/v3/ticker/price?symbols=["ETHUSD","BTCUSD","USDCUSD","USDTUSD","SOLUSD","BNBUSD","NEARUSDT","PAXGUSDT"]',
+      'https://data-api.binance.vision/api/v3/ticker/price?symbols=["ETHUSD","BTCUSD","USDCUSD","USDTUSD","SOLUSD","BNBUSD","NEARUSDT","PAXGUSDT"]',
     );
   });
 });
 
 describe("priceBook on mainnet", () => {
-  // Live quotes on 2026-10-22, and ids from lib/mainnet-tokens.json in the
-  // Guardian's hex spelling.
+  // Entries from 0xMiden/token-list mainnet.json as published 2026-10-22 (it
+  // leaves out USDCx), live quotes that day, and the Guardian's hex spelling.
+  const MAINNET_LIST = {
+    tokens: [
+      { network: "mainnet", faucetId: "mm1aqcgf57r38kwe52lm2thp5vv3g4af6h4", symbol: "WBTC", name: "Wrapped Bitcoin", decimals: 8, binanceAsset: "BTC" },
+      { network: "mainnet", faucetId: "mm1ap0uegkszh85f52a5xnyr4xsdgtxucvm", symbol: "NEAR", name: "NEAR Protocol", decimals: 8 },
+      { network: "mainnet", faucetId: "mm1ar45yekfgjfmpyfcpvjnf87a6vnu3arq", symbol: "PYUSD", name: "PayPal USD", decimals: 6 },
+    ],
+  };
   const MAINNET_TICKER = [
     { symbol: "BTCUSD", price: "81842.44000000" },
     { symbol: "USDTUSD", price: "0.99877000" },
     { symbol: "NEARUSDT", price: "4.95300000" },
   ];
+  const routes = (): Routes => ({ "token-list/main/mainnet.json": MAINNET_LIST, "binance.vision": MAINNET_TICKER });
   const USDCX = "0xe69e6ca6e39df1b10c1e5399399feb";
   const WBTC = "0x3084d3c389ececd15fda9770d18c8a";
   const NEAR = "0x5fcca2d015cf44d15da1a641d4d06a";
   const PYUSD = "0xeb4266c94493b091380b25349fddd3";
 
-  // 0xMiden/token-list has no mainnet.json, so every mainnet token was unpriced.
-  it("prices mainnet from the dashboard's own list while token-list has none", async () => {
-    mockFetch({ "api.binance.com": MAINNET_TICKER });
+  it("prices the published list, a binanceAsset under that symbol", async () => {
+    mockFetch(routes());
     const { priceBook } = await freshModule();
     const book = await priceBook("MidenMainnet");
-    expect(book.usd(USDCX, "10000")).toBe(0.01);
-    expect(book.token(USDCX)).toEqual({ symbol: "USDCx", decimals: 6 });
     expect(book.usd(WBTC, "100000000")).toBeCloseTo(81842.44, 6);
     expect(book.usd(PYUSD, "2000000")).toBe(2);
   });
 
+  // The published list leaves out USDCx, and mainnet has no faucet service to
+  // find the native asset through, so lib/mainnet-tokens.json names it.
+  it("adds the USDCx the published list leaves out", async () => {
+    mockFetch(routes());
+    const { priceBook } = await freshModule();
+    const book = await priceBook("MidenMainnet");
+    expect(book.usd(USDCX, "10000")).toBe(0.01);
+    expect(book.token(USDCX)).toEqual({ symbol: "USDCx", decimals: 6 });
+  });
+
+  // The dashboard's list is a separate document, like wallet-config.
+  it("keeps USDCx when the published list is rejected", async () => {
+    mockFetch({ ...routes(), "token-list/main/mainnet.json": { tokens: [{ network: "mainnet" }] } });
+    const { priceBook } = await freshModule();
+    const book = await priceBook("MidenMainnet");
+    expect(book.usd(WBTC, "100000000")).toBeUndefined();
+    expect(book.usd(USDCX, "10000")).toBe(0.01);
+  });
+
   it("converts a USDT quote at USDTUSD, and drops it without one", async () => {
-    mockFetch({ "api.binance.com": MAINNET_TICKER });
+    mockFetch(routes());
     const { priceBook } = await freshModule();
     expect((await priceBook("MidenMainnet")).usd(NEAR, "100000000")).toBeCloseTo(4.953 * 0.99877, 9);
 
-    mockFetch({ "api.binance.com": MAINNET_TICKER.filter((t) => t.symbol !== "USDTUSD") });
+    mockFetch({ ...routes(), "binance.vision": MAINNET_TICKER.filter((t) => t.symbol !== "USDTUSD") });
     const { priceBook: again } = await freshModule();
     expect((await again("MidenMainnet")).usd(NEAR, "100000000")).toBeUndefined();
-  });
-
-  it("lets a published mainnet list replace the dashboard's own", async () => {
-    mockFetch({ "token-list/main/mainnet.json": { tokens: [] }, "api.binance.com": MAINNET_TICKER });
-    const { priceBook } = await freshModule();
-    const book = await priceBook("MidenMainnet");
-    expect(book.token(USDCX)).toBeUndefined();
-    expect(book.usd(WBTC, "100000000")).toBeUndefined();
   });
 });
 
